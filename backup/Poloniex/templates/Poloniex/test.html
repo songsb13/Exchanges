@@ -1,0 +1,18 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Poloniex Tab</title>
+    <script type="text/javascript" src="{% static 'js/jquery-3.2.1.js' %}"></script>
+    <script type="text/javascript" src="{% static 'Poloniex/js/poloniex.js' %}"> </script>
+</head>
+<body>
+    <form id="submit_key" action="" method="post">
+        <label for="key">KEY: </label><input type="text" id="key" name="key">
+        <label for="secret">SECRET: </label><input type="password" id="secret" name="secret">
+        {% csrf_token %}
+        <input type="submit">
+    </form>
+</body>
+</html>
