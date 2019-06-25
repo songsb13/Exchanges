@@ -9,7 +9,7 @@ from urllib.parse import urlencode
 from decimal import *
 
 
-class BaseExchange:
+class BaseExchange(object):
     '''
     all exchanges module should be followed BaseExchange format.
     '''
@@ -34,7 +34,7 @@ class BaseExchange:
         3. message: if success is False, logging with this message.
         4. time: if success is False, will be sleep this time.
         '''
-
+        pass
     def _private_api(self, method, path, extra=None):
         '''
         For using private API
@@ -48,16 +48,19 @@ class BaseExchange:
         3. message: if success is False, logging with this message.
         4. time: if success is False, will be sleep this time.
         '''
+        pass
 
     def _sign_generator(self, *args):
         '''
         :return: signed data example sha256, 512 etc..
         '''
+        pass
 
     def _currencies(self):
         '''
         :return: available currencies, symbol is dependent of each exchange
         '''
+        pass
 
     def fee_count(self):
         '''
@@ -67,16 +70,19 @@ class BaseExchange:
         upbit: btc -> alt, return 1
 
         '''
+        pass
 
     def get_ticker(self, market):
         '''
         :return: Ticker data, type is dependent of each exchange.
         '''
+        pass
 
     def get_available_coin(self):
         '''
         :return: Custom symbol list ['BTC_XRP', 'BTC_LTC']
         '''
+        pass
 
     def withdraw(self, coin, amount, to_address, payment_id=None):
         '''
@@ -86,6 +92,7 @@ class BaseExchange:
         :param payment_id: include if required
         :return: success, data, message, time
         '''
+        pass
 
     def buy(self, coin, amount, price):
         '''
@@ -94,6 +101,7 @@ class BaseExchange:
         :param price: type is dependent of exchange, common type is str or float. --> 0.001
         :return:
         '''
+        pass
 
     def sell(self, coin, amount, price):
         '''
@@ -102,6 +110,7 @@ class BaseExchange:
         :param price: type is dependent of exchange, common type is str or float. --> 0.001
         :return:
         '''
+        pass
 
     def base_to_alt(self, currency_pair, btc_amount, alt_amount, td_fee, tx_fee):
         '''
@@ -112,6 +121,7 @@ class BaseExchange:
         :param tx_fee: transaction fee
         :return:
         '''
+        pass
 
     async def _async_public_api(self, method, path, extra=None, header=None):
         '''
@@ -128,6 +138,7 @@ class BaseExchange:
         3. message: if success is False, logging with this message.
         4. time: if success is False, will be sleep this time.
         '''
+        pass
 
     async def _async_private_api(self, method, path, extra=None):
         '''
@@ -142,23 +153,27 @@ class BaseExchange:
         3. message: if success is False, logging with this message.
         4. time: if success is False, will be sleep this time.
         '''
+        pass
 
     async def get_deposit_addrs(self, coin_list=None):
         '''
         :param coin_list:
         :return: exchange deposit addrs, type is have to dictonary --> {'BTC': BTCaddrs, ...}
         '''
+        pass
 
     async def get_balance(self):
         '''
         :return: user balance, type is have to dictonary --> {'BTC': float(amount), ...}
         '''
+        pass
 
     async def _get_orderbook(self, symbol):
         '''
         :param market: market must be exchange symbol.
         :return: orderbook, is dependent of each exchange
         '''
+        pass
 
     async def get_curr_avg_orderbook(self, coin_list, btc_sum=1):
         '''
@@ -166,6 +181,7 @@ class BaseExchange:
         :param btc_sum: be calculate average base on btc_sum
         :return: dict, set of custom symbol with its ask & bid average. {BTC_XRP:{asks:Decimal, bids:Decimal}, ...}
         '''
+        pass
 
     async def compare_orderbook(self, other, coins, default_btc=1):
         '''
@@ -174,5 +190,6 @@ class BaseExchange:
         :param default_btc: dfc
         :return: tuple, 2 different exchange orderbook & profit percent of main & sec exchanges
         '''
+        pass
 
 
