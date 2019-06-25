@@ -2,11 +2,20 @@ import requests
 import json
 import time
 import aiohttp
-import numpy as np
 import asyncio
+import jwt
+import hmac
+import json
+import asyncio
+import base64
+import aiohttp
 
-from urllib.parse import urlencode
+import numpy as np
+
+from pyinstaller_patch import *
 from decimal import *
+from urllib.parse import urlencode
+from datetime import datetime
 
 
 class BaseExchange(object):
