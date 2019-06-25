@@ -305,7 +305,7 @@ class Huobi(BaseExchange):
         else:
             return False, '', '[Huobi]사용가능한 코인을 가져오는데 실패했습니다. [{}]'.format(gac_msg), 1
 
-    async def balance(self):
+    async def get_balance(self):
         if self._account_id is None:
             id_s, d, id_m, id_t = self._get_account_id()
 
