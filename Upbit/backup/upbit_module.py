@@ -1,17 +1,14 @@
-import jwt
-
-from BaseExchange import BaseExchange
+from BaseExchange import *
 
 
 class BaseUpbit(BaseExchange):
-    '''
-
-    '''
-    def __init__(self, **kwargs):
+    def __init__(self, key, secret):
         self._base_url = 'https://api.upbit.com/v1'
-        if kwargs:
-            self._key = kwargs['key']
-            self._secret = kwargs['secret']
+        self._key = key
+        self._secret = secret
+
+    def __repr__(self):
+        return 'BaseUpbit'
 
     def _public_api(self, method, path, extra=None, header=None):
         if header is None:
@@ -27,19 +24,19 @@ class BaseUpbit(BaseExchange):
         elif method == 'POST':
             rq = requests.post(path, headers=header, params=extra)
         else:
-            return False, '', '[{}]incorrect method'.format(method)
+            return False, '', '[{}]incorrect method'.format(method), 1
 
         try:
             res = rq.json()
 
             if 'error' in res:
-                return False, '', res['error']['message']
+                return False, '', res['error']['message'], 1
 
             else:
-                return True, res, ''
+                return True, res, '', 0
 
         except Exception as ex:
-            return False, '', 'Error [{}]'.format(ex)
+            return False, '', 'Error [{}]'.format(ex), 1
 
     def _private_api(self, method, path, extra=None):
         payload = {
@@ -50,24 +47,22 @@ class BaseUpbit(BaseExchange):
         if extra is not None:
             payload.update({'query': urlencode(extra)})
 
-        header = self.get_jwt_token(payload)
+        header = self._sign_generator(payload)
 
         return self._public_api(method, path, extra, header)
 
     def _sign_generator(self, *args):
-
+        payload = args
+        return 'Bearer {}'.format(jwt.encode(payload, self._secret,).decode('utf8'))
 
     def fee_count(self):
         # 몇변의 수수료가 산정되는지
         return 1
 
-    def get_jwt_token(self, payload):
-        return 'Bearer {}'.format(jwt.encode(payload, self._secret,).decode('utf8'))
-
     def get_ticker(self, market):
         return self._public_api('get', 'ticker', market)
 
-    def currencies(self):
+    def _currencies(self):
         # using get_currencies, service_currencies
         return self._public_api('get', '/'.join(['market', 'all']))
 
@@ -122,28 +117,21 @@ class BaseUpbit(BaseExchange):
         return self._private_api('POST', 'orders', params)
 
     def base_to_alt(self, currency_pair, btc_amount, alt_amount, td_fee, tx_fee):
-        # after self.buy()
-        alt_amount *= 1 - Decimal(td_fee)
-        alt_amount -= Decimal(tx_fee[currency_pair.split('_')[1]])
-        alt_amount = alt_amount.quantize(Decimal(10) ** -4, rounding=ROUND_DOWN)
+        success, data, msg, time_ = self.buy(currency_pair, btc_amount)
+        
+        if success:
+            alt_amount *= 1 - Decimal(td_fee)
+            alt_amount -= Decimal(tx_fee[currency_pair.split('_')[1]])
+            alt_amount = alt_amount.quantize(Decimal(10) ** -4, rounding=ROUND_DOWN)
 
-        return True, alt_amount, ''
+            return True, alt_amount, ''
+        else:
+            return False, '', '[Upbit]BaseToAlt 거래에 실패했습니다[{}]'.format(msg), time_
 
-    # def alt_to_base(self, currency_pair, btc_amount, alt_amount):
-    #     # after self.sell()
-    #     if suc:
-    #         upbit_logger.info('AltToBase 성공')
-    #
-    #         return True, '', data, 0
-    #
-    #     else:
-    #         upbit_logger.info(msg)
-    #
-    #         if '부족합니다.' in msg:
-    #             alt_amount -= Decimal(0.0001).quantize(Decimal(10) ** -4)
-    #             continue
+    def get_precision(self, pair):
+        return True, (-8, -8), '', 0
 
-    async def async_public_api(self, method, path, extra=None, header=None):
+    async def _async_public_api(self, method, path, extra=None, header=None):
         if header is None:
             header = {}
 
@@ -159,19 +147,19 @@ class BaseUpbit(BaseExchange):
                 elif method == 'POST':
                     rq = await s.post(path, headers=header, params=extra)
                 else:
-                    return False, '', '[{}]incorrect method'.format(method)
+                    return False, '', '[{}]incorrect method'.format(method), 1
 
                 res = json.loads(await rq.text())
 
                 if 'error' in res:
-                    return False, '', res['error']['message']
+                    return False, '', res['error']['message'], 1
 
                 else:
-                    return True, res, ''
+                    return True, res, '', 0
         except Exception as ex:
-            return False, '', 'Error [{}]'.format(ex)
+            return False, '', 'Error [{}]'.format(ex), 1
 
-    async def async_private_api(self, method, path, extra=None):
+    async def _async_private_api(self, method, path, extra=None):
         payload = {
             'access_key': self._key,
             'nonce': int(time.time() * 1000),
@@ -180,25 +168,60 @@ class BaseUpbit(BaseExchange):
         if extra is not None:
             payload.update({'query': urlencode(extra)})
 
-        header = self.get_jwt_token(payload)
+        header = self._sign_generator(payload)
 
-        return await self.async_public_api(method, path, extra, header)
+        return await self._async_public_api(method, path, extra, header)
 
-    async def get_deposit_addrs(self, coin_list=None):
-        return self.async_public_api('get', '/'.join(['v1', 'deposits', 'coin_addresses']))
-
-    async def get_balance(self):
+    async def _balance(self):
         return self._private_api('get', 'accounts')
 
-    async def get_detail_balance(self, data):
-        # bal = self.get_balance()
-        return {bal['currency']: bal['balance'] for bal in data}
+    async def _get_deposit_addrs(self):
+        return self._async_public_api('get', '/'.join(['v1', 'deposits', 'coin_addresses']))
+
+    async def get_deposit_addrs(self, coin_list=None):
+        success, data, message, time_ = self._get_deposit_addrs()
+
+        if not success:
+            return False, '', message, time_
+    
+    async def get_transation_fee(self):
+        path = '/'.join(['withdraws', 'chance'])
+
+        suc, currencies, msg, time_ = self.get_available_coin()
+
+        if not suc:
+            return False, '', '[Upbit] 거래가능한 코인을 가져오는 중 에러가 발생했습니다. = [{}]'.format(msg), time_
+
+        tradable_currencies = self.service_currencies(currencies)
+
+        fees = {}
+        for currency in tradable_currencies:
+            ts_suc, ts_data, ts_msg, ts_time = await self._async_private_api('get', path, {'currency': currency})
+
+            if not ts_suc:
+                return False, '', '[Upbit] 출금 수수료를 가져오는 중 에러가 발생했습니다. = [{}]'.format(ts_msg), ts_time
+
+            else:
+                if ts_data['currency']['withdraw_fee'] is None:
+                    ts_data['currency']['withdraw_fee'] = 0
+
+                fees[currency] = Decimal(ts_data['currency']['withdraw_fee']).quantize(Decimal(10) ** -8)
+
+        return True, fees, '', 0
+
+    async def get_balance(self):
+        success, data, message, time_ = self._balance()
+
+        if success:
+            return {bal['currency']: bal['balance'] for bal in data}
+        else:
+            return False, '', '[Upbit]BaseToAlt 거래에 실패했습니다[{}]'.format(message), time_
 
     async def get_orderbook(self, market):
-        return self.async_public_api('get', 'orderbook', {'markets': market})
+        return self._async_public_api('get', 'orderbook', {'markets': market})
 
     async def get_btc_orderbook(self, btc_sum):
-        s, d, m = await self.get_orderbook('KRW-BTC')
+        s, d, m, t = await self.get_orderbook('KRW-BTC')
 
     async def get_curr_avg_orderbook(self, coin_list, btc_sum=1):
         avg_order_book = {}
@@ -253,3 +276,147 @@ class BaseUpbit(BaseExchange):
 
             return True, res, ''
 
+
+class UpbitBTC(BaseUpbit):
+    def __init__(self, *args):
+        super(UpbitBTC, self).__init__(*args)
+
+    def __repr__(self):
+        return 'UpbitBTC'
+
+
+class UpbitKRW(BaseUpbit):
+    def __init__(self, *args):
+        super(UpbitKRW, self).__init__(*args)
+
+    def __repr__(self):
+        return 'UpbitKRW'
+
+    def fee_count(self):
+        return 2
+
+    def base_to_alt(self, currency_pair, btc_amount, alt_amount, td_fee, tx_fee):
+        for _ in range(10):
+            success, data, message, time_ = self.sell('BTC', btc_amount)
+            if success:
+                break
+
+            else:
+                if '부족합니다.' in message:
+                    alt_amount -= Decimal(0.0001).quantize(Decimal(10) ** -4)
+                    continue
+        else:
+            return False, '', '[Upbit]BaseToAlt실패 = [{}]'.format(message)
+
+        currency_pair = currency_pair.split('_')[1]
+
+        for _ in range(10):
+            success, data, message, time_ = self.buy(currency_pair, Decimal(alt_amount))
+
+            if success:
+                break
+
+            else:
+                if '부족합니다.' in message:
+                    alt_amount -= Decimal(0.0001).quantize(Decimal(10) ** -4)
+                    continue
+        else:
+            return False, '', '[Upbit]BaseToAlt실패 = [{}]'.format(message)
+
+        alt_amount *= ((1 - Decimal(td_fee)) ** 2)
+        alt_amount -= Decimal(tx_fee[currency_pair.split('_')[1]])
+        alt_amount = alt_amount.quantize(Decimal(10) ** -4, rounding=ROUND_DOWN)
+
+        return True, alt_amount, '', 0
+
+    def alt_to_base(self, currency_pair, btc_amount, alt_amount):
+        currency_pair = currency_pair.split('_')[1]
+
+        for _ in range(10):
+            success, data, message, time_ = self.sell(currency_pair, alt_amount)
+
+            if success:
+                break
+
+            else:
+                if '부족합니다.' in message:
+                    alt_amount -= Decimal(0.0001).quantize(Decimal(10) ** -4)
+                    continue
+
+        else:
+            return False, '', '[Upbit]AltToBase실패 = [{}]'.format(message)
+
+        for _ in range(10):
+            success, data, message, time_ = self.buy('BTC', btc_amount)
+
+            if success:
+                return True, '', '[Upbit]AltToBase ALT구매 성공', 0
+
+            else:
+                if '부족합니다.' in message:
+                    alt_amount -= Decimal(0.0001).quantize(Decimal(10) ** -4)
+                    continue
+        else:
+            return False, '', '[Upbit]AltToBase실패 = [{}]'.format(message)
+
+    def get_step(self, price):
+        if price >= 2000000:
+            return 1000
+        elif 2000000 > price >= 1000000:
+            return 500
+        elif 1000000 > price >= 500000:
+            return 100
+        elif 500000 > price >= 100000:
+            return 50
+        elif 100000 > price >= 10000:
+            return 10
+        elif 10000 > price >= 1000:
+            return 5
+        elif price < 10:
+            return 0.01
+        elif price < 100:
+            return 0.1
+        elif price < 1000:
+            return 1
+
+    def buy(self, coin, amount, price):
+        coin = 'KRW-{}'.format(coin.split('_')[1])
+        price = int(price)
+
+        params = {
+            'market': coin,
+            'side': 'bid',
+            'volume': str(amount),
+            'price': (price * 1.05) + (self.get_step(price * 1.05) - ((price * 1.05) % self.get_step(price * 1.05))),
+            'ord_type': 'limit'
+        }
+
+        return self._private_api('POST', 'orders', params)
+
+    def sell(self, coin, amount, price):
+        coin = 'KRW-{}'.format(coin.split('_')[1])
+        price = int(price)
+
+        params = {
+            'market': coin,
+            'side': 'ask',
+            'volume': str(amount),
+            'price': (price * 0.95) - ((price * 0.95) % self.get_step(price * 0.95)),
+            'ord_type': 'limit'
+        }
+
+        return self._private_api('POST', 'orders', params)
+
+    async def get_trading_fee(self):
+        return True, 0.0005, '', 0
+
+
+class UpbitUSDT(UpbitKRW):
+    def __init__(self, *args):
+        super(UpbitUSDT, self).__init__(*args)
+
+    def buy(self, coin, amount, price):
+        pass
+
+    def sell(self, coin, amount, price):
+        pass
