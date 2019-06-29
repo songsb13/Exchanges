@@ -1,27 +1,25 @@
 from pyinstaller_patch import *
 import hmac
-import json
-from urllib.parse import urlencode
-from decimal import *
-import asyncio
 import math
-import aiohttp
+import hashlib
+
+from BaseExchange import *
 
 
-class Binance:
+class Binance(BaseExchange):
     def __init__(self, key, secret):
-        self._endpoint = 'https://api.binance.com'
-
+        self._base_url = 'https://api.binance.com'
         self._key = key
         self._secret = secret
         self.exchange_info = None
 
     def servertime(self):
-        suc, stat, msg, time_ = self.public_api('/api/v1/time')
+        suc, stat, msg, time_ = self._public_api('/api/v1/time')
 
         return suc, stat, msg, time_
 
-    def encrypto(self, params):
+    def _sign_generator(self, *args):
+        params = args
         if params is None:
             params = {}
 
@@ -42,14 +40,14 @@ class Binance:
 
         return True, params, msg, t_sleep
 
-    def private_api(self, method, path, params=None):
-        if params is None:
-            params = {}
+    def _private_api(self, method, path, extra=None):
+        if extra is None:
+            extra = {}
 
         try:
-            suc, query, msg, time_ = self.encrypto(params)
+            suc, query, msg, time_ = self._sign_generator(extra)
 
-            rq = requests.request(method, self._endpoint + path, data=query, headers={"X-MBX-APIKEY": self._key})
+            rq = requests.request(method, self._base_url + path, data=query, headers={"X-MBX-APIKEY": self._key})
             res = rq.json()
 
             if 'msg' in res:
@@ -61,12 +59,12 @@ class Binance:
         except Exception as ex:
             return False, '', '서버와 통신에 실패했습니다. [{}]'.format(ex), 1
 
-    def public_api(self, path, params=None):
-        if params is None:
-            params = {}
+    def _public_api(self, method, path, extra=None, header=None):
+        if extra is None:
+            extra = {}
 
         try:
-            rq = requests.get(self._endpoint + path, params=params)
+            rq = requests.get(self._base_url + path, params=extra)
             res = rq.json()
 
             if 'msg' in res:
@@ -78,8 +76,8 @@ class Binance:
         except Exception as ex:
             return False, '', '서버와 통신에 실패했습니다. [{}]'.format(ex), 1
 
-    def get_exchange_info(self):  # API에서 제공하는 서비스 리턴
-        suc, stat, msg, time_ = self.public_api('/api/v1/exchangeInfo')
+    def _get_exchange_info(self):  # API에서 제공하는 서비스 리턴
+        suc, stat, msg, time_ = self._public_api('GET', '/api/v1/exchangeInfo')
 
         if not suc:
             #  Symbol값을 가져오지 못한 경우.
@@ -121,15 +119,15 @@ class Binance:
             return False, '', '[Binance] {} 호가 정보가 없습니다.'.format(pair), 60
 
     def get_available_coin(self):  # API에서 제공하는 서비스 리턴
-        coins = self.exchange_info.keys()
-        able_coins = []
-        for av in coins:
-            able_coins.append(av)
+        if not self.exchange_info:
+            success, data, message, time_ = self._get_exchange_info()
 
-        return True, able_coins, '', 0
+            if not success:
+                return False, '', message, time_
 
-    def buy(self, coin, amount):
-        debugger.info('구매, coin-[{}] amount-[{}] 입력되었습니다.'.format(coin, amount))
+        return True, [coin for coin in self.exchange_info.keys()], '', 0
+
+    def buy(self, coin, amount, price):
         coin = coin.split('_')
         if coin[1] == 'BCH':
             coin[1] = 'BCC'
@@ -141,14 +139,8 @@ class Binance:
                     'quantity': '{0:4f}'.format(amount).strip(),
                     'type': 'MARKET'
                   }
-        buy_suc, buy_data, buy_msg, buy_time = self.private_api('POST', '/api/v3/order', params)
 
-        if not buy_suc:
-            #  구매 리퀘스트가 실패한 경우.
-            debugger.debug('구매, 에러가 발생했습니다. [{}] '.format(buy_msg))
-            return False, '', '[Binance]구매, 에러가 발생했습니다.[{}] '.format(buy_msg)
-
-        return buy_suc, buy_data, buy_msg, buy_time
+        return self._private_api('POST', '/api/v3/order', params)
 
     def sell(self, coin, amount):
         debugger.info('판매, coin-[{}] amount-[{}] 입력되었습니다.'.format(coin, amount))
@@ -166,14 +158,7 @@ class Binance:
                     'type': 'MARKET'
                   }
 
-        sell_suc, sell_data, sell_msg, sell_time = self.private_api('POST', '/api/v3/order', params)
-
-        if not sell_suc:
-            #  구매 리퀘스트가 실패한 경우.
-            debugger.debug('판매, 에러가 발생했습니다. [{}] '.format(sell_msg))
-            return False, '', '[Binance]판매, 에러가 발생했습니다.[{}] '.format(sell_msg)
-
-        return sell_suc, sell_data, sell_msg, sell_time
+        return self.private_api('POST', '/api/v3/order', params)
 
     def fee_count(self):
         return 1
@@ -188,9 +173,7 @@ class Binance:
 
         if not suc:
             # Base to alt 실패시
-            debugger.info('BaseToAlt에러 = [{}]'.format(msg))
-
-            return suc, data, msg, time_
+            return suc, data, '[Binance] {} 구매에 실패했습니다.'.format(currency_pair.split('_')[1]), time_
 
         coin = currency_pair.split('_')[1]
         # 보내야하는 alt의 양 계산함.
@@ -205,23 +188,18 @@ class Binance:
             suc, data, msg, time_ = self.sell(currency_pair, alt_amount)
 
             if suc:
-                debugger.info('AltToBase 성공')
-
                 return True, '', data, 0
 
             else:
                 time.sleep(time_)
 
         else:
-            return False, '', '[Binance]AltToBase실패 = [{}]'.format(msg)
+            return False, '', '[Binance] {} 판매에 실패했습니다.'.format(currency_pair.split('_')[1]), time_
 
-    def get_ticker(self):
-        suc, data, msg, time_ = self.public_api('/api/v1/ticker/24hr')
+    def get_ticker(self, market):
+        return self._public_api('GET', '/api/v1/ticker/24hr')
 
-        return suc, data, msg, time_
-
-    def withdraw(self, coin,amount, to_address, payment_id=None):
-        debugger.debug('출금-[{}][{}][{}][{}] 받았습니다.'.format(coin, amount, to_address, payment_id))
+    def withdraw(self, coin, amount, to_address, payment_id=None):
         if coin == 'BCH':
             coin = 'BCC'
         params = {
@@ -235,15 +213,10 @@ class Binance:
             tag_dic = {'addressTag': payment_id}
             params.update(tag_dic)
 
-        suc, data, msg, time_ = self.private_api('POST', '/wapi/v3/withdraw.html', params)
-
-        if not suc:
-            debugger.debug('withdraw 에러 발생 [{}]'.format(msg))
-
-        return suc, data, msg, time_
+        return self._private_api('POST', '/wapi/v3/withdraw.html', params)
 
     def get_candle(self, coin, unit, count):
-        path = '/'.join([self._endpoint, 'api', 'v1', 'klines'])
+        path = '/'.join([self._base_url, 'api', 'v1', 'klines'])
 
         params = {
                     'symbol': coin,
@@ -251,7 +224,7 @@ class Binance:
                     'limit': count,
         }
         # 1m, 3m, 5m, 15m, 30m, 1h, 2h, 4h, 6h, 8h, 12h, 1d, 3d, 1w, 1M
-        suc, data, msg, time_ = self.public_api(path, params)
+        suc, data, msg, time_ = self._public_api('GET', path, params)
 
         if not suc:
             return suc, data, msg
@@ -281,24 +254,24 @@ class Binance:
         except Exception as ex:
             return False, '', 'history를 가져오는 과정에서 에러가 발생했습니다. =[{}]'.format(ex)
 
-    async def async_private_api(self, method, path, params=None):
-        if params is None:
-            params = {}
+    async def _async_private_api(self, method, path, extra=None):
+        if extra is None:
+            extra = {}
 
         async with aiohttp.ClientSession(headers={"X-MBX-APIKEY": self._key}) as s:
-            crypto_suc, query, crypto_msg, crypto_time = self.encrypto(params)
+            crypto_suc, query, crypto_msg, crypto_time = self._sign_generator(extra)
 
             if not crypto_suc:
-                return crypto_suc, query, crypto_msg, crypto_time
+                return False, '', crypto_msg, crypto_time
 
             try:
                 if method == 'GET':
                     sig = query.pop('signature')
-                    query = "{}&signature={}".format(urlencode(sorted(params.items())), sig)
-                    rq = await s.get(self._endpoint + path + "?{}".format(query))
+                    query = "{}&signature={}".format(urlencode(sorted(extra.items())), sig)
+                    rq = await s.get(self._base_url + path + "?{}".format(query))
 
                 else:
-                    rq = await s.post(self._endpoint + path, data=query)
+                    rq = await s.post(self._base_url + path, data=query)
 
                 res = await rq.text()
                 res = json.loads(res)
@@ -312,12 +285,12 @@ class Binance:
             except Exception as ex:
                 return False, '', '서버와의 통신에 실패했습니다. [{}]'.format(ex), 1
 
-    async def async_public_api(self, path, params=None):
-        if params is None:
-            params = {}
+    async def _async_public_api(self, method, path, extra=None, header=None):
+        if extra is None:
+            extra = {}
 
         async with aiohttp.ClientSession() as s:
-            rq = await s.get(self._endpoint + path, params=params)
+            rq = await s.get(self._base_url + path, params=extra)
 
         try:
             res = await rq.text()
@@ -332,11 +305,11 @@ class Binance:
         except Exception as ex:
             return False, '', '서버와의 통신에 실패했습니다. [{}]'.format(ex), 1
 
-    async def get_deposit_addrs(self):
+    async def get_deposit_addrs(self, coin_list=None):
         av_suc, coin_list, av_msg, av_time = self.get_available_coin()
 
         if not av_suc:
-            return av_suc, coin_list, av_msg, av_time
+            return False, '', av_msg, av_time
 
         try:
             ret_msg = ""
@@ -348,11 +321,9 @@ class Binance:
                 if coin == 'BCH':
                     coin = 'BCC'
 
-                rq_suc, rq_data, rq_msg, rq_time = await self.async_private_api('GET','/wapi/v3/depositAddress.html',{'asset': coin})
+                rq_suc, rq_data, rq_msg, rq_time = await self._async_private_api('GET', '/wapi/v3/depositAddress.html', {'asset': coin})
 
                 if not rq_data['success']:
-                    debugger.debug(rq_msg)
-                    debugger.info('[{}]해당 코인은 점검 중입니다.'.format(coin))
                     ret_msg += '[{}]해당 코인은 점검 중입니다.\n'.format(coin)
                     continue
 
@@ -373,7 +344,7 @@ class Binance:
         except Exception as ex:
             return False, '', '[Binance]입금 주소를 가져오는데 실패했습니다. [{}]'.format(ex), 1
 
-    async def get_avg_price(self,coins): # 내거래 평균매수가
+    async def get_avg_price(self,coins):  # 내거래 평균매수가
         try:
             amount_price_list, res_value = [], []
             for coin in coins:
@@ -387,13 +358,11 @@ class Binance:
                         break
 
                     else:
-                        debugger.debug('History값을 가져오는데 실패했습니다. [{}]'.format(hist_msg))
                         time.sleep(1)
 
                 else:
                     # history 값을 가져오는데 실패하는 경우.
-                    return (hist_suc, history,
-                            '[Binance]History값을 가져오는데 실패했습니다. [{}]'.format(hist_msg), hist_time)
+                    return False, '', '[Binance]History값을 가져오는데 실패했습니다. [{}]'.format(hist_msg), hist_time
 
                 history.reverse()
                 for _data in history:
@@ -441,8 +410,6 @@ class Binance:
 
                     if not data_list:
                         # AllAsset에서 값을 못받아 온 경우.
-                        debugger.debug('get_transaction_fee 에러 발생 [{}]'.format(rq))
-
                         return False, '', '[Binance]출금비용을 가져오는데 실패했습니다.', 60
                 except Exception as ex:
                     return False, '', '[Binance]출금비용을 가져오는데 실패했습니다. [{}]'.format(ex), 60
@@ -458,8 +425,8 @@ class Binance:
         except Exception as ex:
             return False, '', '[Binance]출금비용을 가져오는데 실패했습니다. [{}]'.format(ex), 60
 
-    async def balance(self):
-        suc, data, msg, time_ = await self.async_private_api('GET', '/api/v3/account')
+    async def get_balance(self):
+        suc, data, msg, time_ = await self._async_private_api('GET', '/api/v3/account')
 
         if not suc:
             return suc, data, msg, time_
