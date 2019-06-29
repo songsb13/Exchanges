@@ -164,6 +164,13 @@ class BaseExchange(object):
         '''
         pass
 
+    async def _get_orderbook(self, symbol):
+        '''
+        :param market: market must be exchange symbol.
+        :return: orderbook, is dependent of each exchange
+        '''
+        pass
+
     async def get_deposit_addrs(self, coin_list=None):
         '''
         :param coin_list:
@@ -177,12 +184,17 @@ class BaseExchange(object):
         '''
         pass
 
-    async def _get_orderbook(self, symbol):
+    async def get_trading_fee(self):
         '''
-        :param market: market must be exchange symbol.
-        :return: orderbook, is dependent of each exchange
+        :return: trading fee variable exchanges. type is float --> 0.01
         '''
-        pass
+
+    async def get_transaction_fee(self):
+        '''
+        :return:  dependent of exchange, common type is have to dictonary --> {'BTC': Decimal(fee), ...}
+        '''
+
+
 
     async def get_curr_avg_orderbook(self, coin_list, btc_sum=1):
         '''
