@@ -48,16 +48,19 @@ class BaseBitfinex(BaseExchange):
             return False, '', 'API호출 중 에러가 발생했습니다. {}'.format(ex), 1
 
     def _get_symbol_full_name(self):
-        success, data, message, time_ = self._public_api('GET', '/v2/conf/pub:map:currency:label')
-        
-        if not success:
-            return False, '', message, time_
-        
-        for loop_ in data[0]:
-            self._symbol_full_name[loop_[0]] = loop_[1]
+        for _ in range(3):
+            success, data, message, time_ = self._public_api('GET', '/v2/conf/pub:map:currency:label')
 
-        return True, self._symbol_full_name, '', 0
-    
+            if not success:
+                continue
+
+            for loop_ in data[0]:
+                self._symbol_full_name[loop_[0]] = loop_[1]
+
+            return True, self._symbol_full_name, '', 0
+        else:
+            return False, '', message, time_
+
     def _private_api(self, method, path, extra=None):
         try:
             if extra is None:
@@ -81,23 +84,29 @@ class BaseBitfinex(BaseExchange):
             return False, '', 'API호출 중 에러가 발생했습니다. {}'.format(ex), 1
 
     def _currencies(self):
-        return self._public_api('GET', '/v1/symbols')
+        for _ in range(3):
+            success, data, message, time_ = self._public_api('GET', '/v1/symbols')
 
-    def get_transaction_fee(self):
-        return self._private_api('POST', '/v1/account_fees')
+            if success:
+                return True, data, message, time_
+        else:
+            return False, '', message, time_
 
     def get_precision(self, pair):
         return True, (-8, -8), '', 0
 
     def get_ticker(self, market):
-        bitfinex_currency_pair = (market.split('_')[-1] + market.split('_')[0]).lower()
-        success, price, message, time_ = self._public_api('GET', 'pubticker', {'pair': bitfinex_currency_pair})
-        if not success:
+        for _ in range(3):
+            bitfinex_currency_pair = (market.split('_')[-1] + market.split('_')[0]).lower()
+            success, price, message, time_ = self._public_api('GET', 'pubticker', {'pair': bitfinex_currency_pair})
+            if not success:
+                continue
+
+            current_price = float(price['last_price'])
+
+            return True, current_price, "", 0
+        else:
             return False, '', message, time_
-
-        current_price = float(price['last_price'])
-
-        return True, current_price, "", 0
 
     def buy(self, market, quantity, price=None):
         params = {
@@ -129,6 +138,7 @@ class BaseBitfinex(BaseExchange):
 
     def withdraw(self, coin, amount, to_address, payment_id=None):
         if not self._symbol_full_name:
+            # 로직 상 deposit_addrs에서 값이 지정됨.
             success, _, message, time_ = self._get_symbol_full_name()
             return False, '', message, time_
 
@@ -169,21 +179,23 @@ class BaseBitfinex(BaseExchange):
         return True, alt, '', 0
 
     def alt_to_base(self, currency, tradable_btc, alt_amount):
-        for _ in range(10):
-            success, val, message, time_ = self.sell(currency, alt_amount)
-            if success:
-                break
-            else:
-                time.sleep(time_)
-        else:
-            return False, '', message, time_
+        return self.sell(currency, alt_amount)
+
+        # for _ in range(10):
+        #     success, val, message, time_ = self.sell(currency, alt_amount)
+        #     if success:
+        #         return True, '', '', 0
+        #     else:
+        #         time.sleep(time_)
+        # else:
+        #     return False, '', message, time_
 
     async def _async_public_api(self, method, path, extra=None, header=None):
         if extra is None:
             extra = {}
 
-        url = self._base_url + path
         try:
+            url = self._base_url + path
             async with aiohttp.ClientSession() as sync:
                 rq = await sync.get(url, params=extra)
                 res = json.loads(await rq.text())
@@ -200,8 +212,8 @@ class BaseBitfinex(BaseExchange):
         if extra is None:
             extra = {}
 
-        url = self._base_url + path
         try:
+            url = self._base_url + path
             async with aiohttp.ClientSession() as sync:
                 extra['request'] = path
                 extra['nonce'] = str(time.time())
@@ -220,13 +232,23 @@ class BaseBitfinex(BaseExchange):
             return False, '', '서버와 통신에 실패하였습니다 = [{}]'.format(ex), 1
 
     async def _get_balance(self):
-        return await self._async_private_api('POST', '/v1/balances')
+        for _ in range(3):
+            success, data, message, time_ = await self._async_private_api('POST', '/v1/balances')
+
+            if success:
+                return True, data, message, time_
+
+            time.sleep(3)
+
+        else:
+            return False, '', message, time_
 
     async def _get_deposit_addrs(self, currency):
         # wallet name이 지정되어 있어야 한다.
         if not self._symbol_full_name:
             success, _, message, time_ = self._get_symbol_full_name()
-            return False, '', message, time_
+            if not success:
+                return False, '', message, time_
 
         params = {
             'method': currency,
@@ -285,8 +307,16 @@ class BaseBitfinex(BaseExchange):
         except Exception as ex:
             return False, '', '지갑 주소를 가져오는 중 에러가 발생했습니다. {}'.format(ex), 1
 
-    async def get_orderbook(self, coin):
-        return await self._async_public_api('GET', '/v1/book/{}'.format(coin))
+    async def _get_orderbook(self, coin):
+        for _ in range(3):
+            success, data, message, time_ = await self._async_public_api('GET', '/v1/book/{}'.format(coin))
+
+            if success:
+                return True, data, message, time_
+            time.sleep(time_)
+
+        else:
+            return False, data, message, time_
 
     async def get_orderbook_latest_version(self, coin):
         # For Trading: if AMOUNT > 0 then bid else ask.
@@ -303,7 +333,14 @@ class BaseBitfinex(BaseExchange):
         return True, ret, '', 0
 
     async def get_transaction_fee(self):
-        return self._async_private_api('POST', '/v1/account_fees')
+        for _ in range(3):
+            success, data, message, time_ = self._async_private_api('POST', '/v1/account_fees')
+            if success:
+                return True, data, message, time_
+
+            time.sleep(time_)
+        else:
+            return False, data, message, time_
 
     async def get_curr_avg_orderbook(self, coin_list, btc_sum=1):
         success, coins, message, time_ = self.get_available_coin()
@@ -313,8 +350,7 @@ class BaseBitfinex(BaseExchange):
 
         avg_orderbook = {}
         for pair in coins:
-
-            ob_success, orderbook, ob_message, ob_time = self.get_orderbook(pair)
+            ob_success, orderbook, ob_message, ob_time = self._get_orderbook(pair)
             if not success:
                 # TODO 한번 실패했다고 return처리하는지 확인
                 return False, '', ob_message, ob_time
