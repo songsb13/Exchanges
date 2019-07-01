@@ -135,12 +135,20 @@ class BaseExchange(object):
         '''
         :param currency_pair: BTC_ALT custom symbol.
         :param btc_amount: empty parameter
-        :param alt_amount: alt amount you buy
+        :param alt_amount: alt amount to buy
         :param td_fee: trading fee, type is float or int
         :param tx_fee: transaction fee dict, tx_fee[customized_symbol]
         :return: success, alt amount to send subtracted fees, message, time
         '''
         pass
+
+    def alt_to_base(self, currency_pair, btc_amount, alt_amount):
+        '''
+        :param currency_pair: BTC_ALT custom symbol.
+        :param btc_amount: empty parameter
+        :param alt_amount: alt amount to sell
+        :return: None or success, data, message, time_
+        '''
 
     async def _async_public_api(self, method, path, extra=None, header=None):
         '''
@@ -186,7 +194,7 @@ class BaseExchange(object):
     async def get_deposit_addrs(self, coin_list=None):
         '''
         :param coin_list: None or custom symbol list --> ['BTC_XXX', ...]
-        :return: exchange deposit addrs, type is have to dictonary --> {'BTC_XXX': BTCaddrs, ...}
+        :return: exchange deposit addrs, type is have to dictonary --> {'BTC': BTCaddrs, ...}
         '''
         pass
 
