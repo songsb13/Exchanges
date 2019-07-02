@@ -75,10 +75,17 @@ class Huobi(BaseExchange):
         return base64.b64encode(sign).decode()
 
     def _currencies(self):
-        return self._public_api('GET', '/v1/common/currencys')
+        for _ in range(3):
+            success, data, message, time_ = self._public_api('GET', '/v1/common/currencys')
+            if success:
+                return True, data, message, time_
+
+            time.sleep(time_)
+
+        else:
+            return False, '', message, time_
 
     def _private_api(self, method, path, extra=None):
-        # previous name: api_request
         if extra is None:
             extra = {}
 
@@ -127,32 +134,44 @@ class Huobi(BaseExchange):
     def fee_count(self):
         return 1
 
-    def buy(self, coin, amount, price):
+    def buy(self, coin, amount, price=None):
         coin = coin.split('_')
         currency_pair = coin[1].lower() + coin[0].lower()
 
-        params = {
+        params = {}
+
+        if price is None:
+            params['type'] = 'buy-limit'
+
+        else:
+            params['type'] = 'buy-market'
+
+        params.update({
                     'account-id': str(self._account_id),
                     'symbol': currency_pair,
                     'amount': '{}'.format(amount).strip(),
-                    'type': 'buy-market'
-                  }
+                  })
 
         return self._private_api('POST', '/v1/order/orders/place', params)
 
-    def sell(self, coin, amount, price):
-
+    def sell(self, coin, amount, price=None):
         coin = coin.split('_')
         currency_pair = coin[1].lower() + coin[0].lower()
 
-        params = {
+        params = {}
+        if price is None:
+            params['type'] = 'sell-limit'
+
+        else:
+            params['type'] = 'sell-market'
+
+        params = ({
                     'account-id': str(self._account_id),
                     'symbol': currency_pair,
                     'amount': '{}'.format(amount).strip(),
-                    'type': 'sell-market'
-                  }
+                  })
 
-        return self._private_api('POST','/v1/order/orders/place', params)
+        return self._private_api('POST', '/v1/order/orders/place', params)
 
     def base_to_alt(self, currency_pair, btc_amount, alt_amount, td_fee, tx_fee):
         success, data, message, time_ = self.buy(currency_pair, btc_amount)
@@ -199,11 +218,10 @@ class Huobi(BaseExchange):
         success, data, message, time_ = self._currencies()
 
         if not success:
-            return False, '', '[Huobi]사용가능한 코인 값을 가져오지 못했습니다. [{}]'.format(message), 1
+            return False, '', message, time_
 
         else:
-            # TODO 어떻게 리턴되는지 확인하고 작업하자
-            pass
+            return True, ['BTC_{}'.format(coin.upper()) for coin in data['data'] if not 'btc' or not 'usdt'], '', 0
 
     async def get_transaction_fee(self):
         _fee_info = {
@@ -234,9 +252,7 @@ class Huobi(BaseExchange):
             'BTG': 0.01
         }
 
-        _fee_info = {key: Decimal(_fee_info[key]).quantize(Decimal(10) ** -8) for key in _fee_info.keys()}
-
-        return True, _fee_info, 'Success', 0
+        return True, {key: Decimal(_fee_info[key]).quantize(Decimal(10) ** -8) for key in _fee_info.keys()}, '', 0
 
     async def _async_private_api(self, method, path, extra=None):
         sign_data = {
@@ -277,33 +293,70 @@ class Huobi(BaseExchange):
         except Exception as ex:
             return False, '', '서버와 통신에 실패하였습니다 = [{}]'.format(ex), 1
 
+    async def _get_deposit_addrs(self, coin):
+
+        for _ in range(3):
+            success, data, message, time_ = await self._async_private_api("GET",
+                                                                          '/v1/query/deposit-withdraw',
+                                                                          {"currency": coin, "type": "deposit",
+                                                                           "from": "0", "size": "100"
+                                                                           })
+
+            if success:
+                return True, data, message, time_
+
+            time.sleep(time_)
+        else:
+            return False, '', message, time_
+
+    async def _get_balance(self):
+        for _ in range(3):
+            success, data, message, time_ = await self._async_private_api(
+                'GET', '/v1/account/accounts/{}/balance'.format(self._account_id),
+                {'account-id': self._account_id})
+
+            if success:
+                return True, data, message, time_
+
+        else:
+            return False, '', message, time_
+
+    async def _get_orderbook(self, symbol):
+        for _ in range(3):
+            success, data, message, time_ = await self._async_public_api('GET', '/market/depth',
+                                                                            {'symbol': symbol.lower(), 'type': 'step0'})
+
+            if success:
+                return True, data, message, time_
+
+        else:
+            return False, '', message, time_
+
     async def get_deposit_addrs(self, coin_list=None):
         c_success, c_data, c_message, c_time_ = self._currencies()
 
-        if c_success:
-            try:
-                coins = c_data['data']
-                coin_addrs = {}
+        if not c_success:
+            return False, '', c_message, c_time_
+        try:
+            coin_addrs = {}
+            for coin in c_data['data']:
+                success, data, message, time_ = await self._get_deposit_addrs(coin)
 
-                for coin in coins:
-                    success, data, _, _ = await self._async_private_api("GET", '/v1/query/deposit-withdraw',
-                                                               {"currency": coin,  "type": "deposit",
-                                                                "from": "0", "size": "100"
-                                                                })
-                    coin = coin.upper()
-                    if success:
-                        if data['data']:
-                            coin_info = data['data'][0]
-                            coin_addrs[coin] = coin_info['address']
+                coin = coin.upper()
 
-                            if coin_info['currency'] in ['xrp', 'xmr', 'eos']:
-                                coin_addrs[coin + 'TAG'] = coin_info['address-tag']
+                if not success:
+                    return False, '', message, time_
 
-                return True, coin_addrs, '', 0
-            except Exception as ex:
-                return False, '', '[Huobi]주소를 가져오는데 실패했습니다. [{}]'.format(ex), 1
-        else:
-            return False, '', '[Huobi]사용가능한 코인을 가져오는데 실패했습니다. [{}]'.format(c_message), c_time_
+                if data['data']:
+                    coin_info = data['data'][0]
+                    coin_addrs[coin] = coin_info['address']
+
+                    if coin_info['currency'] in ['xrp', 'xmr', 'eos']:
+                        coin_addrs[coin + 'TAG'] = coin_info['address-tag']
+
+            return True, coin_addrs, '', 0
+        except Exception as ex:
+            return False, '', '[Huobi]주소를 가져오는데 실패했습니다. [{}]'.format(ex), 1
 
     async def get_balance(self):
         if self._account_id is None:
@@ -312,21 +365,19 @@ class Huobi(BaseExchange):
             if not ac_success:
                 return False, '', ac_message, ac_time_
 
-        success, data, message, time_ = await self._async_private_api(
-                'GET', '/v1/account/accounts/{}/balance'.format(self._account_id), {'account-id': self._account_id})
+        success, data, message, time_ = await self._get_balance()
 
-        if success:
-            balance = {}
-            for info in data['data']['list']:
-                if info['type'] == 'trade':
+        if not success:
+            return False, '', message, time_
 
-                    if float(info['balance']) > 0:
-                        balance[info['currency'].upper()] = float(info['balance'])
+        balance = {}
+        for info in data['data']['list']:
+            if info['type'] == 'trade':
 
-            return True, balance, '', 0
+                if float(info['balance']) > 0:
+                    balance[info['currency'].upper()] = float(info['balance'])
 
-        else:
-            return False, '', '[Huobi]지갑 값을 가져오는데 실패했습니다. [{}]'.format(message), 5
+        return True, balance, '', 0
 
     async def get_curr_avg_orderbook(self, coin_list, btc_sum=1):  # 상위 평균매도/매수가 구함
         avg_order_book = {}
@@ -334,32 +385,28 @@ class Huobi(BaseExchange):
             if currency_pair == 'BTC_BTC':
                 continue
 
-            convert = currency_pair.split('_')
-            coin = convert[1] + convert[0]
-
+            coin = currency_pair.split('_')
             avg_order_book[currency_pair] = {}
 
-            success, data, m, t = await self._async_public_api('GET', self._base_url + '/market/depth',
-                                                                 {'symbol': coin.lower(), 'type': 'step0'})
+            success, data, message, time_ = await self._get_orderbook(coin[1] + coin[0])
 
-            if success:
-                book = data['tick']
-                for types in ['asks', 'bids']:
-                    order_amount, order_sum = 0, 0
+            if not success:
+                return False, '', message, time_
 
-                    info = book[types]
-                    for order_data in info:
-                        order_amount += Decimal(order_data[1])
-                        order_sum += (Decimal(order_data[0])
-                                      * Decimal(order_data[1])).quantize(Decimal(10) ** -8)
+            book = data['tick']
+            for types in ['asks', 'bids']:
+                order_amount, order_sum = 0, 0
 
-                        if order_sum >= Decimal(btc_sum):
-                            calc = ((order_sum / order_amount).quantize(Decimal(10) ** -8))
-                            avg_order_book[currency_pair][types] = calc
-                            break
+                info = book[types]
+                for order_data in info:
+                    order_amount += Decimal(order_data[1])
+                    order_sum += (Decimal(order_data[0])
+                                  * Decimal(order_data[1])).quantize(Decimal(10) ** -8)
 
-            else:
-                return False, '', '[Huobi]마켓의 과거 코인가격을 가져오는데 실패했습니다. [{}]'.format(m), t
+                    if order_sum >= Decimal(btc_sum):
+                        calc = ((order_sum / order_amount).quantize(Decimal(10) ** -8))
+                        avg_order_book[currency_pair][types] = calc
+                        break
 
         return True, avg_order_book, '', 0
 
