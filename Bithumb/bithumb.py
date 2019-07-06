@@ -1,11 +1,6 @@
-from pyinstaller_patch import *
-import asyncio
-from urllib.parse import urlencode
-import base64
-import hmac
-from decimal import Decimal, ROUND_DOWN
-from lxml import html as lh
 import re
+
+from BaseExchange import *
 
 
 class WrongOutputReceived(Exception):
@@ -33,7 +28,190 @@ class RequestError(Exception):
         )
 
 
-class Bithumb:
+class Bithumb(BaseExchange):
+    def __init__(self, key, secret):
+        self._key = key
+        self._secret = secret
+        self._base_url = 'https://api.bithumb.com'
+
+    def _sign_generator(self, *args):
+        extra, data, path, nonce = args
+        hmac_data = path + chr(0) + data + chr(0) + nonce
+        hashed = hmac.new(self._secret.encode('utf-8'), hmac_data.encode('utf-8'), hashlib.sha512).hexdigest()
+
+        signature = base64.b64encode(hashed.encode('utf-8')).decode('utf-8')
+
+        return signature
+
+    def _public_api(self, method, path, extra=None, header=None):
+        try:
+            if extra is None:
+                extra = {}
+
+            else:
+                extra = urlencode(extra)
+
+            rq = requests.get(self._base_url + path, data=extra)
+
+            res = rq.json()
+
+            if not res['status'] == '0000':
+                return False, '', res['message'], 1
+
+            return True, res, '', 0
+        except Exception as ex:
+            return False, '', 'API호출 중 에러가 발생했습니다. {}'.format(ex), 1
+
+    def _private_api(self, method, path, extra=None):
+        try:
+            if extra is None:
+                extra = {}
+            extra.update({'endpoint': path})
+
+            nonce = str(int(time.time() * 1000))
+            data = urlencode(extra)
+            signature = self._sign_generator(extra, data, path, nonce)
+
+            headers = {
+                'Content-Type': settings.CONTENT_TYPE,
+                'Api-Key': self._key,
+                'Api-Sign': signature,
+                'Api-Nonce': nonce
+            }
+
+            rq = requests.post(self._base_url + path, headers=headers, data=extra)
+
+            res = rq.json()
+
+            if 'error' in res:
+                return False, '', 'error', 1
+
+            return True, res, '', 0
+        except Exception as ex:
+            return False, '', 'API호출 중 에러가 발생했습니다. {}'.format(ex), 1
+
+    def fee_count(self):
+        return 2
+
+    def _get_orderbook(self, symbol):
+        for _ in range(3):
+            success, data, message, time_ = self._public_api('GET', '/public/orderbook/ALL')
+            if success:
+                return True, data, '', 0
+
+            time.sleep(time_)
+
+        else:
+            return False, '', message, time_
+
+    def get_ticker(self, market):
+        for _ in range(3):
+            success, data, message, time_ = self._public_api('GET', '/public/ticker/{}'.format(market))
+            if success:
+                return True, data, '', 0
+
+            time.sleep(time_)
+
+        else:
+            return False, '', message, time_
+
+    def buy(self, coin, amount, price=None):
+        params = {'currency': coin,
+                  'units': amount
+                  }
+
+        if price:
+            path = '/trade/limit_buy'
+
+        else:
+            path = '/trade/market_buy'
+
+        return self._private_api('POST', path, params)
+
+    def sell(self, coin, amount, price=None):
+        params = {'currency': coin,
+                  'units': amount
+                  }
+
+        if price:
+            path = '/trade/limit_sell'
+
+        else:
+            path = '/trade/market_sell'
+
+        return self._private_api('POST', path, params)
+
+    def base_to_alt(self, currency_pair, btc_amount, alt_amount, td_fee, tx_fee):
+        alt = Decimal(alt_amount)
+        success, data, message, time_ = self.sell('BTC', btc_amount)
+        if not success:
+            return False, '', message, time_
+
+        currency_pair = currency_pair.split('_')[1]
+        for _ in range(10):
+            success, data, message, time_ = self.buy(currency_pair, alt_amount)
+            if success:
+                break
+
+            time.sleep(time_)
+        else:
+            return False, '', message, time_
+
+        alt *= ((1 - Decimal(td_fee)) ** 2)
+        alt -= Decimal(tx_fee[currency_pair.split('_')[1]])
+        alt = alt.quantize(Decimal(10) ** -4, rounding=ROUND_DOWN)
+
+        return True, alt, '', 0
+
+    def alt_to_base(self, currency_pair, btc_amount, alt_amount):
+        currency_pair = currency_pair.split('_')[1]
+        while True:
+            success, data, message, time_ = self.sell(currency_pair, alt_amount)
+            if success:
+                break
+            time.sleep(time_)
+
+        while True:
+            success, data, message, time_ = self.buy('BTC', btc_amount)
+            if success:
+                return
+
+            time.sleep(time_)
+
+    def withdraw(self, coin, amount, to_address, payment_id=None):
+        params = {
+            'currency': coin,
+            'units': amount,
+            'address': to_address
+        }
+        if payment_id:
+            params.update({'destination': payment_id})
+
+        return self._private_api('POST', '/trade/btc_withdrawal', params)
+
+    def get_available_coin(self):
+        return [
+            'BTC_ETH',
+            'BTC_DASH',
+            'BTC_LTC',
+            'BTC_ETC',
+            'BTC_XRP',
+            'BTC_BCH',
+            'BTC_XMR',
+            'BTC_ZEC',
+            'BTC_QTUM',
+            'BTC_BTG',
+            'BTC_EOS'
+        ]
+
+    async def _async_public_api(self, method, path, extra=None, header=None):
+        pass
+
+    async def _async_private_api(self, method, path, extra=None):
+        pass
+
+
+class OldBithumb:
     def __init__(self, api_key, secret):
         self.api_key = api_key
         self.secret = secret
@@ -219,21 +397,6 @@ class Bithumb:
                 return True, res, '', 0
         except Exception as e:
             return False, '', str(e), 5
-
-    def get_available_coin(self):
-        return [
-            'BTC_ETH',
-            'BTC_DASH',
-            'BTC_LTC',
-            'BTC_ETC',
-            'BTC_XRP',
-            'BTC_BCH',
-            'BTC_XMR',
-            'BTC_ZEC',
-            'BTC_QTUM',
-            'BTC_BTG',
-            'BTC_EOS'
-        ]
 
     async def balance(self):
         params = {'currency': 'ALL'}
