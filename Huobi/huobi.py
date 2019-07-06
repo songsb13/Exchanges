@@ -57,6 +57,10 @@ class Huobi(BaseExchange):
                 'Content-Type': 'application/json'
             }
 
+    def _get_utc_iso_time(self):
+        # datetime.datetime.now().isoformat()
+        return datetime.datetime.utcnow().strftime('%Y-%m-%dT%H:%M:%S')
+
     def _sign_generator(self, *args):
         method, path, params, sign_data = args
 
@@ -93,7 +97,7 @@ class Huobi(BaseExchange):
                     'AccessKeyId': self._key,
                     'SignatureMethod': 'HmacSHA256',
                     'SignatureVersion': self._sign_ver,
-                    'Timestamp': datetime.utcnow().strftime('%Y-%m-%dT%H:%M:%S')
+                    'Timestamp': self._get_utc_iso_time()
                      }
 
         pointer = extra if method == 'GET' else sign_data
@@ -259,7 +263,7 @@ class Huobi(BaseExchange):
                     'AccessKeyId': self._key,
                     'SignatureMethod': self._sign_method,
                     'SignatureVersion': self._sign_ver,
-                    'Timestamp': datetime.utcnow().strftime('%Y-%m-%dT%H:%M:%S')
+                    'Timestamp': self._get_utc_iso_time()
                      }
 
         pointer = extra if method == 'GET' else sign_data
@@ -324,7 +328,7 @@ class Huobi(BaseExchange):
     async def _get_orderbook(self, symbol):
         for _ in range(3):
             success, data, message, time_ = await self._async_public_api('GET', '/market/depth',
-                                                                            {'symbol': symbol.lower(), 'type': 'step0'})
+                                                                         {'symbol': symbol.lower(), 'type': 'step0'})
 
             if success:
                 return True, data, message, time_
@@ -351,7 +355,7 @@ class Huobi(BaseExchange):
                     coin_info = data['data'][0]
                     coin_addrs[coin] = coin_info['address']
 
-                    if coin_info['currency'] in ['xrp', 'xmr', 'eos']:
+                    if coin_info['currency'].upper() in settings.SUB_ADDRESS_COIN_LIST:
                         coin_addrs[coin + 'TAG'] = coin_info['address-tag']
 
             return True, coin_addrs, '', 0
@@ -446,3 +450,4 @@ class Huobi(BaseExchange):
                 continue
         else:
             return False, '', 'huobi_error-[{}] other_error-[{}]'.format(huobi_msg, other_msg), huobi_times
+
