@@ -209,6 +209,13 @@ class BaseExchange(object):
         """
         pass
 
+    async def _get_deposit_addrs(self, symbol):
+        """
+        you can get deposit_address
+        :param symbol: symbol of exchange's coin
+        :return: success, address, message, time
+        """
+
     async def _get_transaction_fee(self, symbol):
         """
         you can get transaction fee dependent of symbol
