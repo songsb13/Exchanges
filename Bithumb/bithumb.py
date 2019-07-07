@@ -93,16 +93,8 @@ class Bithumb(BaseExchange):
     def fee_count(self):
         return 2
 
-    def _get_orderbook(self, symbol):
-        for _ in range(3):
-            success, data, message, time_ = self._public_api('GET', '/public/orderbook/ALL')
-            if success:
-                return True, data, '', 0
-
-            time.sleep(time_)
-
-        else:
-            return False, '', message, time_
+    def _currencies(self):
+        pass
 
     def get_ticker(self, market):
         for _ in range(3):
@@ -204,225 +196,110 @@ class Bithumb(BaseExchange):
             'BTC_EOS'
         ]
 
+    def get_precision(self, pair):
+        return True, (-8, -8), '', 0
+
+    async def _async_private_api(self, method, path, extra=None, header=None):
+        try:
+            if extra is None:
+                extra = {}
+
+            nonce = str(int(time.time() * 1000))
+            data = urlencode(extra)
+            signature = self._sign_generator(extra, data, path, nonce)
+            header = {
+                'Content-Type': 'application/x-www-form-urlencoded',
+                'Api-Key': self._key,
+                'Api-Sign': signature,
+                'Api-Nonce': nonce
+            }
+
+            async with aiohttp.ClientSession(headers=header) as s:
+                rq = await s.post(self._base_url + path, data=data)
+
+                res = json.loads(await rq.text())
+
+                if 'error' in res:
+                    return False, '', 'error', 1
+
+                return True, res, '', 0
+        except Exception as ex:
+            return False, '', 'API호출 중 에러가 발생했습니다. {}'.format(ex), 1
+
     async def _async_public_api(self, method, path, extra=None, header=None):
         pass
 
-    async def _async_private_api(self, method, path, extra=None):
-        pass
+    async def _get_deposit_addrs(self, currency):
+        for _ in range(5):
+            success, data, message, time_ = await self._async_private_api('/info/wallet_address', {'currency': currency})
 
-
-class OldBithumb:
-    def __init__(self, api_key, secret):
-        self.api_key = api_key
-        self.secret = secret
-        self.base_url = "https://api.bithumb.com"
-        self.transaction_fee = None
-
-    def fee_count(self):
-        return 2
-
-    def public_call(self, endpoint, extra_params={}):
-        debugger.debug("Bithumb Public {} 호출시도".format(endpoint))
-        try:
-            if extra_params:
-                data = urlencode(extra_params)
-                response = requests.get(self.base_url + endpoint, data=data)
-            else:
-                response = requests.get(self.base_url + endpoint)
-        except Exception as e:
-            debugger.debug("Bithumb Public API 호출실패!!")
-            raise e
-        try:
-            result = response.json()
-            debugger.debug("Bithumb Public API 호출 결과: {}".format(result))
-            return result
-        except Exception as e:
-            debugger.debug("Bithumb Public API 결과값 이상: {}".format(response.text))
-            raise e
-
-    def private_call(self, endpoint, extra_params=None):
-        if extra_params is None:
-            extra_params = {}
-        extra_params.update({'endpoint': endpoint})
-
-        nonce = str(int(time.time() * 1000))
-        data = urlencode(extra_params)
-        hmac_data = endpoint + chr(0) + data + chr(0) + nonce
-        hashed = hmac.new(self.secret.encode('utf-8'), hmac_data.encode('utf-8'), hashlib.sha512).hexdigest()
-        signature = base64.b64encode(hashed.encode('utf-8')).decode('utf-8')
-
-        headers = {
-            'Content-Type': 'application/x-www-form-urlencoded',
-            'Api-Key': self.api_key,
-            'Api-Sign': signature,
-            'Api-Nonce': nonce
-        }
-
-        try:
-            debugger.debug("Bithumb Private {} 호출시도".format(endpoint))
-            response = requests.post(self.base_url + endpoint, headers=headers, data=data)
-        except Exception as e:
-            debugger.debug("Bithumb Private API 호출실패!!")
-            raise e
-
-        try:
-            result = response.json()
-            debugger.debug("Bithumb Private API 호출 결과: {}".format(result))
-            return result
-        except Exception as e:
-            debugger.debug("Bithumb Private API 결과값 이상: {}".format(response.text))
-            raise e
-
-    async def async_private_call(self, s, endpoint, extra_params=None):
-        if extra_params is None:
-            extra_params = {}
-
-        nonce = str(int(time.time() * 1000))
-        data = urlencode(extra_params)
-        hmac_data = endpoint + chr(0) + data + chr(0) + nonce
-        hashed = hmac.new(self.secret.encode('utf-8'), hmac_data.encode('utf-8'), hashlib.sha512).hexdigest()
-        signature = base64.b64encode(hashed.encode('utf-8')).decode('utf-8')
-
-        headers = {
-            'Content-Type': 'application/x-www-form-urlencoded',
-            'Api-Key': self.api_key,
-            'Api-Sign': signature,
-            'Api-Nonce': nonce
-        }
-
-        try:
-            debugger.debug("Bithumb Private {} 호출시도".format(endpoint))
-            response = s.post(self.base_url + endpoint, data=data)
-        except Exception as e:
-            debugger.debug("Bithumb Private API 호출실패!!")
-            raise e
-
-        try:
-            result = response.json()
-            debugger.debug("Bithumb Private API 호출 결과: {}".format(result))
-            return result
-        except Exception as e:
-            debugger.debug("Bithumb Private API 결과값 이상: {}".format(response.text))
-            raise e
-
-    def order_book(self):
-        try:
-            result = self.public_call('/public/orderbook/ALL')
-            if result['status'] != '0000':
-                return False, '', result['message'], 1
-            else:
-                return True, result['data'], '', 0
-        except Exception as e:
-            return False, '', str(e), 1
-
-    def ticker(self, currency='ALL'):
-        try:
-            result = self.public_call('/public/ticker/' + currency)
-            if result['status'] != '0000':
-                return False, '', result['message'], 1
-            else:
-                return True, result, '', 0
-        except Exception as e:
-            return False, '', str(e), 1
-
-    def base_to_alt(self, currency_pair, btc_amount, alt_amount, td_fee, tx_fee):
-        alt = Decimal(alt_amount)
-        success, result, error, ts = self.sell_coin('BTC', btc_amount)
-        if not success:
-            debugger.info(error)
-            return False, '', error, ts
-        while True:
-            success, result, error, ts = self.buy_coin(currency_pair.split('_')[1], alt_amount)
             if success:
-                break
-            debugger.info(error)
-            time.sleep(ts)
+                return True, data, message, time_
 
-        alt *= ((1 - Decimal(td_fee)) ** 2)
-        alt -= Decimal(tx_fee[currency_pair.split('_')[1]])
-        alt = alt.quantize(Decimal(10) ** -4, rounding=ROUND_DOWN)
+        else:
+            return False, data, message, time_
 
-        return True, alt, '', 0
-
-    def alt_to_base(self, currency_pair, btc_amount, alt_amount):
-        while True:
-            success, result, error, ts = self.sell_coin(currency_pair.split('_')[1], alt_amount)
+    async def _get_orderbook(self, symbol):
+        for _ in range(3):
+            success, data, message, time_ = self._public_api('GET', '/public/orderbook/{}'.format(symbol))
             if success:
-                break
-            debugger.info(error)
-            time.sleep(ts)
-        while True:
-            success, result, error, ts = self.buy_coin('BTC', btc_amount)
+                return True, data, '', 0
+
+            time.sleep(time_)
+
+        else:
+            return False, '', message, time_
+
+    async def _get_balance(self, symbol):
+        for _ in range(3):
+            success, data, message, time_ = await self._async_private_api('POST', '/info/balance',
+                                                                          {'currency': symbol})
             if success:
-                break
-            debugger.info(error)
-            time.sleep(ts)
+                return True, data, '', 0
 
-    def sell_coin(self, coin, amount):
-        params = {'currency': coin, 'units': amount}
+            time.sleep(time_)
+
+        else:
+            return False, '', message, time_
+
+    async def _get_trading_fee(self, symbol):
+        for _ in range(3):
+            success, data, message, time_ = await self._async_private_api('POST', '/info/account', {'currency': symbol})
+            if success:
+                return True, data, message, time_
+
+            time.sleep(time_)
+        else:
+            return False, data, message, time_
+
+    async def get_balance(self):
         try:
-            result = self.private_call('/trade/market_sell', extra_params=params)
-            if result['status'] != '0000':
-                return False, '', result['message'], 5
-            else:
-                return True, result, '', 0
-        except Exception as e:
-            return False, '', str(e), 1
+            success, data, message, time_ = await self._get_balance('ALL')
 
-    def buy_coin(self, coin, amount):
-        params = {'currency': coin, 'units': amount}
-        try:
-            result = self.private_call('/trade/market_buy', extra_params=params)
-            if result['status'] != '0000':
-                return False, '', result['message'], 5
-            else:
-                return True, result, '', 0
-        except Exception as e:
-            return False, '', str(e), 1
+            if not success:
+                return False, data, message, time_
 
-    def withdraw(self, coin, amount, to_address, payment_id=None):
-        params = {
-            'currency': coin,
-            'units': amount,
-            'address': to_address
-        }
-        if payment_id:
-            params.update({'destination': payment_id})
+            res = {key.split('_')[1].upper(): float(data['data'][key]) for key in data['data'] if
+                   key.startswith('available') and float(data['data'][key]) > 0}
 
-        try:
-            res = self.private_call('/trade/btc_withdrawal', params)
-            if res['status'] != '0000':
-                return False, '', res['message'], 5
-            else:
-                return True, res, '', 0
-        except Exception as e:
-            return False, '', str(e), 5
+            return True, res, '', 0
 
-    async def balance(self):
-        params = {'currency': 'ALL'}
-        try:
-            res = self.private_call('/info/balance', extra_params=params)
-            if res['status'] != '0000':
-                return False, '', res['message'], 1
-
-            ret_data = {key.split('_')[1].upper(): float(res['data'][key]) for key in res['data'] if
-                        key.startswith('available') and float(res['data'][key]) > 0}
-            return True, ret_data, '', 0
-        except Exception as e:
-            return False, '', str(e), 1
+        except Exception as ex:
+            return False, '', 'API호출 중 에러가 발생했습니다. {}'.format(ex), 1
 
     async def get_trading_fee(self):
-        params = {'currency': 'BTC'}
         try:
-            res = self.private_call('/info/account', extra_params=params)
-            if res['status'] != '0000':
-                return False, '', res['message'], 5
-            ret_data = res['data']['trade_fee']
-            return True, float(ret_data), '', 0
-        except Exception as e:
-            return False, '', str(e), 5
+            success, data, message, time_ = await self._get_trading_fee('BTC')
+            if not success:
+                return False, data, message, time_
+
+            return True, data['data']['trade_fee'], '', 0
+
+        except Exception as ex:
+            return False, '', 'API호출 중 에러가 발생했습니다. {}'.format(ex), 1
 
     async def get_transaction_fee(self):
+        # 현철이 레거시
         try:
             ret = requests.get('https://www.bithumb.com/u1/US138', timeout=60)
         except:
@@ -445,7 +322,7 @@ class OldBithumb:
             try:
                 ret_data[key] = Decimal(val).quantize(Decimal(10) ** -8)
             except ValueError:
-                debugger.info("예외발생; KEY: {}\tVAL: {}".format(key, val))
+                pass
 
         if ret_data == {}:
             return False, '', "트랜잭션 수수료 정보 없음 에러", 5
@@ -454,50 +331,34 @@ class OldBithumb:
 
         return True, self.transaction_fee, '', 0
 
-    def get_precision(self, pair):
-        return True, (-8, -8), '', 0
-
-    async def get_deposit_addrs(self):
+    async def get_deposit_addrs(self, coin_list=None):
         ret_data = {}
-        err = ""
         for currency in self.get_available_coin() + ['BTC_BTC']:
             currency = currency[4:]
-            for _ in range(5):
-                res = self.private_call('/info/wallet_address', extra_params={'currency': currency})
-                if res['status'] == '0000':
-                    break
-                else:
-                    debugger.info('[Bithumb 입금 주소 조회 실패] {}'.format(res))
-                    err = res['message']
-                    await asyncio.sleep(10)
-            else:
-                return False, '', err, 10
 
-            if currency == 'XRP' or currency == 'XMR' or currency == 'EOS':
+            success, data, message, time_ = await self._get_deposit_addrs(currency)
+            if not success:
+                return False, '', message, time_
+
+            if currency in settings.SUB_ADDRESS_COIN_LIST:
                 try:
-                    address, tag = res['data']['wallet_address'].split('&dt=')
+                    address, tag = data['data']['wallet_address'].split('&dt=')
                     ret_data[currency + 'TAG'] = tag
                     ret_data[currency] = address
                 except ValueError:
                     ret_data[currency] = ''
                     ret_data[currency + 'TAG'] = ''
             else:
-                ret_data[currency] = res['data']['wallet_address']
+                ret_data[currency] = data['data']['wallet_address']
 
         return True, ret_data, '', 0
 
     async def get_curr_avg_orderbook(self, currencies, default_btc=1):
         ret = {}
-        err = "오더북 조회 에러"
-        st = 5
-        #   만약 err과 st가 설정아 안된 경우
-        for _ in range(3):
-            success, data, err, st = self.order_book()
-            if success:
-                break
-            await asyncio.sleep(st)
-        else:
-            return False, '', err, st
+        success, data, message, time_ = self._get_orderbook('ALL')
+        if not success:
+            return False, '', message, time_
+
         btc_avg = {}
         for order_type in ['bids', 'asks']:
             rows = data['BTC'][order_type]
@@ -536,7 +397,7 @@ class OldBithumb:
                 ret['BTC_'+c.upper()][order_type] = (total_price / total_amount).quantize(Decimal(10) ** -8)
         return True, ret, '', 0
 
-    async def compare_orderbook(self, other, coins=[], default_btc=1):
+    async def compare_orderbook(self, other, coins, default_btc=1):
         currency_pairs = coins
         err = ""
         st = 5
@@ -574,3 +435,4 @@ class OldBithumb:
                 return False, '', err2, st2
             else:
                 return False, '', err, st
+
