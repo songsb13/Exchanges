@@ -162,6 +162,11 @@ class BaseExchange(object):
         :return: None
         """
 
+    def get_precision(self):
+        """
+        :return: success, data, message, time
+        """
+
     async def _async_public_api(self, method, path, extra=None, header=None):
         """
         For using async public API
