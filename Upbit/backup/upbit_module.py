@@ -1,18 +1,6 @@
 from BaseExchange import *
 
 
-class UpbitErrorMessage(object):
-    def __int__(self):
-        self._path = str()
-        self._default_msg = '[UPBIT]{} 중 에러가 발생했습니다.'
-
-    @property
-    def return_msg(self):
-        if self._path == 'orders':
-            add = '주문을 실행하는 중'
-            return self._default_msg.format('')
-
-
 class BaseUpbit(BaseExchange):
     def __init__(self, key, secret):
         self._base_url = 'https://api.upbit.com/v1'
@@ -45,13 +33,14 @@ class BaseUpbit(BaseExchange):
             res = rq.json()
 
             if 'error' in res:
-                return False, '', '[UPBIT], ERROR_BODY=[{}], URL=[{}]'.format(res['error']['message'], path), 1
+                return False, '', '[UPBIT], ERROR_BODY=[{}], URL=[{}], PARAMETER=[{}]'.format(res['error']['message'],
+                                                                                              path, extra), 1
 
             else:
                 return True, res, '', 0
 
         except Exception as ex:
-            return False, '', '[UPBIT], ERROR_BODY=[{}], URL=[{}]'.format(ex, path), 1
+            return False, '', '[UPBIT], ERROR_BODY=[{}], URL=[{}], PARAMETER=[{}]'.format(ex, path, extra), 1
 
     def _private_api(self, method, path, extra=None):
         payload = {
@@ -132,44 +121,42 @@ class BaseUpbit(BaseExchange):
         return self._private_api('post', '/'.join(['withdraws', 'coin']), params)
 
     def buy(self, coin, amount, price=None):
+        params = {}
         if price is None:
-            success, data, message, time_ = self.get_ticker(coin)
-            if not success:
-                return False, '', message, time_
-
-            price = data['trade_price']
+            if price is None:
+                params['ord_type'] = 'price'
+            else:
+                params['ord_type'] = 'limit'
 
         amount, price = map(str, (amount, price * 1.05))
         coin = coin.replace('_', '-')
 
-        params = {
+        params.update({
             'market': coin,
             'side': 'bid',
             'volume': amount,
             'price': price,
-            'ord_type': 'limit'
-        }
+        })
 
         return self._private_api('POST', 'orders', params)
 
     def sell(self, coin, amount, price=None):
+        params = {}
         if price is None:
-            success, data, message, time_ = self.get_ticker(coin)
-            if not success:
-                return False, '', message, time_
-
-            price = data['trade_price']
+            if price is None:
+                params['ord_type'] = 'market'
+            else:
+                params['ord_type'] = 'limit'
 
         amount, price = map(str, (amount, price * 0.95))
         coin = coin.replace('_', '-')
 
-        params = {
+        params.update({
             'market': coin,
             'side': 'ask',
             'volume': amount,
             'price': price,
-            'ord_type': 'limit'
-        }
+        })
 
         return self._private_api('POST', 'orders', params)
 
@@ -178,7 +165,7 @@ class BaseUpbit(BaseExchange):
         
         if success:
             alt_amount *= 1 - Decimal(td_fee)
-            alt_amount -= Decimal(tx_fee[alt])
+            alt_amount -= Decimal(tx_fee[currency_pair.split('_')[1]])
             alt_amount = alt_amount.quantize(Decimal(10) ** -4, rounding=ROUND_DOWN)
 
             return True, alt_amount, ''
@@ -212,12 +199,14 @@ class BaseUpbit(BaseExchange):
                 res = json.loads(await rq.text())
 
                 if 'error' in res:
-                    return False, '', '[UPBIT], ERROR_BODY=[{}], URL=[{}]'.format(res['error']['message'], path), 1
+                    return False, '', '[UPBIT], ERROR_BODY=[{}], URL=[{}], PARAMETER=[{}]'.format(
+                        res['error']['message'],
+                        path, extra), 1
 
                 else:
                     return True, res, '', 0
         except Exception as ex:
-            return False, '', '[UPBIT], ERROR_BODY=[{}], URL=[{}]'.format(ex, path), 1
+            return False, '', '[UPBIT], ERROR_BODY=[{}], URL=[{}, PARAMETER=[{}]]'.format(ex, path, extra), 1
 
     async def _async_private_api(self, method, path, extra=None):
         payload = {
@@ -489,44 +478,40 @@ class UpbitKRW(BaseUpbit):
             return 1
 
     def buy(self, coin, amount, price=None):
+        params = {}
         if price is None:
-            success, data, message, time_ = self.get_ticker(coin)
-            if not success:
-                return False, '', message, time_
-
-            price = data['trade_price']
+            params['ord_type'] = 'price'
+        else:
+            params['ord_type'] = 'limit'
 
         coin = 'KRW-{}'.format(coin.split('_')[1])
         price = int(price)
 
-        params = {
+        params.update({
             'market': coin,
             'side': 'bid',
             'volume': str(amount),
             'price': (price * 1.05) + (self.get_step(price * 1.05) - ((price * 1.05) % self.get_step(price * 1.05))),
-            'ord_type': 'limit'
-        }
+        })
 
         return self._private_api('POST', 'orders', params)
 
     def sell(self, coin, amount, price=None):
+        params = {}
         if price is None:
-            success, data, message, time_ = self.get_ticker(coin)
-            if not success:
-                return False, '', message, time_
-
-            price = data['trade_price']
+            params['ord_type'] = 'market'
+        else:
+            params['ord_type'] = 'limit'
 
         coin = 'KRW-{}'.format(coin.split('_')[1])
         price = int(price)
 
-        params = {
+        params.update({
             'market': coin,
             'side': 'ask',
             'volume': str(amount),
             'price': (price * 0.95) - ((price * 0.95) % self.get_step(price * 0.95)),
-            'ord_type': 'limit'
-        }
+        })
 
         return self._private_api('POST', 'orders', params)
 
@@ -542,45 +527,41 @@ class UpbitUSDT(UpbitKRW):
         return '업비트 USDT마켓'
 
     def buy(self, coin, amount, price=None):
+        params = {}
         if price is None:
-            success, data, message, time_ = self.get_ticker(coin)
-            if not success:
-                return False, '', message, time_
-
-            price = data['trade_price']
+            params['ord_type'] = 'price'
+        else:
+            params['ord_type'] = 'limit'
 
         coin = 'USDT-{}'.format(coin.split('_')[1])
         price = int(price)
 
-        params = {
+        params.update({
             'market': coin,
             'side': 'bid',
             'volume': str(amount),
             'price': (price * 1.05) + (self.get_step(price * 1.05) - ((price * 1.05) % self.get_step(price * 1.05))),
-            'ord_type': 'limit'
-        }
+        })
 
         return self._private_api('POST', 'orders', params)
 
     def sell(self, coin, amount, price=None):
+        params = {}
         if price is None:
-            success, data, message, time_ = self.get_ticker(coin)
-            if not success:
-                return False, '', message, time_
-
-            price = data['trade_price']
+            params['ord_type'] = 'market'
+        else:
+            params['ord_type'] = 'limit'
 
         coin = 'USDT-{}'.format(coin.split('_')[1])
 
         price = int(price)
 
-        params = {
+        params.update({
             'market': coin,
             'side': 'ask',
             'volume': str(amount),
             'price': (price * 0.95) - ((price * 0.95) % self.get_step(price * 0.95)),
-            'ord_type': 'limit'
-        }
+        })
 
         return self._private_api('POST', 'orders', params)
 
@@ -589,16 +570,13 @@ if __name__ == '__main__':
     key = ''
     secret = ''
 
-    u = UpbitBTC(key, secret)
-
-    s, d, m, t = u.buy('BTC-ADA', 1)
+    u = UpbitKRW(key, secret)
 
     _, get_available_coin, *_ = u.get_available_coin()
 
     loop = asyncio.get_event_loop()
 
-
-    # todo -----done-----
+    # todo UpbitBTC -----done-----
     # _, get_available_coin, *_ = u.get_available_coin()
     #
     # for coin in get_available_coin:
@@ -625,6 +603,11 @@ if __name__ == '__main__':
     # _, orderbook, *_ = loop.run_until_complete(u.get_curr_avg_orderbook(get_available_coin))
     #
     # print(orderbook)
-    # loop = asyncio.get_event_loop()
+
     # s, dp_set, msg, time_ = loop.run_until_complete(u.get_deposit_addrs(get_available_coin))
+
     # print(dp_set)
+    #
+    # s, d, m, t = u.buy('BTC-ADA', 1)
+    #
+    # s, d, m, t = u.sell('BTC-ADA', 1)
