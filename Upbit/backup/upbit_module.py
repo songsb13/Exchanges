@@ -1,6 +1,18 @@
 from BaseExchange import *
 
 
+class UpbitErrorMessage(object):
+    def __int__(self):
+        self._path = str()
+        self._default_msg = '[UPBIT]{} 중 에러가 발생했습니다.'
+
+    @property
+    def return_msg(self):
+        if self._path == 'orders':
+            add = '주문을 실행하는 중'
+            return self._default_msg.format('')
+
+
 class BaseUpbit(BaseExchange):
     def __init__(self, key, secret):
         self._base_url = 'https://api.upbit.com/v1'
@@ -9,6 +21,9 @@ class BaseUpbit(BaseExchange):
 
     def __repr__(self):
         return 'BaseUpbit'
+
+    def __str__(self):
+        return '업비트 기본'
 
     def _public_api(self, method, path, extra=None, header=None):
         if header is None:
@@ -20,9 +35,9 @@ class BaseUpbit(BaseExchange):
         method = method.upper()
         path = '/'.join([self._base_url, path])
         if method == 'GET':
-            rq = requests.get(path, headers=header, json=extra)
+            rq = requests.get(path, headers=header, params=extra)
         elif method == 'POST':
-            rq = requests.post(path, headers=header, params=extra)
+            rq = requests.post(path, headers=header, data=extra)
         else:
             return False, '', '[{}]incorrect method'.format(method), 1
 
@@ -30,13 +45,13 @@ class BaseUpbit(BaseExchange):
             res = rq.json()
 
             if 'error' in res:
-                return False, '', res['error']['message'], 1
+                return False, '', '[UPBIT], ERROR_BODY=[{}], URL=[{}]'.format(res['error']['message'], path), 1
 
             else:
                 return True, res, '', 0
 
         except Exception as ex:
-            return False, '', 'Error [{}]'.format(ex), 1
+            return False, '', '[UPBIT], ERROR_BODY=[{}], URL=[{}]'.format(ex, path), 1
 
     def _private_api(self, method, path, extra=None):
         payload = {
@@ -47,12 +62,12 @@ class BaseUpbit(BaseExchange):
         if extra is not None:
             payload.update({'query': urlencode(extra)})
 
-        header = self._sign_generator(payload)
+        header = {'Authorization': self._sign_generator(payload)}
 
         return self._public_api(method, path, extra, header)
 
     def _sign_generator(self, *args):
-        payload = args
+        payload, *_ = args
         return 'Bearer {}'.format(jwt.encode(payload, self._secret,).decode('utf8'))
 
     def fee_count(self):
@@ -60,11 +75,12 @@ class BaseUpbit(BaseExchange):
         return 1
 
     def get_ticker(self, market):
+        market = market.replace('_', '-')
         for _ in range(3):
-            success, data, message, time_ = self._public_api('get', 'ticker', market)
+            success, data, message, time_ = self._public_api('get', 'ticker', {'markets': market})
 
             if success:
-                return True, data, message, time_
+                return True, data[0], message, time_
             time.sleep(time_)
 
         else:
@@ -87,18 +103,18 @@ class BaseUpbit(BaseExchange):
         success, currencies, message, time_ = self._currencies()
 
         if not success:
-            return False, '', '[Upbit]사용 가능코인을 가져오는데 실패했습니다.', time_
+            return False, '', message, time_
 
         else:
-            # todo 전체 코인 값이 들어오나? 그러면 BTC만 가져오게?
             res = []
-            [res.append(data.replace('-', '_')) for data in currencies if currencies['market'].split('-')[1] not in res]
+            [res.append(data['market'].replace('-', '_')) for data in currencies if data['market'].split('-')[1] not in res]
             return True, res, '', 0
 
     def service_currencies(self, currencies):
         # using deposit_addrs
         res = []
-        return [res.append(data.split('-')[1]) for data in currencies if currencies['market'].split('-')[1] not in res]
+        [res.append(data.split('_')[1]) for data in currencies if data.split('_')[1] not in res]
+        return res
 
     def get_order_history(self, uuid):
         return self._private_api('get', 'order', {'uuid': uuid})
@@ -121,10 +137,10 @@ class BaseUpbit(BaseExchange):
             if not success:
                 return False, '', message, time_
 
-            price = data['price']  # todo 확인 해볼것.
+            price = data['trade_price']
 
         amount, price = map(str, (amount, price * 1.05))
-        coin = coin.split('_')[1]
+        coin = coin.replace('_', '-')
 
         params = {
             'market': coin,
@@ -142,10 +158,10 @@ class BaseUpbit(BaseExchange):
             if not success:
                 return False, '', message, time_
 
-            price = data['price']  # todo 확인 해볼것.
+            price = data['trade_price']
 
         amount, price = map(str, (amount, price * 0.95))
-        coin = coin.split('_')[1]
+        coin = coin.replace('_', '-')
 
         params = {
             'market': coin,
@@ -162,14 +178,17 @@ class BaseUpbit(BaseExchange):
         
         if success:
             alt_amount *= 1 - Decimal(td_fee)
-            alt_amount -= Decimal(tx_fee[currency_pair.split('_')[1]])
+            alt_amount -= Decimal(tx_fee[alt])
             alt_amount = alt_amount.quantize(Decimal(10) ** -4, rounding=ROUND_DOWN)
 
             return True, alt_amount, ''
         else:
-            return False, '', '[Upbit]BaseToAlt 거래에 실패했습니다[{}]'.format(msg), time_
+            return False, '', msg, time_
 
-    def get_precision(self, pair):
+    def alt_to_base(self, currency_pair, btc_amount, alt_amount):
+        return self.sell(currency_pair, btc_amount)
+
+    def get_precision(self):
         return True, (-8, -8), '', 0
 
     async def _async_public_api(self, method, path, extra=None, header=None):
@@ -184,21 +203,21 @@ class BaseUpbit(BaseExchange):
                 path = '/'.join([self._base_url, path])
 
                 if method == 'GET':
-                    rq = await s.get(path, headers=header, json=extra)
+                    rq = await s.get(path, headers=header, params=extra)
                 elif method == 'POST':
-                    rq = await s.post(path, headers=header, params=extra)
+                    rq = await s.post(path, headers=header, data=extra)
                 else:
                     return False, '', '[{}]incorrect method'.format(method), 1
 
                 res = json.loads(await rq.text())
 
                 if 'error' in res:
-                    return False, '', res['error']['message'], 1
+                    return False, '', '[UPBIT], ERROR_BODY=[{}], URL=[{}]'.format(res['error']['message'], path), 1
 
                 else:
                     return True, res, '', 0
         except Exception as ex:
-            return False, '', 'Error [{}]'.format(ex), 1
+            return False, '', '[UPBIT], ERROR_BODY=[{}], URL=[{}]'.format(ex, path), 1
 
     async def _async_private_api(self, method, path, extra=None):
         payload = {
@@ -209,7 +228,7 @@ class BaseUpbit(BaseExchange):
         if extra is not None:
             payload.update({'query': urlencode(extra)})
 
-        header = self._sign_generator(payload)
+        header = {'Authorization': self._sign_generator(payload)}
 
         return await self._async_public_api(method, path, extra, header)
 
@@ -226,7 +245,7 @@ class BaseUpbit(BaseExchange):
 
     async def _get_orderbook(self, symbol):
         for _ in range(3):
-            success, data, message, time_ = self._async_public_api('get', 'orderbook', {'markets': symbol})
+            success, data, message, time_ = await self._async_public_api('get', 'orderbook', {'markets': symbol})
             if success:
                 return True, data, message, time_
 
@@ -235,9 +254,9 @@ class BaseUpbit(BaseExchange):
         else:
             return False, '', message, time_
 
-    async def _get_deposit_addrs(self):
+    async def _get_deposit_addrs(self, symbol=None):
         for _ in range(3):
-            success, data, message, time_ = self._async_public_api('get', '/'.join(['v1', 'deposits', 'coin_addresses']))
+            success, data, message, time_ = await self._async_private_api('get', '/'.join(['deposits', 'coin_addresses']))
             if success:
                 return True, data, message, time_
 
@@ -259,16 +278,25 @@ class BaseUpbit(BaseExchange):
             return False, '', message, time_
 
     async def get_deposit_addrs(self, coin_list=None):
-        success, data, message, time_ = self._get_deposit_addrs()
+        success, data, message, time_ = await self._get_deposit_addrs()
 
         if not success:
             return False, '', message, time_
-    
+
+        dic_ = {}
+        for d in data:
+            dic_[d['currency']] = d['deposit_address']
+
+            if d['secondary_address']:
+                dic_[d['currency'] + 'TAG'] = d['secondary_address']
+
+        return True, dic_, message, time_
+
     async def get_transaction_fee(self):
         suc, currencies, msg, time_ = self.get_available_coin()
 
         if not suc:
-            return False, '', '[Upbit] 거래가능한 코인을 가져오는 중 에러가 발생했습니다. = [{}]'.format(msg), time_
+            return False, '', msg, time_
 
         tradable_currencies = self.service_currencies(currencies)
 
@@ -277,7 +305,7 @@ class BaseUpbit(BaseExchange):
             ts_suc, ts_data, ts_msg, ts_time = await self._get_transaction_fee(currency)
 
             if not ts_suc:
-                return False, '', '[Upbit] 출금 수수료를 가져오는 중 에러가 발생했습니다. = [{}]'.format(ts_msg), ts_time
+                return False, '', msg, ts_time
 
             else:
                 if ts_data['currency']['withdraw_fee'] is None:
@@ -285,24 +313,27 @@ class BaseUpbit(BaseExchange):
 
                 fees[currency] = Decimal(ts_data['currency']['withdraw_fee']).quantize(Decimal(10) ** -8)
 
+            await asyncio.sleep(0.1)
+
         return True, fees, '', 0
 
     async def get_balance(self):
-        success, data, message, time_ = self._balance()
+        success, data, message, time_ = await self._get_balance()
 
         if success:
-            return {bal['currency']: bal['balance'] for bal in data}
+            return True, {bal['currency']: bal['balance'] for bal in data}, '', 0
         else:
-            return False, '', '[Upbit]BaseToAlt 거래에 실패했습니다[{}]'.format(message), time_
+            return False, '', message, time_
 
     async def get_btc_orderbook(self, btc_sum):
         s, d, m, t = await self._get_orderbook('KRW-BTC')
 
     async def get_curr_avg_orderbook(self, coin_list, btc_sum=1):
+        # todo 이슈발견: btc_sum에 도달하는? 일치하지 않는 값을 가져오는 경우 어떻게 처리하는가?
         avg_order_book = {}
         for coin in coin_list:
             coin = coin.replace('_', '-')
-            suc, book, msg = await self._get_orderbook(coin)
+            suc, book, msg, time_ = await self._get_orderbook(coin)
 
             if not suc:
                 return False, '', msg
@@ -323,7 +354,7 @@ class BaseUpbit(BaseExchange):
 
                         break
 
-            return True, avg_order_book, ''
+        return True, avg_order_book, ''
 
     async def compare_orderbook(self, other, coins, default_btc=1):
         upbit_res, other_res = await asyncio.gather(
@@ -351,6 +382,9 @@ class BaseUpbit(BaseExchange):
 
             return True, res, ''
 
+    async def get_trading_fee(self):
+        return True, 0.0005, '', 0
+
 
 class UpbitBTC(BaseUpbit):
     def __init__(self, *args):
@@ -359,6 +393,9 @@ class UpbitBTC(BaseUpbit):
     def __repr__(self):
         return 'UpbitBTC'
 
+    def __str__(self):
+        return '업비트 BTC마켓'
+
 
 class UpbitKRW(BaseUpbit):
     def __init__(self, *args):
@@ -366,6 +403,9 @@ class UpbitKRW(BaseUpbit):
 
     def __repr__(self):
         return 'UpbitKRW'
+
+    def __str__(self):
+        return '업비트 KRW마켓'
 
     def fee_count(self):
         return 2
@@ -381,7 +421,7 @@ class UpbitKRW(BaseUpbit):
                     alt_amount -= Decimal(0.0001).quantize(Decimal(10) ** -4)
                     continue
         else:
-            return False, '', '[Upbit]BaseToAlt실패 = [{}]'.format(message)
+            return False, '', message, time_
 
         currency_pair = currency_pair.split('_')[1]
 
@@ -396,7 +436,7 @@ class UpbitKRW(BaseUpbit):
                     alt_amount -= Decimal(0.0001).quantize(Decimal(10) ** -4)
                     continue
         else:
-            return False, '', '[Upbit]BaseToAlt실패 = [{}]'.format(message)
+            return False, '', message, time_
 
         alt_amount *= ((1 - Decimal(td_fee)) ** 2)
         alt_amount -= Decimal(tx_fee[currency_pair.split('_')[1]])
@@ -419,20 +459,14 @@ class UpbitKRW(BaseUpbit):
                     continue
 
         else:
-            return False, '', '[Upbit]AltToBase실패 = [{}]'.format(message)
+            return False, '', message, time_
 
-        for _ in range(10):
-            success, data, message, time_ = self.buy('BTC', btc_amount)
+        success, data, message, time_ = self.buy('BTC', btc_amount)
 
-            if success:
-                return True, '', '[Upbit]AltToBase ALT구매 성공', 0
+        if not success:
+            return False, '', message, time_
 
-            else:
-                if '부족합니다.' in message:
-                    alt_amount -= Decimal(0.0001).quantize(Decimal(10) ** -4)
-                    continue
-        else:
-            return False, '', '[Upbit]AltToBase실패 = [{}]'.format(message)
+        return True
 
     def get_step(self, price):
         if price >= 2000000:
@@ -460,7 +494,7 @@ class UpbitKRW(BaseUpbit):
             if not success:
                 return False, '', message, time_
 
-            price = data['ticker']
+            price = data['trade_price']
 
         coin = 'KRW-{}'.format(coin.split('_')[1])
         price = int(price)
@@ -481,7 +515,7 @@ class UpbitKRW(BaseUpbit):
             if not success:
                 return False, '', message, time_
 
-            price = data['ticker']
+            price = data['trade_price']
 
         coin = 'KRW-{}'.format(coin.split('_')[1])
         price = int(price)
@@ -496,13 +530,16 @@ class UpbitKRW(BaseUpbit):
 
         return self._private_api('POST', 'orders', params)
 
-    async def get_trading_fee(self):
-        return True, 0.0005, '', 0
-
 
 class UpbitUSDT(UpbitKRW):
     def __init__(self, *args):
         super(UpbitUSDT, self).__init__(*args)
+
+    def __repr__(self):
+        return 'UpbitUSDT'
+
+    def __str__(self):
+        return '업비트 USDT마켓'
 
     def buy(self, coin, amount, price=None):
         if price is None:
@@ -510,7 +547,7 @@ class UpbitUSDT(UpbitKRW):
             if not success:
                 return False, '', message, time_
 
-            price = data['ticker']
+            price = data['trade_price']
 
         coin = 'USDT-{}'.format(coin.split('_')[1])
         price = int(price)
@@ -531,7 +568,7 @@ class UpbitUSDT(UpbitKRW):
             if not success:
                 return False, '', message, time_
 
-            price = data['ticker']
+            price = data['trade_price']
 
         coin = 'USDT-{}'.format(coin.split('_')[1])
 
@@ -546,3 +583,48 @@ class UpbitUSDT(UpbitKRW):
         }
 
         return self._private_api('POST', 'orders', params)
+
+
+if __name__ == '__main__':
+    key = ''
+    secret = ''
+
+    u = UpbitBTC(key, secret)
+
+    s, d, m, t = u.buy('BTC-ADA', 1)
+
+    _, get_available_coin, *_ = u.get_available_coin()
+
+    loop = asyncio.get_event_loop()
+
+
+    # todo -----done-----
+    # _, get_available_coin, *_ = u.get_available_coin()
+    #
+    # for coin in get_available_coin:
+    #     print(coin)
+    #
+    # service_currencies = u.service_currencies(get_available_coin)
+    #
+    # for svc in service_currencies:
+    #     print(svc)
+    #
+    # _, ticker, *_ = u.get_ticker('BTC_XRP')
+    #
+    # print(ticker)
+
+    # loop = asyncio.get_event_loop()
+    # _, balance, *_ = loop.run_until_complete(u.get_balance())
+    #
+    # print(balance)
+    #
+    # _, fee, *_ = loop.run_until_complete(u.get_transaction_fee())
+    #
+    # print(fee)
+    #
+    # _, orderbook, *_ = loop.run_until_complete(u.get_curr_avg_orderbook(get_available_coin))
+    #
+    # print(orderbook)
+    # loop = asyncio.get_event_loop()
+    # s, dp_set, msg, time_ = loop.run_until_complete(u.get_deposit_addrs(get_available_coin))
+    # print(dp_set)
