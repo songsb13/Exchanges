@@ -21,7 +21,7 @@ class Binance(BaseExchange):
             res = rq.json()
 
             if 'msg' in res:
-                return False, '', '[BINANCE], ERROR_BODY=[{}], URL=[{}], PARAMETER=[{}]'.format(res['error']['message'],
+                return False, '', '[BINANCE], ERROR_BODY=[{}], URL=[{}], PARAMETER=[{}]'.format(res['msg'],
                                                                                                 path, extra), 1
 
             else:
@@ -36,12 +36,13 @@ class Binance(BaseExchange):
 
         try:
             query = self._sign_generator(extra)
-            
+            sig = query.pop('signature')
+            query = "{}&signature={}".format(urlencode(sorted(extra.items())), sig)
             rq = requests.request(method, self._base_url + path, data=query, headers={"X-MBX-APIKEY": self._key})
             res = rq.json()
 
             if 'msg' in res:
-                return False, '', '[BINANCE], ERROR_BODY=[{}], URL=[{}], PARAMETER=[{}]'.format(res['error']['message'],
+                return False, '', '[BINANCE], ERROR_BODY=[{}], URL=[{}], PARAMETER=[{}]'.format(res['msg'],
                                                                                                 path, extra), 1
 
             else:
@@ -70,7 +71,6 @@ class Binance(BaseExchange):
         return params
 
     def get_exchange_info(self):
-        print('here')
         return self._public_api('GET', '/api/v1/exchangeInfo')
 
     def _get_exchange_info(self):
@@ -278,13 +278,15 @@ class Binance(BaseExchange):
                 res = json.loads(res)
 
                 if 'msg' in res:
-                    return False, res, '값을 불러오지 못했습니다. [{}]'.format(res['msg']), 1
+                    return False, '', '[BINANCE], ERROR_BODY=[{}], URL=[{}], PARAMETER=[{}]'.format(res['msg'],
+                                                                                                    path, extra), 1
 
                 else:
                     return True, res, '', 0
 
             except Exception as ex:
-                return False, '', '서버와의 통신에 실패했습니다. [{}]'.format(ex), 1
+                return False, '', '[BINANCE], ERROR_BODY=[{}], URL=[{}], PARAMETER=[{}]'.format(ex,
+                                                                                                path, extra), 1
 
     async def _async_public_api(self, method, path, extra=None, header=None):
         if extra is None:
@@ -298,19 +300,22 @@ class Binance(BaseExchange):
             res = json.loads(res)
 
             if 'msg' in res:
-                return False, '', '값을 불러오지 못했습니다. [{}]'.format(res['msg']), 1
+                return False, '', '[BINANCE], ERROR_BODY=[{}], URL=[{}], PARAMETER=[{}]'.format(res['msg'],
+                                                                                                path, extra), 1
 
             else:
                 return True, res, '', 0
 
         except Exception as ex:
-            return False, '', '서버와의 통신에 실패했습니다. [{}]'.format(ex), 1
+            return False, '', '[BINANCE], ERROR_BODY=[{}], URL=[{}], PARAMETER=[{}]'.format(ex,
+                                                                                            path, extra), 1
 
     async def _get_balance(self):
         for _ in range(3):
             success, data, message, time_ = await self._async_private_api('GET', '/api/v3/account')
             if success:
                 return True, data, message, time_
+            time.sleep(time_)
 
         else:
             return False, '', message, time_
@@ -321,14 +326,18 @@ class Binance(BaseExchange):
 
             if success:
                 return True, data, message, time_
+            time.sleep(time_)
+
         else:
             return False, '', message, time_
 
     async def _get_orderbook(self, symbol):
         for _ in range(3):
             success, data, message, time_ = await self._async_public_api('GET', '/api/v1/depth', {'symbol': symbol})
+            print(message)
             if success:
                 return True, data, message, time_
+            time.sleep(time_)
 
         else:
             return False, '', message, time_
@@ -365,6 +374,7 @@ class Binance(BaseExchange):
             return False, '', '[BINANCE] ERROR_BODY=[입금 주소를 가져오는데 실패했습니다. {}]'.format(ex), 1
 
     async def get_avg_price(self,coins):  # 내거래 평균매수가
+        # 해당 함수는 현재 미사용 상태
         try:
             amount_price_list, res_value = [], []
             for coin in coins:
@@ -468,6 +478,7 @@ class Binance(BaseExchange):
         try:
             avg_order_book = {}
             for currency_pair in coin_list:
+                print(currency_pair)
                 if currency_pair == 'BTC_BTC':
                     continue
 
@@ -488,7 +499,6 @@ class Binance(BaseExchange):
                             _v = ((order_sum / order_amount).quantize(Decimal(10) ** -8))
                             avg_order_book[currency_pair][type_] = _v
                             break
-
             return True, avg_order_book, '', 0
         except Exception as ex:
             return False, '', '[BINANCE], ERROR_BODY=[{}], URL=[get_curr_avg_orderbook]'.format(ex), 1
@@ -536,19 +546,20 @@ if __name__ == '__main__':
     k = ''
     s = ''
     b = Binance(k, s)
-    s, d, m, t = b.get_exchange_info()
-    print(s,d,m,t)
-
+    s, available, *_ = b.get_available_coin()
+    s, d, m, t = b.sell('XRPBTC', 1)
     loop = asyncio.get_event_loop()
-    s, d, m, t = loop.run_until_complete(b.get_deposit_addrs())
-    print(s, d, m, t )
-
     # todo ---Done---
     # s, d, m, t = b.get_available_coin()
+    # s, d, m, t = b.buy('XRPBTC', 1)
+    # s, d, m, t = b.sell('XRPBTC', 1)
+    # s, d, m, t = b.withdraw('XRPBTC', 1, 'test')
+
     # print(s, d)
     #
     # loop = asyncio.get_event_loop()
     # s, d, m ,t = loop.run_until_complete(b.get_balance())
     # print(d, m)
     # s, d, m, t = loop.run_until_complete(b.get_deposit_addrs())
-
+    # s, d, m, t = loop.run_until_complete(b.get_transaction_fee())
+    # s, d, m, t = loop.run_until_complete(b.get_curr_avg_orderbook(available[:5]))
