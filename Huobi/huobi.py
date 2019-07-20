@@ -1,5 +1,5 @@
-from pyinstaller_patch import *
 from BaseExchange import *
+import datetime
 
 
 class Huobi(BaseExchange):
@@ -89,6 +89,31 @@ class Huobi(BaseExchange):
         else:
             return False, '', message, time_
 
+    def _public_api(self, method, path, extra=None, header=None):
+        if extra is None:
+            extra = {}
+
+        try:
+            header = self._get_header(method)
+            path = self._base_url + path
+            if method == 'GET':
+                rq = requests.request(method, path, params=urlencode(extra), headers=header)
+
+            else:
+                rq = requests.request(method, path, data=json.dumps(extra), headers=header)
+
+            rqj = rq.json()
+
+            if 'err-msg' in rqj:
+                return False, '', '[HUOBI], ERROR_BODY=[{}], URL=[{}], PARAMETER=[{}]'.format(rqj['err-msg'], path,
+                                                                                              extra), 1
+
+            else:
+                return True, rqj, '', 0
+        except Exception as ex:
+            return False, '', '[HUOBI], ERROR_BODY=[{}], URL=[{}], PARAMETER=[{}]'.format(ex,
+                                                                                          path, extra), 1
+
     def _private_api(self, method, path, extra=None):
         if extra is None:
             extra = {}
@@ -109,29 +134,6 @@ class Huobi(BaseExchange):
 
         return self._public_api(method, path, extra)
 
-    def _public_api(self, method, path, extra=None, header=None):
-        # previous name: http_request
-        if extra is None:
-            extra = {}
-
-        try:
-            header = self._get_header(method)
-            path = self._base_url + path
-            if method == 'GET':
-                rq = requests.request(method, path, params=urlencode(extra), headers=header)
-
-            else:
-                rq = requests.request(method, path, data=json.dumps(extra), headers=header)
-
-            rqj = rq.json()
-
-            if rqj['status'] in 'error':
-                return False, '', rqj['err-message'], 1
-            else:
-                return True, rqj, '', 0
-        except Exception as ex:
-            return False, '', '서버와 통신에 실패하였습니다 = [{}]'.format(ex), 1
-
     def get_precision(self):
         return True, (-8, -8), '', 0
 
@@ -139,71 +141,67 @@ class Huobi(BaseExchange):
         return 1
 
     def buy(self, coin, amount, price=None):
-        coin = coin.split('_')
-        currency_pair = coin[1].lower() + coin[0].lower()
-
         params = {}
 
         if price is None:
-            params['type'] = 'buy-limit'
+            params['type'] = 'buy-market'
 
         else:
-            params['type'] = 'buy-market'
+            params['type'] = 'buy-limit'
+            params['price'] = price
 
         params.update({
                     'account-id': str(self._account_id),
-                    'symbol': currency_pair,
+                    'symbol': coin,
                     'amount': '{}'.format(amount).strip(),
                   })
 
         return self._private_api('POST', '/v1/order/orders/place', params)
 
     def sell(self, coin, amount, price=None):
-        coin = coin.split('_')
-        currency_pair = coin[1].lower() + coin[0].lower()
-
         params = {}
         if price is None:
-            params['type'] = 'sell-limit'
-
-        else:
             params['type'] = 'sell-market'
 
-        params = ({
+        else:
+            params['type'] = 'sell-limit'
+            params['price'] = price
+
+        params.update({
                     'account-id': str(self._account_id),
-                    'symbol': currency_pair,
+                    'symbol': coin,
                     'amount': '{}'.format(amount).strip(),
                   })
 
         return self._private_api('POST', '/v1/order/orders/place', params)
 
     def base_to_alt(self, currency_pair, btc_amount, alt_amount, td_fee, tx_fee):
-        success, data, message, time_ = self.buy(currency_pair, btc_amount)
+        currency_pair = currency_pair.split('_')
+        coin = currency_pair[1] + currency_pair[0]
+
+        success, data, message, time_ = self.buy(coin.lower(), btc_amount)
 
         if success:
-            coin = currency_pair.split('_')[1]  # 보내야하는 alt의 양 계산함.
-
+            coin = currency_pair[1]  # 보내야하는 alt의 양 계산함.
             precision = alt_amount.as_tuple().exponent
             alt_amount *= (1 - Decimal(td_fee))
             alt_amount -= Decimal(tx_fee[coin])
             alt_amount = alt_amount.quantize(Decimal(10)**precision, rounding=ROUND_DOWN)
 
-            return success, alt_amount, message, time_
+            return True, alt_amount, message, time_
 
         else:
-            return success, data, '[Huobi]BaseToAlt 거래에 실패했습니다[{}]'.format(message), time_
+            return False, '', message, time_
 
     def alt_to_base(self, currency_pair, btc_amount, alt_amount):
-        coin = currency_pair[1]
+        currency_pair = currency_pair.split('_')
+        coin = currency_pair[1] + currency_pair[0]
+        success, data, message, time_ = self.sell(coin, alt_amount)
 
-        while True:
-            success, data, message, time_ = self.sell(coin, alt_amount)
+        if not success:
+            return False, '', message, time_
 
-            if success:
-                return success, data, message, time_
-
-            else:
-                time.sleep(time_)
+        return True, data, message, time_
 
     def withdraw(self, coin, amount, to_address, payment_id=None):
         params = {
@@ -225,7 +223,8 @@ class Huobi(BaseExchange):
             return False, '', message, time_
 
         else:
-            return True, ['BTC_{}'.format(coin.upper()) for coin in data['data'] if not 'btc' or not 'usdt'], '', 0
+            return True, ['BTC_{}'.format(coin.upper()) for coin in data['data']
+                          if coin not in ['btc', 'usdt', 'hb10']], '', 0
 
     async def get_transaction_fee(self):
         _fee_info = {
@@ -272,7 +271,7 @@ class Huobi(BaseExchange):
         if method == 'POST':
             path += '?' + urlencode(sign_data)
 
-        return self._async_public_api(method, path, extra)
+        return await self._async_public_api(method, path, extra)
 
     async def _async_public_api(self, method, path, extra=None, header=None):
         if extra is None:
@@ -281,6 +280,7 @@ class Huobi(BaseExchange):
         try:
             async with aiohttp.ClientSession() as session:
                 postdata = urlencode(extra) if method == 'GET' else json.dumps(extra)
+                path = self._base_url + path
                 if method == 'GET':
                     rq = await session.get(path, params=postdata, headers=self._get_header(method))
                 else:
@@ -289,13 +289,14 @@ class Huobi(BaseExchange):
                 rq = await rq.text()
                 rqj = json.loads(rq)
 
-                if rqj['status'] in 'error':
-                    return False, '', rqj['status'], 1
+                if 'err-msg' in rqj:
+                    return False, '', '[HUOBI], ERROR_BODY=[{}], URL=[{}], PARAMETER=[{}]'.format(rqj['err-msg'],
+                                                                                                  path, extra), 1
                 else:
                     return True, rqj, '', 0
 
         except Exception as ex:
-            return False, '', '서버와 통신에 실패하였습니다 = [{}]'.format(ex), 1
+            return False, '', '[HUOBI], ERROR_BODY=[{}], URL=[{}], PARAMETER=[{}]'.format(ex, path, extra), 1
 
     async def _get_deposit_addrs(self, coin):
 
@@ -328,7 +329,7 @@ class Huobi(BaseExchange):
     async def _get_orderbook(self, symbol):
         for _ in range(3):
             success, data, message, time_ = await self._async_public_api('GET', '/market/depth',
-                                                                         {'symbol': symbol.lower(), 'type': 'step0'})
+                                                                         {'symbol': symbol, 'type': 'step0'})
 
             if success:
                 return True, data, message, time_
@@ -355,12 +356,12 @@ class Huobi(BaseExchange):
                     coin_info = data['data'][0]
                     coin_addrs[coin] = coin_info['address']
 
-                    if coin_info['currency'].upper() in settings.SUB_ADDRESS_COIN_LIST:
+                    if 'address-tag' in coin_info:
                         coin_addrs[coin + 'TAG'] = coin_info['address-tag']
 
             return True, coin_addrs, '', 0
         except Exception as ex:
-            return False, '', '[Huobi]주소를 가져오는데 실패했습니다. [{}]'.format(ex), 1
+            return False, '', '[HUOBI] ERROR_BODY=[입금 주소를 가져오는데 실패했습니다. {}]'.format(ex), 1
 
     async def get_balance(self):
         if self._account_id is None:
@@ -389,12 +390,15 @@ class Huobi(BaseExchange):
             if currency_pair == 'BTC_BTC':
                 continue
 
-            coin = currency_pair.split('_')
+            coin = currency_pair.lower().split('_')
             avg_order_book[currency_pair] = {}
 
             success, data, message, time_ = await self._get_orderbook(coin[1] + coin[0])
 
             if not success:
+                if 'invalid' in message:
+                    continue
+
                 return False, '', message, time_
 
             book = data['tick']
@@ -451,3 +455,20 @@ class Huobi(BaseExchange):
         else:
             return False, '', 'huobi_error-[{}] other_error-[{}]'.format(huobi_msg, other_msg), huobi_times
 
+
+if __name__ == '__main__':
+    k = ''
+    s = ''
+    h = Huobi(key=k, secret=s)
+    loop = asyncio.get_event_loop()
+    s, d, m, t = h.get_available_coin()
+    s, d, m, t = loop.run_until_complete(h.get_curr_avg_orderbook(d[:10]))
+    print(d)
+    # h._get_account_id()
+    # s, d, m, t = h.get_available_coin()
+    # s, d, m, t = h.buy('xrpbtc', 1)
+    # s, d, m, t = h.sell('xrpbtc', 1)
+    # s, d, m, t = h.withdraw('XRP', 1, 'htc')
+    # s, d, m, t = loop.run_until_complete(h.get_balance())
+    # s, d, m, t = loop.run_until_complete(h.get_deposit_addrs())
+    # s, d, m, t = loop.run_until_complete(h.get_curr_avg_orderbook(d))
