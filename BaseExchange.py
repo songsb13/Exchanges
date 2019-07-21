@@ -1,21 +1,3 @@
-import requests
-import json
-import time
-import aiohttp
-import asyncio
-import jwt
-import hmac
-import json
-import asyncio
-import base64
-import aiohttp
-
-import numpy as np
-
-from pyinstaller_patch import *
-from decimal import *
-from urllib.parse import urlencode
-from datetime import datetime
 
 
 class BaseExchange(object):
@@ -162,7 +144,7 @@ class BaseExchange(object):
         :return: None
         """
 
-    def get_precision(self):
+    def get_precision(self, pair=None):
         """
         :return: success, data, message, time
         """
