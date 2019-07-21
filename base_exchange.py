@@ -4,8 +4,6 @@ class BaseExchange(object):
     """
     all exchanges module should be followed BaseExchange format.
     """
-
-    #
     _base_url = str
     _key = str
     _secret = str
