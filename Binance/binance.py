@@ -115,7 +115,7 @@ class Binance(BaseExchange):
 
         return True, step_size, '', 0
 
-    def get_precision(self, pair):
+    def get_precision(self, pair=None):
         if pair == 'BTC_BCH':
             pair = 'BTC_BCC'
 
