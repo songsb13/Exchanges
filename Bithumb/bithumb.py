@@ -1,10 +1,19 @@
 import re
+import hmac
+import base64
+import time
+import requests
+import hashlib
+import json
+import aiohttp
+import asyncio
 
-from BaseExchange import *
+from lxml import html as lh
+from decimal import Decimal, ROUND_DOWN
+from urllib.parse import urlencode
 
-
-class WrongOutputReceived(Exception):
-    pass
+from BaseExchange import BaseExchange
+import Settings as settings
 
 
 class RequestError(Exception):
@@ -28,7 +37,7 @@ class RequestError(Exception):
         )
 
 
-class Bithumb(BaseExchange):
+class BaseBithumb(BaseExchange):
     def __init__(self, key, secret):
         self._key = key
         self._secret = secret
@@ -56,11 +65,12 @@ class Bithumb(BaseExchange):
             res = rq.json()
 
             if not res['status'] == '0000':
-                return False, '', res['message'], 1
+                return False, '', '[BITHUMB], ERROR_BODY=[{}], URL=[{}], PARAMETER=[{}]'.format(res['message'],
+                                                                                                path, extra), 1
 
             return True, res, '', 0
         except Exception as ex:
-            return False, '', 'API호출 중 에러가 발생했습니다. {}'.format(ex), 1
+            return False, '', '[BITHUMB], ERROR_BODY=[{}], URL=[{}], PARAMETER=[{}]'.format(ex, path, extra), 1
 
     def _private_api(self, method, path, extra=None):
         try:
@@ -83,18 +93,15 @@ class Bithumb(BaseExchange):
 
             res = rq.json()
 
-            if 'error' in res:
-                return False, '', 'error', 1
-
+            if not res['status'] == '0000':
+                return False, '', '[BITHUMB], ERROR_BODY=[{}], URL=[{}], PARAMETER=[{}]'.format(res['message'],
+                                                                                                path, extra), 1
             return True, res, '', 0
         except Exception as ex:
-            return False, '', 'API호출 중 에러가 발생했습니다. {}'.format(ex), 1
+            return False, '', '[BITHUMB], ERROR_BODY=[{}], URL=[{}], PARAMETER=[{}]'.format(ex, path, extra), 1
 
     def fee_count(self):
         return 2
-
-    def _currencies(self):
-        pass
 
     def get_ticker(self, market):
         for _ in range(3):
@@ -107,18 +114,33 @@ class Bithumb(BaseExchange):
         else:
             return False, '', message, time_
 
+    def limit_buy(self, coin, amount, price):
+        params = {'order_currency': coin,
+                  'payment_currency': 'KRW',
+                  'units': amount,
+                  'price': price,
+                  'type': 'bid'}
+
+        return self._private_api('POST', '/trade/place', params)
+
+    def limit_sell(self, coin, amount, price):
+        params = {'order_currency': coin,
+                  'payment_currency': 'KRW',
+                  'units': amount,
+                  'price': price,
+                  'type': 'ask'}
+
+        return self._private_api('POST', '/trade/place', params)
+
     def buy(self, coin, amount, price=None):
         params = {'currency': coin,
                   'units': amount
                   }
 
         if price:
-            path = '/trade/limit_buy'
+            return self.limit_buy(coin, amount, price)
 
-        else:
-            path = '/trade/market_buy'
-
-        return self._private_api('POST', path, params)
+        return self._private_api('POST', '/trade/market_buy', params)
 
     def sell(self, coin, amount, price=None):
         params = {'currency': coin,
@@ -126,17 +148,19 @@ class Bithumb(BaseExchange):
                   }
 
         if price:
-            path = '/trade/limit_sell'
+            return self.limit_sell(coin, amount, price)
 
-        else:
-            path = '/trade/market_sell'
-
-        return self._private_api('POST', path, params)
+        return self._private_api('POST', '/trade/market_sell', params)
 
     def base_to_alt(self, currency_pair, btc_amount, alt_amount, td_fee, tx_fee):
         alt = Decimal(alt_amount)
-        success, data, message, time_ = self.sell('BTC', btc_amount)
-        if not success:
+        for _ in range(10):
+            success, data, message, time_ = self.sell('BTC', btc_amount)
+            if success:
+                break
+            time.sleep(time_)
+
+        else:
             return False, '', message, time_
 
         currency_pair = currency_pair.split('_')[1]
@@ -157,18 +181,22 @@ class Bithumb(BaseExchange):
 
     def alt_to_base(self, currency_pair, btc_amount, alt_amount):
         currency_pair = currency_pair.split('_')[1]
-        while True:
+        for _ in range(10):
             success, data, message, time_ = self.sell(currency_pair, alt_amount)
             if success:
                 break
             time.sleep(time_)
+        else:
+            return False, '', message, time_
 
-        while True:
+        for _ in range(10):
             success, data, message, time_ = self.buy('BTC', btc_amount)
             if success:
                 return
 
             time.sleep(time_)
+        else:
+            return False, '', message, time_
 
     def withdraw(self, coin, amount, to_address, payment_id=None):
         params = {
@@ -182,7 +210,7 @@ class Bithumb(BaseExchange):
         return self._private_api('POST', '/trade/btc_withdrawal', params)
 
     def get_available_coin(self):
-        return [
+        return True, [
             'BTC_ETH',
             'BTC_DASH',
             'BTC_LTC',
@@ -194,12 +222,12 @@ class Bithumb(BaseExchange):
             'BTC_QTUM',
             'BTC_BTG',
             'BTC_EOS'
-        ]
+        ], '', 0
 
-    def get_precision(self, pair):
+    def get_precision(self, pair=None):
         return True, (-8, -8), '', 0
 
-    async def _async_private_api(self, method, path, extra=None, header=None):
+    async def _async_private_api(self, method, path, extra=None):
         try:
             if extra is None:
                 extra = {}
@@ -219,22 +247,25 @@ class Bithumb(BaseExchange):
 
                 res = json.loads(await rq.text())
 
-                if 'error' in res:
-                    return False, '', 'error', 1
+                if not res['status'] == '0000':
+                    return False, '', '[BITHUMB], ERROR_BODY=[{}], URL=[{}], PARAMETER=[{}]'.format(res['message'],
+                                                                                                    path, extra), 1
 
                 return True, res, '', 0
         except Exception as ex:
-            return False, '', 'API호출 중 에러가 발생했습니다. {}'.format(ex), 1
+            return False, '', '[BITHUMB], ERROR_BODY=[{}], URL=[{}], PARAMETER=[{}]'.format(ex, path, extra), 1
 
     async def _async_public_api(self, method, path, extra=None, header=None):
         pass
 
     async def _get_deposit_addrs(self, currency):
-        for _ in range(5):
-            success, data, message, time_ = await self._async_private_api('/info/wallet_address', {'currency': currency})
+        for _ in range(3):
+            success, data, message, time_ = await self._async_private_api('POST', '/info/wallet_address',
+                                                                          {'currency': currency})
 
             if success:
                 return True, data, message, time_
+            time.sleep(time_)
 
         else:
             return False, data, message, time_
@@ -250,10 +281,10 @@ class Bithumb(BaseExchange):
         else:
             return False, '', message, time_
 
-    async def _get_balance(self, symbol):
+    async def _get_balance(self):
         for _ in range(3):
             success, data, message, time_ = await self._async_private_api('POST', '/info/balance',
-                                                                          {'currency': symbol})
+                                                                          {'currency': 'ALL'})
             if success:
                 return True, data, '', 0
 
@@ -273,30 +304,22 @@ class Bithumb(BaseExchange):
             return False, data, message, time_
 
     async def get_balance(self):
-        try:
-            success, data, message, time_ = await self._get_balance('ALL')
+        success, data, message, time_ = await self._get_balance()
 
-            if not success:
-                return False, data, message, time_
+        if not success:
+            return False, data, message, time_
 
-            res = {key.split('_')[1].upper(): float(data['data'][key]) for key in data['data'] if
-                   key.startswith('available') and float(data['data'][key]) > 0}
+        res = {key.split('_')[1].upper(): float(data['data'][key]) for key in data['data'] if
+               key.startswith('available') and float(data['data'][key]) > 0}
 
-            return True, res, '', 0
-
-        except Exception as ex:
-            return False, '', 'API호출 중 에러가 발생했습니다. {}'.format(ex), 1
+        return True, res, '', 0
 
     async def get_trading_fee(self):
-        try:
-            success, data, message, time_ = await self._get_trading_fee('BTC')
-            if not success:
-                return False, data, message, time_
+        success, data, message, time_ = await self._get_trading_fee('BTC')
+        if not success:
+            return False, data, message, time_
 
-            return True, data['data']['trade_fee'], '', 0
-
-        except Exception as ex:
-            return False, '', 'API호출 중 에러가 발생했습니다. {}'.format(ex), 1
+        return True, data['data']['trade_fee'], '', 0
 
     async def get_transaction_fee(self):
         # 현철이 레거시
@@ -306,7 +329,7 @@ class Bithumb(BaseExchange):
             if self.transaction_fee is not None:
                 return True, self.transaction_fee, '', 0
             else:
-                return False, '', "트랜잭션 수수료 불러오기 에러", 5
+                return False, '', "[BITHUMB] ERROR_BODY=[트랜잭션 수수료 불러오기 에러]", 5
 
         #   API 사용이 아니다.
         doc = lh.fromstring(ret.text)
@@ -333,7 +356,9 @@ class Bithumb(BaseExchange):
 
     async def get_deposit_addrs(self, coin_list=None):
         ret_data = {}
-        for currency in self.get_available_coin() + ['BTC_BTC']:
+        # bithumb의 get_available_coin은 하드코딩이므로 data외 값을 받을 필요 없음.
+        _, available_coin, *_ = self.get_available_coin()
+        for currency in available_coin + ['BTC_BTC']:
             currency = currency[4:]
 
             success, data, message, time_ = await self._get_deposit_addrs(currency)
@@ -436,3 +461,23 @@ class Bithumb(BaseExchange):
             else:
                 return False, '', err, st
 
+
+if __name__ == '__main__':
+    k = '6ee4ff73c1691f0bd5325e1cddb37aeb'
+    s = '6434da912c508916187bc8f42429b0b4'
+
+    b = BaseBithumb(key=k, secret=s)
+    loop = asyncio.get_event_loop()
+    s, d, m, t = loop.run_until_complete(b.get_deposit_addrs())
+    print(d)
+
+    # s, d, m, t = b.get_available_coin()
+    # s, d, m, t = b.buy('ETH', 1)
+    # s, d, m, t = b.sell('ETH', 1)
+    # s, d, m, t = b.limit_buy('ETH', 1, 100)
+    # s, d, m, t = b.limit_sell('ETH', 1, 100)
+    # s, d, m, t = b.withdraw('ETH', 1, 'test')
+    # s, d, m, t = loop.run_until_complete(b.get_balance())
+    # s, d, m, t = loop.run_until_complete(b.get_trading_fee())
+    # s, d, m, t = loop.run_until_complete(b.get_transaction_fee())
+    # s, d, m, t = loop.run_until_complete(b.get_deposit_addrs())
