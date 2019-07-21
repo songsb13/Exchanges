@@ -146,7 +146,7 @@ class Huobi(BaseExchange):
 
         return self._public_api(method, path, extra)
 
-    def get_precision(self):
+    def get_precision(self, pair=None):
         return True, (-8, -8), '', 0
 
     def fee_count(self):
