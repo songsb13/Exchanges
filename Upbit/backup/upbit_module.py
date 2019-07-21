@@ -186,7 +186,7 @@ class BaseUpbit(BaseExchange):
     def alt_to_base(self, currency_pair, btc_amount, alt_amount):
         return self.sell(currency_pair, btc_amount)
 
-    def get_precision(self):
+    def get_precision(self, pair=None):
         return True, (-8, -8), '', 0
 
     async def _async_public_api(self, method, path, extra=None, header=None):
