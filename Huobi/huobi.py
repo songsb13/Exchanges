@@ -1,5 +1,17 @@
-from BaseExchange import *
+import requests
+import json
+import time
 import datetime
+import aiohttp
+import asyncio
+import hmac
+import base64
+import hashlib
+
+from urllib.parse import urlencode
+from decimal import Decimal, ROUND_DOWN
+
+from base_exchange import BaseExchange
 
 
 class Huobi(BaseExchange):
