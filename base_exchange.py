@@ -144,6 +144,9 @@ class BaseExchange(object):
 
     def get_precision(self, pair=None):
         """
+        this function is returned minimum decimal point
+
+        pair: BTC_XXX
         :return: success, data, message, time
         """
 
