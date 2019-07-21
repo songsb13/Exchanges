@@ -380,11 +380,12 @@ class BaseBithumb(BaseExchange):
 
     async def get_curr_avg_orderbook(self, currencies, default_btc=1):
         ret = {}
-        success, data, message, time_ = self._get_orderbook('ALL')
+        success, data, message, time_ = await self._get_orderbook('ALL')
         if not success:
             return False, '', message, time_
 
         btc_avg = {}
+        data = data['data']
         for order_type in ['bids', 'asks']:
             rows = data['BTC'][order_type]
             total_price = Decimal(0.0)
@@ -463,12 +464,13 @@ class BaseBithumb(BaseExchange):
 
 
 if __name__ == '__main__':
-    k = '6ee4ff73c1691f0bd5325e1cddb37aeb'
-    s = '6434da912c508916187bc8f42429b0b4'
+    k = ''
+    s = ''
 
     b = BaseBithumb(key=k, secret=s)
     loop = asyncio.get_event_loop()
-    s, d, m, t = loop.run_until_complete(b.get_deposit_addrs())
+    _, available, *_ = b.get_available_coin()
+    s, d, m, t = loop.run_until_complete(b.get_curr_avg_orderbook(available))
     print(d)
 
     # s, d, m, t = b.get_available_coin()
@@ -481,3 +483,4 @@ if __name__ == '__main__':
     # s, d, m, t = loop.run_until_complete(b.get_trading_fee())
     # s, d, m, t = loop.run_until_complete(b.get_transaction_fee())
     # s, d, m, t = loop.run_until_complete(b.get_deposit_addrs())
+    # s, d, m, t = loop.run_until_complete(b.get_curr_avg_orderbook(available))
