@@ -330,11 +330,8 @@ class BaseBitfinex(BaseExchange):
             return False, data, message, time_
 
     async def _get_deposit_addrs(self, currency):
-        # wallet name이 지정되어 있어야 한다.
-        if not self._symbol_full_name:
-            success, _, message, time_ = self._get_symbol_full_name()
-            if not success:
-                return False, '', message, time_
+        if currency == 'ethereum classic':
+            currency = 'ethereumc'
 
         params = {
             'method': currency,
@@ -379,6 +376,12 @@ class BaseBitfinex(BaseExchange):
                       == 'exchange'}, '', 0
 
     async def get_deposit_addrs(self, coin_list=None):
+        # wallet name이 지정되어 있어야 한다.
+        if not self._symbol_full_name:
+            success, _, message, time_ = self._get_symbol_full_name()
+            if not success:
+                return False, '', message, time_
+
         ac_success, currencies, ac_message, ac_time_ = self.get_available_coin()
 
         if not ac_success:
@@ -397,6 +400,11 @@ class BaseBitfinex(BaseExchange):
 
             success, dp_data, message, time_ = await self._get_deposit_addrs(self._symbol_full_name[currency].lower())
             if not success:
+                if 'Unknown method' in message:
+                    # 상의? 지원하지 않는 코인의 수량이 너무 많음.
+                    print(message)
+                    continue
+
                 return False, '', message, time_
 
             upper_currency = currency.upper()
@@ -437,7 +445,7 @@ class BaseBitfinex(BaseExchange):
             data = data['withdraw']
             for key_ in data:
                 if key_ in ['QTM', 'DSH', 'IOT']:
-                    processing_key = self._symbol_customizing(key_)
+                    processing_key = self._symbol_customizing(key_.lower()).upper()
                 else:
                     processing_key = key_
 
@@ -523,7 +531,7 @@ if __name__ == '__main__':
 
     loop = asyncio.get_event_loop()
     _, available_coin, *_ = b.get_available_coin()
-    s, d, m, t = loop.run_until_complete(b.get_curr_avg_orderbook(available_coin[10:]))
+    s, d, m, t = loop.run_until_complete(b.get_deposit_addrs())
     print(d)
 
     # s, d, m, t = loop.run_until_complete(b.get_balance())
