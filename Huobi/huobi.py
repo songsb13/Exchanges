@@ -102,6 +102,8 @@ class Huobi(BaseExchange):
             return False, '', message, time_
 
     def _public_api(self, method, path, extra=None, header=None):
+        debugger.debug('[Huobi]Parameters=[{}, {}, {}, {}], function name=[_public_api]'.format(method, path, extra, header))
+
         if extra is None:
             extra = {}
 
@@ -127,6 +129,8 @@ class Huobi(BaseExchange):
                                                                                           path, extra), 1
 
     def _private_api(self, method, path, extra=None):
+        debugger.debug('[Huobi]Parameters=[{}, {}, {}], function name=[_private_api]'.format(method, path, extra))
+
         if extra is None:
             extra = {}
 
@@ -153,6 +157,8 @@ class Huobi(BaseExchange):
         return 1
 
     def buy(self, coin, amount, price=None):
+        debugger.debug('[Huobi]Parameters=[{}, {}, {}], function name=[buy]'.format(coin, amount, price))
+
         params = {}
 
         if price is None:
@@ -171,6 +177,8 @@ class Huobi(BaseExchange):
         return self._private_api('POST', '/v1/order/orders/place', params)
 
     def sell(self, coin, amount, price=None):
+        debugger.debug('[Huobi]Parameters=[{}, {}, {}], function name=[sell]'.format(coin, amount, price))
+
         params = {}
         if price is None:
             params['type'] = 'sell-market'
@@ -188,13 +196,10 @@ class Huobi(BaseExchange):
         return self._private_api('POST', '/v1/order/orders/place', params)
 
     def base_to_alt(self, currency_pair, btc_amount, alt_amount, td_fee, tx_fee):
-        currency_pair = currency_pair.split('_')
-        coin = currency_pair[1] + currency_pair[0]
-
-        success, data, message, time_ = self.buy(coin.lower(), btc_amount)
+        base_market, coin = currency_pair.split('_')
+        success, data, message, time_ = self.buy((coin + base_market).lower(), btc_amount)
 
         if success:
-            coin = currency_pair[1]  # 보내야하는 alt의 양 계산함.
             precision = alt_amount.as_tuple().exponent
             alt_amount *= (1 - Decimal(td_fee))
             alt_amount -= Decimal(tx_fee[coin])
@@ -206,9 +211,8 @@ class Huobi(BaseExchange):
             return False, '', message, time_
 
     def alt_to_base(self, currency_pair, btc_amount, alt_amount):
-        currency_pair = currency_pair.split('_')
-        coin = currency_pair[1] + currency_pair[0]
-        success, data, message, time_ = self.sell(coin, alt_amount)
+        base_market, coin = currency_pair.split('_')
+        success, data, message, time_ = self.sell((coin + base_market).lower(), alt_amount)
 
         if not success:
             return False, '', message, time_
@@ -216,6 +220,7 @@ class Huobi(BaseExchange):
         return True, data, message, time_
 
     def withdraw(self, coin, amount, to_address, payment_id=None):
+        debugger.debug('[Huobi]Parameters=[{}, {}, {}, {}], function name=[sell]'.format(coin, amount, to_address, payment_id))
         params = {
                     'currency': coin.lower(),
                     'address': to_address,
@@ -270,6 +275,8 @@ class Huobi(BaseExchange):
         return True, {key: Decimal(_fee_info[key]).quantize(Decimal(10) ** -8) for key in _fee_info.keys()}, '', 0
 
     async def _async_private_api(self, method, path, extra=None):
+        debugger.debug('[Huobi]Parameters=[{}, {}, {}], function name=[_async_private_api]'.format(method, path, extra))
+
         sign_data = {
                     'AccessKeyId': self._key,
                     'SignatureMethod': self._sign_method,
@@ -286,6 +293,8 @@ class Huobi(BaseExchange):
         return await self._async_public_api(method, path, extra)
 
     async def _async_public_api(self, method, path, extra=None, header=None):
+        debugger.debug('[Huobi]Parameters=[{}, {}, {}, {}], function name=[_async_public_api]'.format(method, path, extra, header))
+
         if extra is None:
             extra = {}
 
