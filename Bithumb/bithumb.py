@@ -53,6 +53,8 @@ class BaseBithumb(BaseExchange):
         return signature
 
     def _public_api(self, method, path, extra=None, header=None):
+        debugger.debug('[Bithumb]Parameters=[{}, {}, {}, {}], function name=[_public_api]'.format(method, path, extra, header))
+
         try:
             if extra is None:
                 extra = {}
@@ -73,6 +75,8 @@ class BaseBithumb(BaseExchange):
             return False, '', '[BITHUMB], ERROR_BODY=[{}], URL=[{}], PARAMETER=[{}]'.format(ex, path, extra), 1
 
     def _private_api(self, method, path, extra=None):
+        debugger.debug('[Bithumb]Parameters=[{}, {}, {}], function name=[_private_api]'.format(method, path, extra))
+
         try:
             if extra is None:
                 extra = {}
@@ -133,6 +137,8 @@ class BaseBithumb(BaseExchange):
         return self._private_api('POST', '/trade/place', params)
 
     def buy(self, coin, amount, price=None):
+        debugger.debug('[Bithumb]Parameters=[{}, {}, {}], function name=[buy]'.format(coin, amount, price))
+
         params = {'currency': coin,
                   'units': amount
                   }
@@ -143,6 +149,8 @@ class BaseBithumb(BaseExchange):
         return self._private_api('POST', '/trade/market_buy', params)
 
     def sell(self, coin, amount, price=None):
+        debugger.debug('[Bithumb]Parameters=[{}, {}, {}], function name=[sell]'.format(coin, amount, price))
+
         params = {'currency': coin,
                   'units': amount
                   }
@@ -199,6 +207,8 @@ class BaseBithumb(BaseExchange):
             return False, '', message, time_
 
     def withdraw(self, coin, amount, to_address, payment_id=None):
+        debugger.debug('[Bithumb]Parameters=[{}, {}, {}], function name=[withdraw]'.format(coin, amount, to_address, payment_id))
+
         params = {
             'currency': coin,
             'units': amount,
@@ -228,6 +238,7 @@ class BaseBithumb(BaseExchange):
         return True, (-8, -8), '', 0
 
     async def _async_private_api(self, method, path, extra=None):
+        debugger.debug('[Bithumb]Parameters=[{}, {}, {}], function name=[_async_private_api]'.format(method, path, extra))
         try:
             if extra is None:
                 extra = {}
@@ -254,9 +265,6 @@ class BaseBithumb(BaseExchange):
                 return True, res, '', 0
         except Exception as ex:
             return False, '', '[BITHUMB], ERROR_BODY=[{}], URL=[{}], PARAMETER=[{}]'.format(ex, path, extra), 1
-
-    async def _async_public_api(self, method, path, extra=None, header=None):
-        pass
 
     async def _get_deposit_addrs(self, currency):
         for _ in range(3):
