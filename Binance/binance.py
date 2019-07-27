@@ -22,6 +22,8 @@ class Binance(BaseExchange):
         self.exchange_info = None
 
     def _public_api(self, method, path, extra=None, header=None):
+        debugger.debug('Parameters=[{}, {}, {}, {}], function name=[_public_api]'.format(method, path, extra, header))
+
         if extra is None:
             extra = {}
 
@@ -40,6 +42,8 @@ class Binance(BaseExchange):
             return False, '', '[BINANCE], ERROR_BODY=[{}], URL=[{}], PARAMETER=[{}]'.format(ex, path, extra), 1
 
     def _private_api(self, method, path, extra=None):
+        debugger.debug('Parameters=[{}, {}, {}], function name=[_private_api]'.format(method, path, extra))
+
         if extra is None:
             extra = {}
 
@@ -272,6 +276,8 @@ class Binance(BaseExchange):
             return False, '', 'history를 가져오는 과정에서 에러가 발생했습니다. =[{}]'.format(ex)
 
     async def _async_private_api(self, method, path, extra=None):
+        debugger.debug('Parameters=[{}, {}, {}], function name=[_async_private_api]'.format(method, path, extra))
+
         if extra is None:
             extra = {}
 
@@ -302,6 +308,8 @@ class Binance(BaseExchange):
                                                                                                 path, extra), 1
 
     async def _async_public_api(self, method, path, extra=None, header=None):
+        debugger.debug('Parameters=[{}, {}, {}, {}], function name=[_async_public_api]'.format(method, path, extra, header))
+
         if extra is None:
             extra = {}
 
