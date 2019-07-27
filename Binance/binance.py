@@ -63,6 +63,10 @@ class Binance(BaseExchange):
     def _servertime(self):
         return int(time.time() * 1000)
 
+    def _symbol_localizing(self, symbol):
+        if 'BCH' in symbol:
+            return symbol.replace('BCH', 'BCC')
+
     def _sign_generator(self, *args):
         params, *_ = args
         if params is None:
@@ -79,16 +83,15 @@ class Binance(BaseExchange):
 
         return params
 
-    def get_exchange_info(self):
-        return self._public_api('GET', '/api/v1/exchangeInfo')
-
     def _get_exchange_info(self):
         for _ in range(3):
-            success, stat, message, time_ = self._public_api('GET', '/api/v1/exchangeInfo')
+            success, stat, message, delay = self._public_api('GET', '/api/v1/exchangeInfo')
             if success:
                 break
+
+            time.sleep(delay)
         else:
-            return False, stat, message, time_
+            return False, stat, message, delay
         
         step_size = {}
         for sym in stat['symbols']:
@@ -108,16 +111,14 @@ class Binance(BaseExchange):
         return True, step_size, '', 0
 
     def _get_step_size(self, symbol):
-        if symbol == 'BTC_BCH':
-            symbol = 'BTC_BCC'
+        symbol = self._symbol_localizing(symbol)
 
         step_size = Decimal(self.exchange_info[symbol]).normalize()
 
         return True, step_size, '', 0
 
     def get_precision(self, pair=None):
-        if pair == 'BTC_BCH':
-            pair = 'BTC_BCC'
+        pair = self._symbol_localizing(pair)
 
         if pair in self.exchange_info:
             return True, (-8, int(math.log10(float(self.exchange_info[pair])))), '', 0
@@ -126,14 +127,15 @@ class Binance(BaseExchange):
 
     def get_available_coin(self):
         if not self.exchange_info:
-            success, data, message, time_ = self._get_exchange_info()
+            success, data, message, delay = self._get_exchange_info()
 
             if not success:
-                return False, '', message, time_
+                return False, '', message, delay
 
-        return True, [coin for coin in self.exchange_info.keys()], '', 0
+        return True, list(self.exchange_info.keys()), '', 0
 
     def buy(self, coin, amount, price=None):
+        debugger.debug('Parameters=[{}, {}, {}], function name=[buy]'.format(coin, amount, price))
         params = {}
         if price is None:
             params['type'] = 'MARKET'
@@ -149,6 +151,8 @@ class Binance(BaseExchange):
         return self._private_api('POST', '/api/v3/order', params)
 
     def sell(self, coin, amount, price=None):
+        debugger.debug('Parameters=[{}, {}, {}], function name=[sell]'.format(coin, amount, price))
+
         params = {}
         if price is None:
             params['type'] = 'MARKET'
@@ -171,50 +175,50 @@ class Binance(BaseExchange):
         return Decimal(10) ** -4 if binance_qtz < Decimal(10) ** -4 else binance_qtz
 
     def base_to_alt(self, currency_pair, btc_amount, alt_amount, td_fee, tx_fee):
-        coin = currency_pair.split('_')
-        if coin[1] == 'BCH':
-            coin[1] = 'BCC'
+        currency_pair = self._symbol_localizing(currency_pair)
+        base_market, coin = currency_pair.split('_')
 
-        suc, data, message, time_ = self.buy(coin[1] + coin[0], alt_amount)
+        suc, data, message, delay = self.buy(coin + base_market, alt_amount)
 
         if not suc:
-            return False, data, message, time_
+            return False, data, message, delay
 
         alt_amount *= 1 - Decimal(td_fee)
-        alt_amount -= Decimal(tx_fee[coin[1]])
+        alt_amount -= Decimal(tx_fee[coin])
         alt_amount = alt_amount.quantize(self.bnc_btm_quantizer(currency_pair), rounding=ROUND_DOWN)
 
         return True, alt_amount, '', 0
 
     def alt_to_base(self, currency_pair, btc_amount, alt_amount):
-        coin = currency_pair.split('_')
-        if coin[1] == 'BCH':
-            coin[1] = 'BCC'
+        currency_pair = self._symbol_localizing(currency_pair)
+        base_market, coin = currency_pair.split('_')
 
         for _ in range(10):
-            suc, data, message, time_ = self.sell(coin[1] + coin[0], alt_amount)
+            suc, data, message, delay = self.sell(coin + base_market, alt_amount)
 
             if suc:
                 return True, data, '', 0
 
             else:
-                time.sleep(time_)
+                time.sleep(delay)
 
         else:
             return False, '', message, 1
 
     def get_ticker(self, market):
         for _ in range(3):
-            success, data, message, time_ = self._public_api('GET', '/api/v1/ticker/24hr')
+            success, data, message, delay = self._public_api('GET', '/api/v1/ticker/24hr')
             if success:
                 return True, data, '', time
 
         else:
-            return False, '', message, time_
+            return False, '', message, delay
 
     def withdraw(self, coin, amount, to_address, payment_id=None):
-        if coin == 'BCH':
-            coin = 'BCC'
+        debugger.debug('Parameters=[{}, {}, {}, {}], function name=[withdraw]'.format(coin, amount,
+                                                                                      to_address, payment_id))
+
+        coin = self._symbol_localizing(coin)
         params = {
                     'asset': coin,
                     'address': to_address,
@@ -237,10 +241,10 @@ class Binance(BaseExchange):
                     'limit': count,
         }
         # 1m, 3m, 5m, 15m, 30m, 1h, 2h, 4h, 6h, 8h, 12h, 1d, 3d, 1w, 1M
-        suc, data, message, time_ = self._public_api('GET', path, params)
+        suc, data, message, delay = self._public_api('GET', path, params)
 
         if not suc:
-            return suc, data, message, time_
+            return suc, data, message, delay
 
         history = {
             'open': [],
@@ -321,35 +325,34 @@ class Binance(BaseExchange):
 
     async def _get_balance(self):
         for _ in range(3):
-            success, data, message, time_ = await self._async_private_api('GET', '/api/v3/account')
+            success, data, message, delay = await self._async_private_api('GET', '/api/v3/account')
             if success:
-                return True, data, message, time_
-            time.sleep(time_)
+                return True, data, message, delay
+            time.sleep(delay)
 
         else:
-            return False, '', message, time_
+            return False, '', message, delay
 
     async def _get_deposit_addrs(self, symbol):
         for _ in range(3):
-            success, data, message, time_ = await self._async_private_api('GET', '/wapi/v3/depositAddress.html', {'asset': symbol})
+            success, data, message, delay = await self._async_private_api('GET', '/wapi/v3/depositAddress.html', {'asset': symbol})
 
             if success:
-                return True, data, message, time_
-            time.sleep(time_)
+                return True, data, message, delay
+            time.sleep(delay)
 
         else:
-            return False, '', message, time_
+            return False, '', message, delay
 
     async def _get_orderbook(self, symbol):
         for _ in range(3):
-            success, data, message, time_ = await self._async_public_api('GET', '/api/v1/depth', {'symbol': symbol})
-            print(message)
+            success, data, message, delay = await self._async_public_api('GET', '/api/v1/depth', {'symbol': symbol})
             if success:
-                return True, data, message, time_
-            time.sleep(time_)
+                return True, data, message, delay
+            time.sleep(delay)
 
         else:
-            return False, '', message, time_
+            return False, '', message, delay
 
     async def get_deposit_addrs(self, coin_list=None):
         av_suc, coin_list, av_msg, av_time = self.get_available_coin()
@@ -468,10 +471,10 @@ class Binance(BaseExchange):
             return False, '', '[BINANCE], EEROR_BODY=[출금비용을 가져오는데 실패했습니다. {}],', 60
 
     async def get_balance(self):
-        suc, data, message, time_ = await self._get_balance()
+        suc, data, message, delay = await self._get_balance()
 
         if not suc:
-            return False, '', message, time_
+            return False, '', message, delay
 
         balance = {}
         for bal in data['balances']:
@@ -487,15 +490,14 @@ class Binance(BaseExchange):
         try:
             avg_order_book = {}
             for currency_pair in coin_list:
-                print(currency_pair)
                 if currency_pair == 'BTC_BTC':
                     continue
 
                 sp = currency_pair.split('_')
-                success, book, message, time_ = await self._get_orderbook(sp[1] + sp[0])
+                success, book, message, delay = await self._get_orderbook(sp[1] + sp[0])
 
                 if not success:
-                    return False, '', message, time_
+                    return False, '', message, delay
 
                 avg_order_book[currency_pair] = {}
                 for type_ in ['asks', 'bids']:
