@@ -50,6 +50,16 @@ class BaseExchange(object):
         """
         pass
 
+    def _symbol_localizing(self, symbol):
+        """
+        Matching to local use symbol, iota -> iot, bch -> bcc
+        """
+
+    def _symbol_customizing(self, symobl):
+        """
+        Matching to common use symbol, iot -> iota, bcc -> bch
+        """
+
     def _currencies(self):
         """
         this function be looped up to 3 times
