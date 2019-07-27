@@ -25,6 +25,8 @@ class BaseUpbit(BaseExchange):
         return '업비트 기본'
 
     def _public_api(self, method, path, extra=None, header=None):
+        debugger.debug('[Upbit]Parameters=[{}, {}, {}, {}], function name=[_public_api]'.format(method, path, extra, header))
+
         if header is None:
             header = {}
 
@@ -54,6 +56,8 @@ class BaseUpbit(BaseExchange):
             return False, '', '[UPBIT], ERROR_BODY=[{}], URL=[{}], PARAMETER=[{}]'.format(ex, path, extra), 1
 
     def _private_api(self, method, path, extra=None):
+        debugger.debug('[Upbit]Parameters=[{}, {}, {}], function name=[_private_api]'.format(method, path, extra))
+
         payload = {
             'access_key': self._key,
             'nonce': int(time.time() * 1000),
@@ -120,6 +124,8 @@ class BaseUpbit(BaseExchange):
         return self._private_api('get', 'order', {'uuid': uuid})
 
     def withdraw(self, coin, amount, to_address, payment_id=None):
+        debugger.debug('[Upbit]Parameters=[{}, {}, {}, {}], function name=[withdraw]'.format(coin, amount, to_address, payment_id))
+
         params = {
                     'currency': coin,
                     'address': to_address,
@@ -132,6 +138,8 @@ class BaseUpbit(BaseExchange):
         return self._private_api('post', '/'.join(['withdraws', 'coin']), params)
 
     def buy(self, coin, amount, price=None):
+        debugger.debug('[Upbit]Parameters=[{}, {}, {}], function name=[buy]'.format(coin, amount, price))
+
         params = {}
         if price is None:
             if price is None:
@@ -152,6 +160,8 @@ class BaseUpbit(BaseExchange):
         return self._private_api('POST', 'orders', params)
 
     def sell(self, coin, amount, price=None):
+        debugger.debug('[Upbit]Parameters=[{}, {}, {}], function name=[sell]'.format(coin, amount, price))
+
         params = {}
         if price is None:
             if price is None:
