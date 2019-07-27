@@ -78,6 +78,8 @@ class BaseBitfinex(BaseExchange):
             return False, '', message, time_
 
     def _public_api(self, method, path, extra=None, header=None):
+        debugger.debug('[Bitfinex]Parameters=[{}, {}, {}, {}], function name=[_public_api]'.format(method, path, extra, header))
+
         try:
             if extra is None:
                 extra = {}
@@ -100,6 +102,8 @@ class BaseBitfinex(BaseExchange):
                                                                                              extra), 1
 
     def _private_api(self, method, path, extra=None):
+        debugger.debug('[Bitfinex]Parameters=[{}, {}, {}], function name=[_private_api]'.format(method, path, extra))
+
         try:
             if extra is None:
                 extra = {}
@@ -155,6 +159,8 @@ class BaseBitfinex(BaseExchange):
             return False, '', message, time_
 
     def buy(self, market, quantity, price=None):
+        debugger.debug('[Bitfinex]Parameters=[{}, {}, {}], function name=[buy]'.format(market, quantity, price))
+
         params = {
             'symbol': market,
             'amount': str(Decimal(quantity).quantize(Decimal(10) ** -8)),
@@ -171,6 +177,8 @@ class BaseBitfinex(BaseExchange):
         return self._private_api('POST', '/v1/order/new', params)
 
     def sell(self, market, quantity, price=None):
+        debugger.debug('[Bitfinex]Parameters=[{}, {}, {}], function name=[sell]'.format(market, quantity, price))
+
         params = {
             'symbol': market,
             'amount': str(Decimal(quantity).quantize(Decimal(10) ** -8)),
@@ -187,6 +195,8 @@ class BaseBitfinex(BaseExchange):
         return self._private_api('POST', '/v1/order/new', params)
 
     def withdraw(self, coin, amount, to_address, payment_id=None):
+        debugger.debug('[Bitfinex]Parameters=[{}, {}, {}, {}], function name=[sell]'.format(coin, amount,
+                                                                                            to_address, payment_id))
         if not self._symbol_full_name:
             # 로직 상 deposit_addrs에서 값이 지정됨.
             success, _, message, time_ = self._get_symbol_full_name()
@@ -224,34 +234,27 @@ class BaseBitfinex(BaseExchange):
         return True, available_list, '', 0
 
     def base_to_alt(self, currency, tradable_btc, alt_amount, td_fee, tx_fee):
-        coin = currency.split('_')
-        symbol = coin[1] + coin[0]
+        base_market, coin = currency.split('_')
+        symbol = coin + base_market
         success, val, message, time_ = self.buy(symbol.lower(), alt_amount)
         if not success:
             return False, '', message, time_
 
         alt = alt_amount
         alt *= ((1 - Decimal(td_fee)) ** 1)
-        alt -= Decimal(tx_fee[coin[1]])
+        alt -= Decimal(tx_fee[coin])
         alt = alt.quantize(Decimal(10) ** -4, rounding=ROUND_DOWN)
 
         return True, alt, '', 0
 
     def alt_to_base(self, currency, tradable_btc, alt_amount):
-        coin = currency.split('_')
-        symbol = coin[1] + coin[0]
+        base_market, coin = currency.split('_')
+        symbol = coin + base_market
         return self.sell(symbol.lower(), alt_amount)
 
-        # for _ in range(10):
-        #     success, val, message, time_ = self.sell(currency, alt_amount)
-        #     if success:
-        #         return True, '', '', 0
-        #     else:
-        #         time.sleep(time_)
-        # else:
-        #     return False, '', message, time_
-
     async def _async_public_api(self, method, path, extra=None, header=None):
+        debugger.debug('[Bitfinex]Parameters=[{}, {}, {}, {}], function name=[_async_public_api]'.format(method, path, extra, header))
+
         if extra is None:
             extra = {}
 
@@ -278,6 +281,8 @@ class BaseBitfinex(BaseExchange):
                                                                                              extra), 1
 
     async def _async_private_api(self, method, path, extra=None):
+        debugger.debug('[Bitfinex]Parameters=[{}, {}, {}], function name=[_async_private_api]'.format(method, path, extra))
+
         if extra is None:
             extra = {}
 
@@ -456,12 +461,12 @@ class BaseBitfinex(BaseExchange):
     async def get_curr_avg_orderbook(self, coin_list, btc_sum=1):
         avg_orderbook = {}
         for pair in coin_list:
-            pair_splits = pair.split('_')
+            base_market, coin = pair.split('_')
 
-            if pair_splits[1] in ['QTUM', 'DASH', 'IOTA']:
-                pair_splits[1] = self._symbol_localizing(pair_splits[1])
+            if coin in ['QTUM', 'DASH', 'IOTA']:
+                coin = self._symbol_localizing(coin)
 
-            symbol = (pair_splits[1] + pair_splits[0]).lower()
+            symbol = (coin + base_market).lower()
             ob_success, orderbook, ob_message, ob_time = await self._get_orderbook(symbol)
             if not ob_success:
                 return False, '', ob_message, ob_time
