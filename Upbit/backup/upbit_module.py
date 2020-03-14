@@ -1,23 +1,14 @@
-import requests
-import json
-from urllib.parse import urlencode
-from decimal import *
-import time
-import aiohttp
 import jwt
-import numpy as np
-import asyncio
+
+from BaseExchange import BaseExchange
 
 
-class BaseUpbit:
+class BaseUpbit(BaseExchange):
+    '''
+
+    '''
     def __init__(self, **kwargs):
-        '''
-        :param key: input your upbit key
-        :param secret: input your upbit secret
-        '''
-
-        self._endpoint = 'https://api.upbit.com/v1'
-
+        self._base_url = 'https://api.upbit.com/v1'
         if kwargs:
             self._key = kwargs['key']
             self._secret = kwargs['secret']
@@ -30,7 +21,7 @@ class BaseUpbit:
             extra = {}
 
         method = method.upper()
-        path = '/'.join([self._endpoint, path])
+        path = '/'.join([self._base_url, path])
         if method == 'GET':
             rq = requests.get(path, headers=header, json=extra)
         elif method == 'POST':
@@ -62,6 +53,9 @@ class BaseUpbit:
         header = self.get_jwt_token(payload)
 
         return self._public_api(method, path, extra, header)
+
+    def _sign_generator(self, *args):
+
 
     def fee_count(self):
         # 몇변의 수수료가 산정되는지
@@ -158,7 +152,7 @@ class BaseUpbit:
         try:
             async with aiohttp.ClientSession(headers=header) as s:
                 method = method.upper()
-                path = '/'.join([self._endpoint, path])
+                path = '/'.join([self._base_url, path])
 
                 if method == 'GET':
                     rq = await s.get(path, headers=header, json=extra)
