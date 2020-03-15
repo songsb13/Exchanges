@@ -140,11 +140,10 @@ class Binance(BaseExchange):
 
     def buy(self, coin, amount, price=None):
         debugger.debug('Parameters=[{}, {}, {}], function name=[buy]'.format(coin, amount, price))
-        params = {}
-        if price is None:
-            params['type'] = 'MARKET'
-        else:
-            params['type'] = 'LIMIT'
+
+        params = dict()
+
+        params['type'] = 'MARKET' if price is None else 'LIMIT'
 
         params.update({
                     'symbol': coin,
@@ -157,11 +156,9 @@ class Binance(BaseExchange):
     def sell(self, coin, amount, price=None):
         debugger.debug('Parameters=[{}, {}, {}], function name=[sell]'.format(coin, amount, price))
 
-        params = {}
-        if price is None:
-            params['type'] = 'MARKET'
-        else:
-            params['type'] = 'LIMIT'
+        params = dict()
+
+        params['type'] = 'MARKET' if price is None else 'LIMIT'
 
         params.update({
                     'symbol': coin,
