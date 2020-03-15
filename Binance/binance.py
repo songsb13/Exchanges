@@ -176,21 +176,26 @@ class Binance(BaseExchange):
         return Decimal(10) ** -4 if binance_qtz < Decimal(10) ** -4 else binance_qtz
 
     def base_to_alt(self, currency_pair, btc_amount, alt_amount, td_fee, tx_fee):
+        debugger.debug('Parameters=[{}, {}, {}, {}], function name=[base_to_alt]'.format(
+            currency_pair, btc_amount, alt_amount, td_fee, tx_fee
+        ))
         currency_pair = self._symbol_localizing(currency_pair)
         base_market, coin = currency_pair.split('_')
 
-        suc, data, message, delay = self.buy(coin + base_market, alt_amount)
+        success, data, message, delay = self.buy(coin + base_market, alt_amount)
 
-        if not suc:
-            return False, data, message, delay
+        if success:
+            alt_amount *= 1 - Decimal(td_fee)
+            alt_amount -= Decimal(tx_fee[coin])
+            alt_amount = alt_amount.quantize(self.bnc_btm_quantizer(currency_pair), rounding=ROUND_DOWN)
+            return True, alt_amount, '', 0
 
-        alt_amount *= 1 - Decimal(td_fee)
-        alt_amount -= Decimal(tx_fee[coin])
-        alt_amount = alt_amount.quantize(self.bnc_btm_quantizer(currency_pair), rounding=ROUND_DOWN)
-
-        return True, alt_amount, '', 0
+        return False, '', message, delay
 
     def alt_to_base(self, currency_pair, btc_amount, alt_amount):
+        debugger.debug('Parameters=[{}, {}, {}], function name=[alt_to_base]'.format(
+            currency_pair, btc_amount, alt_amount
+        ))
         currency_pair = self._symbol_localizing(currency_pair)
         base_market, coin = currency_pair.split('_')
 
@@ -487,7 +492,7 @@ class Binance(BaseExchange):
                 bal['asset'] = 'BCH'
 
             if float(bal['free']) > 0:
-                balance[bal['asset'].upper()] = float(bal['free'])
+                balance[bal['asset'].upper()] = Decimal(bal['free']).quantize(Decimal(10)**-8)
 
         return True, balance, '', 0
 
