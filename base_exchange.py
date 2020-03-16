@@ -276,3 +276,19 @@ class BaseExchange(object):
         :return: tuple, 2 different exchange orderbook & profit percent of main & sec exchanges
         """
         pass
+
+
+class ExchangeResult:
+    """
+        Return exchange result abstract class
+
+        success: True if success else False
+        data: requested data if success is True else None
+        message: result message if success is False else None
+        wait_time: wait time for retry if success is False else 0
+    """
+    def __init__(self, exchange):
+        self._exchange = exchange
+
+    def base_exchange_result(self):
+        pass
