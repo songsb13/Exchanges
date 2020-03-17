@@ -278,7 +278,7 @@ class BaseExchange(object):
         pass
 
 
-class ExchangeResult:
+class ExchangeResult(object):
     """
         Return exchange result abstract class
 
@@ -287,8 +287,9 @@ class ExchangeResult:
         message: result message if success is False else None
         wait_time: wait time for retry if success is False else 0
     """
-    def __init__(self, exchange):
-        self._exchange = exchange
+    def __init__(self, success, data, message, wait_time):
+        self._success = success
+        self._data = data
+        self._message = message
+        self._wait_time = wait_time
 
-    def base_exchange_result(self):
-        pass
