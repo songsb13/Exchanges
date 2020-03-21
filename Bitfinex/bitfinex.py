@@ -330,119 +330,109 @@ class Bitfinex(BaseExchange):
 
     async def _get_trading_fee(self, symbol):
         for _ in range(3):
-            success, val, msg, st = await self._async_private_api('POST', '/v1/account_infos')
+            result_object = await self._async_private_api('POST', '/v1/account_infos')
 
-            if success:
-                return True, val, msg, st
-            time.sleep(st)
+            if result_object.success:
+                break
+            time.sleep(result_object.wait_time)
 
-        else:
-            return False, val, msg, st
+        return result_object
 
     async def _get_transaction_fee(self, symbol):
         for _ in range(3):
-            success, data, message, time_ = await self._async_private_api('POST', '/v1/account_fees')
+            result_object = await self._async_private_api('POST', '/v1/account_fees')
 
-            if success:
-                return True, data, message, time_
+            if result_object.success:
+                break
+            time.sleep(result_object.wait_time)
 
-            time.sleep(time_)
-        else:
-            return False, '', message, time_
+        return result_object
 
     async def get_balance(self):
-        success, balance_data, message, time_ = await self._get_balance()
+        result_object = await self._get_balance()
 
-        if not success:
-            return False, '', message, time_
-
-        elif not balance_data:
+        if result_object.data:
             # 밸런스가 없는경우
-            return False, '', '[BITFINEX], ERROR_BODY=[Do not have available balance.], URL=[/v1/balances]', 1
+            result_object.data = {value['currency'].lower(): float(value['amount']) for value in result_object.data if
+                                  value['type'] == 'exchange'}
+        else:
+            result_object.message = 'ERROR_BODY=[Do not have available balance.], URL=[/v1/balances]'
 
-        return True, {value['currency'].lower(): float(value['amount']) for value in balance_data if value['type']
-                      == 'exchange'}, '', 0
+        return result_object
 
     async def get_deposit_addrs(self, coin_list=None):
         # wallet name이 지정되어 있어야 한다.
         if not self._symbol_full_name:
-            success, _, message, time_ = self._get_symbol_full_name()
-            if not success:
-                return False, '', message, time_
+            result_object = self._get_symbol_full_name()
 
-        ac_success, currencies, ac_message, ac_time_ = self.get_available_coin()
+            if result_object.success is False:
+                return result_object
 
-        if not ac_success:
-            return False, '', ac_message, ac_time_
+        coin_set_object = self.get_available_coin()
 
-        coins = {}
-        for currency in currencies:
-            time.sleep(0.05)
-            currency = currency.split('_')[1]
+        if coin_set_object.success:
+            coins = dict()
+            for currency in coin_set_object.data:
+                time.sleep(0.05)
+                currency = currency.split('_')[1]
 
-            if currency in ['QTUM', 'DASH', 'IOTA']:
-                currency = self._symbol_localizing(currency)
+                if currency in ['QTUM', 'DASH', 'IOTA']:
+                    currency = self._symbol_localizing(currency)
 
-            if currency not in self._symbol_full_name:
-                continue
-
-            success, dp_data, message, time_ = await self._get_deposit_addrs(self._symbol_full_name[currency].lower())
-            if not success:
-                if 'Unknown method' in message:
-                    # 상의? 지원하지 않는 코인의 수량이 너무 많음.
-                    print(message)
+                if currency not in self._symbol_full_name:
                     continue
 
-                return False, '', message, time_
+                deposit_object = await self._get_deposit_addrs(self._symbol_full_name[currency].lower())
+                if not deposit_object.success:
+                    if 'Unknown method' in deposit_object.message:
+                        continue
 
-            upper_currency = currency.upper()
+                    return deposit_object
 
-            if 'XRP' == currency or 'XMR' == currency:
-                coins['{}TAG'.format(upper_currency)] = dp_data['address']
-                coins[upper_currency] = dp_data['address_pool']
+                upper_currency = currency.upper()
 
-            else:
-                coins[upper_currency] = dp_data['address']
+                if currency in ['XRP', 'XMR']:
+                    coins['{}TAG'.format(upper_currency)] = deposit_object.data['address']
+                    coins[upper_currency] = deposit_object.data['address_pool']
 
-        return True, coins, '', 0
+                else:
+                    coins[upper_currency] = deposit_object.data['address']
+
+            coin_set_object.data = coins
+
+        return coin_set_object
 
     async def get_orderbook_latest_version(self, coin):
         # For Trading: if AMOUNT > 0 then bid else ask.
         return await self._async_public_api('GET', '/v2/book/t{}/P0'.format(coin.upper()))
 
     async def get_trading_fee(self):
-        success, val, msg, st = await self._get_trading_fee(symbol=None)
+        result_object = await self._get_trading_fee(symbol=None)
         # self.last_retrieve_time = time.time()
-        if not success:
-            return False, '', msg, st
-        elif not val:
-            return False, '', '[BITFINEX] ERROR_BODY=[Data is not exist]', 1
+        if result_object.success:
+            if result_object.data:
+                result_object.data = float(result_object.data[0]['taker_fees']) / 100.0
+            else:
+                result_object.message = 'ERROR_BODY=[Data is not exist]'
 
-        ret = float(val[0]['taker_fees'])/100.0
-
-        return True, ret, '', 0
+        return result_object
 
     async def get_transaction_fee(self):
-        success, data, message, time_ = await self._get_transaction_fee(symbol=None)
+        result_object = await self._get_transaction_fee(symbol=None)
 
-        if not success:
-            return False, '', message, time_
-
-        else:
-            dic_ = {}
-            data = data['withdraw']
+        if result_object.success:
+            dic_ = dict()
+            data = result_object.data['withdraw']
             for key_ in data:
-                if key_ in ['QTM', 'DSH', 'IOT']:
-                    processing_key = self._symbol_customizing(key_.lower()).upper()
-                else:
-                    processing_key = key_
+                processing_key = self._symbol_customizing(key_.lower()).upper() \
+                    if key_ in ['QTM', 'DSH', 'IOT'] else key_
 
-                dic_[processing_key] = float(data[key_])
+                dic_[processing_key] = float(result_object.data[key_])
 
-            return True, dic_, '', time_
+        return result_object
 
     async def get_curr_avg_orderbook(self, coin_list, btc_sum=1):
-        avg_orderbook = {}
+        avg_orderbook = dict()
         for pair in coin_list:
             base_market, coin = pair.split('_')
 
@@ -450,24 +440,26 @@ class Bitfinex(BaseExchange):
                 coin = self._symbol_localizing(coin)
 
             symbol = (coin + base_market).lower()
-            ob_success, orderbook, ob_message, ob_time = await self._get_orderbook(symbol)
-            if not ob_success:
-                return False, '', ob_message, ob_time
+            orderbook_object = await self._get_orderbook(symbol)
+            if not orderbook_object.success:
+                return orderbook_object
 
-            avg_orderbook[pair] = {}
+            avg_orderbook[pair] = dict()
             for order_type in ['asks', 'bids']:
-                sum = Decimal(0.0)
+                sum_ = Decimal(0.0)
                 total_coin_num = Decimal(0.0)
-                for data in orderbook[order_type]:
+                for data in orderbook_object.data[order_type]:
                     price = data['price']
                     alt_coin_num = data['amount']
-                    sum += Decimal(price) * Decimal(alt_coin_num)
+                    sum_ += Decimal(price) * Decimal(alt_coin_num)
                     total_coin_num += Decimal(alt_coin_num)
-                    if sum > btc_sum:
+                    if sum_ > btc_sum:
                         break
-                avg_orderbook[pair][order_type] = (sum/total_coin_num).quantize(Decimal(10) ** -8)
+                avg_orderbook[pair][order_type] = (sum_/total_coin_num).quantize(Decimal(10) ** -8)
 
-        return True, avg_orderbook, '', 0
+        orderbook_object.data = avg_orderbook
+
+        return orderbook_object
 
     async def compare_orderbook(self, other, coins=None, default_btc=1):
         if coins is None:
