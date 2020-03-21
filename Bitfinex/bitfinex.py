@@ -11,8 +11,8 @@ from decimal import Decimal, ROUND_DOWN
 from base_exchange import BaseExchange
 
 
-class BaseBitfinex(BaseExchange):
-    def __init__(self, **kwargs):
+class Bitfinex(BaseExchange):
+    def __init__(self, *args, **kwargs):
         '''
         :param key: input your upbit key
         :param secret: input your upbit secret
@@ -40,27 +40,21 @@ class BaseBitfinex(BaseExchange):
 
     def _symbol_customizing(self, symbol):
         # change qtm, iot, dsh to customized symbol
-
-        if symbol == 'qtm':
-            return 'qtum'
-
-        elif symbol == 'iot':
-            return 'iota'
-
-        elif symbol == 'dsh':
-            return 'dash'
+        actual_symbol = dict(
+            qtm='qtum',
+            iot='iota',
+            dsh='dash'
+        )
+        return actual_symbol.get(symbol)
 
     def _symbol_localizing(self, symbol):
         # change customized symbol to local use symbol
-
-        if symbol == 'QTUM':
-            return 'QTM'
-
-        elif symbol == 'IOTA':
-            return 'IOT'
-
-        elif symbol == 'DASH':
-            return 'DSH'
+        actual_symbol = dict(
+            QTUM='QTM',
+            IOTA='IOT',
+            DASH='DSH'
+        )
+        return actual_symbol.get(symbol)
 
     def _get_symbol_full_name(self):
         for _ in range(3):
