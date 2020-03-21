@@ -187,10 +187,10 @@ class Bitfinex(BaseExchange):
                                                                                             to_address, payment_id))
         if not self._symbol_full_name:
             # 로직 상 deposit_addrs에서 값이 지정됨.
-            result = self._get_symbol_full_name()
+            result_object = self._get_symbol_full_name()
 
-            if result.success is False:
-                return result
+            if result_object.success is False:
+                return result_object
 
         with_type = self._symbol_full_name[coin.upper()]
 
@@ -207,35 +207,33 @@ class Bitfinex(BaseExchange):
         return self._private_api('POST', '/v1/withdraw', params)
 
     def get_available_coin(self):
-        success, coin_list, message, time_ = self._currencies()
+        result_object = self._currencies()
 
-        if not success:
-            return False, '', message, time_
-        available_list = []
+        if result_object.success:
+            available_list = []
 
-        for coin in coin_list:
-            if 'btc' in coin[3:]:
-                if coin[:-3] in ['qtm', 'dsh', 'iot']:
-                    alt = self._symbol_customizing(coin[:-3])
-                else:
-                    alt = coin[:-3]
+            for coin in result_object.data:
+                if coin.endswith('btc'):
+                    alt = self._symbol_customizing(coin[:-3]) if coin.startswith(('qtm', 'dsh', 'iot')) else coin[:-3]
+                    available_list.append('BTC_{}'.format(alt.upper()))
 
-                available_list.append('BTC_{}'.format(alt.upper()))
-        return True, available_list, '', 0
+            result_object.data = available_list
+
+        return result_object
 
     def base_to_alt(self, currency, tradable_btc, alt_amount, td_fee, tx_fee):
         base_market, coin = currency.split('_')
         symbol = coin + base_market
-        success, val, message, time_ = self.buy(symbol.lower(), alt_amount)
-        if not success:
-            return False, '', message, time_
+        result_object = self.buy(symbol.lower(), alt_amount)
+        if result_object:
+            alt = alt_amount
+            alt *= ((1 - Decimal(td_fee)) ** 1)
+            alt -= Decimal(tx_fee[coin])
+            alt = alt.quantize(Decimal(10) ** -4, rounding=ROUND_DOWN)
 
-        alt = alt_amount
-        alt *= ((1 - Decimal(td_fee)) ** 1)
-        alt -= Decimal(tx_fee[coin])
-        alt = alt.quantize(Decimal(10) ** -4, rounding=ROUND_DOWN)
+            result_object.data = alt
 
-        return True, alt, '', 0
+        return result_object
 
     def alt_to_base(self, currency, tradable_btc, alt_amount):
         base_market, coin = currency.split('_')
@@ -246,35 +244,32 @@ class Bitfinex(BaseExchange):
         debugger.debug('[Bitfinex]Parameters=[{}, {}, {}, {}], function name=[_async_public_api]'.format(method, path, extra, header))
 
         if extra is None:
-            extra = {}
+            extra = dict()
 
         try:
             url = self._base_url + path
             async with aiohttp.ClientSession() as sync:
                 rq = await sync.get(url, params=extra)
-                res = json.loads(await rq.text())
+                response = json.loads(await rq.text())
 
-                if 'message' in res:
-                    return False, '', '[BITFINEX], ERROR_BODY=[{}], URL=[{}], PARAMETER=[{}]'.format(res['message'],
-                                                                                                     path,
-                                                                                                     extra), 1
-
-                elif 'error' in res:
-                    return False, '', '[BITFINEX], ERROR_BODY=[{}], URL=[{}], PARAMETER=[{}]'.format(res['error'],
-                                                                                                     path,
-                                                                                                     extra), 1
-
-                return True, res, '', 0
-
+                if 'message' in response:
+                    error_message = 'ERROR_BODY=[{}], URL=[{}], PARAMETER=[{}]'.format(response['message'], path, extra)
+                elif 'error' in response:
+                    error_message = 'ERROR_BODY=[{}], URL=[{}], PARAMETER=[{}]'.format(response['error'], path, extra)
+                else:
+                    error_message = None
         except Exception as ex:
-            return False, '', '[BITFINEX], ERROR_BODY=[{}], URL=[{}], PARAMETER=[{}]'.format(ex, path,
-                                                                                             extra), 1
+            error_message = 'ERROR_BODY=[{}], URL=[{}], PARAMETER=[{}]'.format(ex, path, extra)
+
+        result = (True, response, '', 0) if error_message is None else (False, '', error_message, 1)
+
+        return ExchangeResult(*result)
 
     async def _async_private_api(self, method, path, extra=None):
         debugger.debug('[Bitfinex]Parameters=[{}, {}, {}], function name=[_async_private_api]'.format(method, path, extra))
 
         if extra is None:
-            extra = {}
+            extra = dict()
 
         try:
             url = self._base_url + path
@@ -286,43 +281,41 @@ class Bitfinex(BaseExchange):
 
                 rq = await sync.post(url, data=extra, headers=sign_)
 
-                res = json.loads(await rq.text())
+                response = json.loads(await rq.text())
 
-                if 'message' in res:
-                    return False, '', '[BITFINEX], ERROR_BODY=[{}], URL=[{}], PARAMETER=[{}]'.format(res['message'],
-                                                                                                     path,
-                                                                                                     extra), 1
-                elif 'error' in res:
-                    return False, '', '[BITFINEX], ERROR_BODY=[{}], URL=[{}], PARAMETER=[{}]'.format(res['error'],
-                                                                                                     path,
-                                                                                                     extra), 1
-                return True, res, '', 0
+                if 'message' in response:
+                    error_message = 'ERROR_BODY=[{}], URL=[{}], PARAMETER=[{}]'.format(response['message'], path, extra)
+                elif 'error' in response:
+                    error_message = 'ERROR_BODY=[{}], URL=[{}], PARAMETER=[{}]'.format(response['error'], path, extra)
+                else:
+                    error_message = None
         except Exception as ex:
-            return False, '', '[BITFINEX], ERROR_BODY=[{}], URL=[{}], PARAMETER=[{}]'.format(ex, path,
-                                                                                             extra), 1
+            error_message = 'ERROR_BODY=[{}], URL=[{}], PARAMETER=[{}]'.format(ex, path, extra)
+
+        result = (True, response, '', 0) if error_message is None else (False, '', error_message, 1)
+
+        return ExchangeResult(*result)
 
     async def _get_balance(self):
         for _ in range(3):
-            success, data, message, time_ = await self._async_private_api('POST', '/v1/balances')
+            result_object = await self._async_private_api('POST', '/v1/balances')
 
-            if success:
-                return True, data, message, time_
+            if result_object.success:
+                break
 
-            time.sleep(time_)
+            time.sleep(result_object.wait_time)
 
-        else:
-            return False, '', message, time_
+        return result_object
 
     async def _get_orderbook(self, coin):
         for _ in range(3):
-            success, data, message, time_ = await self._async_public_api('GET', '/v1/book/{}'.format(coin))
+            result_object = await self._async_public_api('GET', '/v1/book/{}'.format(coin))
 
-            if success:
-                return True, data, message, time_
-            time.sleep(time_)
+            if result_object.success:
+                break
+            time.sleep(result_object.wait_time)
 
-        else:
-            return False, data, message, time_
+        return result_object
 
     async def _get_deposit_addrs(self, currency):
         if currency == 'ethereum classic':
