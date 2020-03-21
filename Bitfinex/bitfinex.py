@@ -8,7 +8,7 @@ import aiohttp
 import asyncio
 from decimal import Decimal, ROUND_DOWN
 
-from base_exchange import BaseExchange
+from base_exchange import BaseExchange, ExchangeResult
 
 
 class Bitfinex(BaseExchange):
@@ -24,6 +24,8 @@ class Bitfinex(BaseExchange):
             self._secret = kwargs['secret']
 
         self._symbol_full_name = {}
+
+        ExchangeResult.set_exchange_name = 'Bitfinex'
 
     def _sign_generator(self, *args):
         payload, *_ = args
@@ -58,49 +60,48 @@ class Bitfinex(BaseExchange):
 
     def _get_symbol_full_name(self):
         for _ in range(3):
-            success, data, message, time_ = self._public_api('GET', '/v2/conf/pub:map:currency:label')
+            res_object = self._public_api('GET', '/v2/conf/pub:map:currency:label')
 
-            if not success:
-                time.sleep(time_)
+            if res_object.success is False:
+                time.sleep(res_object.wait_time)
                 continue
+            dic = {each[0]: each[1] for each in res_object.data[0]}
 
-            for loop_ in data[0]:
-                self._symbol_full_name[loop_[0]] = loop_[1]
+            res_object.data = self._symbol_full_name = dic
 
-            return True, self._symbol_full_name, '', 0
-        else:
-            return False, '', message, time_
+        return res_object
 
     def _public_api(self, method, path, extra=None, header=None):
         debugger.debug('[Bitfinex]Parameters=[{}, {}, {}, {}], function name=[_public_api]'.format(method, path, extra, header))
 
         try:
             if extra is None:
-                extra = {}
+                extra = dict()
+
             path = self._base_url + path
             rq = requests.get(path, params=extra)
-            res = rq.json()
+            response = rq.json()
 
-            if 'message' in res:
-                return False, '', '[BITFINEX], ERROR_BODY=[{}], URL=[{}], PARAMETER=[{}]'.format(res['message'], path,
-                                                                                                 extra), 1
+            if 'message' in response:
+                error_message = 'ERROR_BODY=[{}], URL=[{}], PARAMETER=[{}]'.format(response['message'], path, extra)
+            elif 'error' in response:
+                error_message = 'ERROR_BODY=[{}], URL=[{}], PARAMETER=[{}]'.format(response['error'], path, extra)
+            else:
+                error_message = None
 
-            elif 'error' in res:
-                return False, '', '[BITFINEX], ERROR_BODY=[{}], URL=[{}], PARAMETER=[{}]'.format(res['error'],
-                                                                                                 path,
-                                                                                                 extra), 1
-
-            return True, res, '', 0
         except Exception as ex:
-            return False, '', '[BITFINEX], ERROR_BODY=[{}], URL=[{}], PARAMETER=[{}]'.format(ex, path,
-                                                                                             extra), 1
+            error_message = 'ERROR_BODY=[{}], URL=[{}], PARAMETER=[{}]'.format(ex, path, extra)
+
+        result = (True, response, '', 0) if error_message is None else (False, '', error_message, 1)
+
+        return ExchangeResult(*result)
 
     def _private_api(self, method, path, extra=None):
         debugger.debug('[Bitfinex]Parameters=[{}, {}, {}], function name=[_private_api]'.format(method, path, extra))
 
         try:
             if extra is None:
-                extra = {}
+                extra = dict()
             url = self._base_url + path
 
             extra['request'] = path
@@ -110,81 +111,74 @@ class Bitfinex(BaseExchange):
 
             rq = requests.post(url, json=extra, headers=sign_)
 
-            res = rq.json()
+            response = rq.json()
 
-            if 'message' in res:
-                return False, '', '[BITFINEX], ERROR_BODY=[{}], URL=[{}], PARAMETER=[{}]'.format(res['message'], path,
-                                                                                                 extra), 1
-
-            elif 'error' in res:
-                return False, '', '[BITFINEX], ERROR_BODY=[{}], URL=[{}], PARAMETER=[{}]'.format(res['error'],
-                                                                                                 path,
-                                                                                                 extra), 1
-
-            return True, res, '', 0
+            if 'message' in response:
+                error_message = 'ERROR_BODY=[{}], URL=[{}], PARAMETER=[{}]'.format(response['message'], path, extra)
+            elif 'error' in response:
+                error_message = 'ERROR_BODY=[{}], URL=[{}], PARAMETER=[{}]'.format(response['error'], path, extra)
+            else:
+                error_message = None
         except Exception as ex:
-            return False, '', '[BITFINEX], ERROR_BODY=[{}], URL=[{}], PARAMETER=[{}]'.format(ex, path,
-                                                                                             extra), 1
+            error_message = 'ERROR_BODY=[{}], URL=[{}], PARAMETER=[{}]'.format(ex, path, extra)
+
+        result = (True, response, '', 0) if error_message is None else (False, '', error_message, 1)
+
+        return ExchangeResult(*result)
 
     def _currencies(self):
         for _ in range(3):
-            success, data, message, time_ = self._public_api('GET', '/v1/symbols')
+            res_object = self._public_api('GET', '/v1/symbols')
 
-            if success:
-                return True, data, message, time_
-            time.sleep(time_)
-        else:
-            return False, '', message, time_
+            if res_object.success:
+                break
+            time.sleep(res_object.wait_time)
+
+        return res_object
 
     def get_precision(self, pair=None):
         return True, (-8, -8), '', 0
 
     def get_ticker(self, market):
         for _ in range(3):
-            bitfinex_currency_pair = (market.split('_')[-1] + market.split('_')[0]).lower()
-            success, price, message, time_ = self._public_api('GET', 'pubticker', {'pair': bitfinex_currency_pair})
-            if not success:
-                continue
+            bitfinex_currency_pair = ''.join(market.split('_')[::-1]).lower()
+            res_object = self._public_api('GET', 'pubticker', {'pair': bitfinex_currency_pair})
 
-            current_price = float(price['last_price'])
-
-            return True, current_price, "", 0
-        else:
-            return False, '', message, time_
+            if res_object.success:
+                res_object.data = float(res_object.data['last_price'])
+                break
 
     def buy(self, market, quantity, price=None):
         debugger.debug('[Bitfinex]Parameters=[{}, {}, {}], function name=[buy]'.format(market, quantity, price))
 
+        price = 1 if price is None else price
+
+        amount, price = [str(Decimal(data).quantize(Decimal(10) ** -8)) for data in [quantity, price]]
+        market_type = 'market' if price is None else 'limit'
+
         params = {
             'symbol': market,
-            'amount': str(Decimal(quantity).quantize(Decimal(10) ** -8)),
-            'side': 'buy'
+            'amount': amount,
+            'side': 'buy',
+            'type': market_type,
+            'price': price
         }
-
-        if price:
-            params['type'] = 'limit'
-            params['price'] = str(Decimal(price).quantize(Decimal(10) ** -8))
-        else:
-            params['type'] = 'market'
-            params['price'] = str(Decimal(1).quantize(Decimal(10) ** -8))
 
         return self._private_api('POST', '/v1/order/new', params)
 
     def sell(self, market, quantity, price=None):
         debugger.debug('[Bitfinex]Parameters=[{}, {}, {}], function name=[sell]'.format(market, quantity, price))
 
+        amount, price = [str(Decimal(data).quantize(Decimal(10) ** -8)) for data in [quantity, price]]
+        market_type = 'market' if price is None else 'limit'
+
         params = {
             'symbol': market,
-            'amount': str(Decimal(quantity).quantize(Decimal(10) ** -8)),
-            'side': 'buy'
+            'amount': amount,
+            'side': 'sell',
+            'type': market_type,
+            'price': price
         }
-
-        if price:
-            params['type'] = 'limit'
-            params['price'] = str(Decimal(price).quantize(Decimal(10) ** -8))
-        else:
-            params['type'] = 'market'
-            params['price'] = str(Decimal(1).quantize(Decimal(10) ** -8))
 
         return self._private_api('POST', '/v1/order/new', params)
 
@@ -193,8 +187,10 @@ class Bitfinex(BaseExchange):
                                                                                             to_address, payment_id))
         if not self._symbol_full_name:
             # 로직 상 deposit_addrs에서 값이 지정됨.
-            success, _, message, time_ = self._get_symbol_full_name()
-            return False, '', message, time_
+            result = self._get_symbol_full_name()
+
+            if result.success is False:
+                return result
 
         with_type = self._symbol_full_name[coin.upper()]
 
