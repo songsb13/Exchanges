@@ -252,8 +252,8 @@ class Binance:
         }
         # 1m, 3m, 5m, 15m, 30m, 1h, 2h, 4h, 6h, 8h, 12h, 1d, 3d, 1w, 1M
         result_object = self.public_api(path, params)
-        history = {key_: list() for key_ in ['open', 'high', 'low', 'close', 'volume', 'timestamp']}
         rows = ['open', 'high', 'low', 'close', 'volume', 'timestamp']
+        history = {key_: list() for key_ in rows}
         try:
             for candle_row in result_object.data:
                 # open, high, low, close, volume, timestamp
