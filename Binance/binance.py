@@ -11,7 +11,7 @@ import numpy as np
 from urllib.parse import urlencode
 from decimal import Decimal, ROUND_DOWN
 
-from base_exchange import BaseExchange
+from base_exchange import BaseExchange, ExchangeResult
 
 
 class Binance(BaseExchange):
@@ -20,63 +20,69 @@ class Binance(BaseExchange):
         self._key = key
         self._secret = secret
         self.exchange_info = None
+        self._get_exchange_info()
+
+        ExchangeResult.set_exchange_name = 'Binance'
 
     def _public_api(self, method, path, extra=None, header=None):
         debugger.debug('Parameters=[{}, {}, {}, {}], function name=[_public_api]'.format(method, path, extra, header))
 
         if extra is None:
-            extra = {}
+            extra = dict()
 
         try:
             rq = requests.get(self._base_url + path, params=extra)
-            res = rq.json()
+            response = rq.json()
 
-            if 'msg' in res:
-                return False, '', '[BINANCE], ERROR_BODY=[{}], URL=[{}], PARAMETER=[{}]'.format(res['msg'],
-                                                                                                path, extra), 1
-
+            if 'msg' in response:
+                error_message = 'ERROR_BODY=[{}], URL=[{}], PARAMETER=[{}]'.format(response['msg'], path, extra)
             else:
-                return True, res, '', 1
+                error_message = None
 
         except Exception as ex:
-            return False, '', '[BINANCE], ERROR_BODY=[{}], URL=[{}], PARAMETER=[{}]'.format(ex, path, extra), 1
+            error_message = 'ERROR_BODY=[{}], URL=[{}], PARAMETER=[{}]'.format(ex, path, extra)
+
+        result = (True, response, '', 0) if error_message is None else (False, '', error_message, 1)
+
+        return ExchangeResult(*result)
 
     def _private_api(self, method, path, extra=None):
         debugger.debug('Parameters=[{}, {}, {}], function name=[_private_api]'.format(method, path, extra))
 
         if extra is None:
-            extra = {}
+            extra = dict()
 
         try:
             query = self._sign_generator(extra)
             sig = query.pop('signature')
             query = "{}&signature={}".format(urlencode(sorted(extra.items())), sig)
             rq = requests.request(method, self._base_url + path, data=query, headers={"X-MBX-APIKEY": self._key})
-            res = rq.json()
+            response = rq.json()
 
-            if 'msg' in res:
-                return False, '', '[BINANCE], ERROR_BODY=[{}], URL=[{}], PARAMETER=[{}]'.format(res['msg'],
-                                                                                                path, extra), 1
-
+            if 'msg' in response:
+                error_message = 'ERROR_BODY=[{}], URL=[{}], PARAMETER=[{}]'.format(response['msg'], path, extra)
             else:
-                return True, res, '', 1
+                error_message = None
 
         except Exception as ex:
-            return False, '', '[BINANCE], ERROR_BODY=[{}], URL=[{}], PARAMETER=[{}]'.format(ex, path, extra), 1
+            error_message = 'ERROR_BODY=[{}], URL=[{}], PARAMETER=[{}]'.format(ex, path, extra)
 
-    def _servertime(self):
-        return int(time.time() * 1000)
+        result = (True, response, '', 0) if error_message is None else (False, '', error_message, 1)
+
+        return ExchangeResult(*result)
 
     def _symbol_localizing(self, symbol):
-        if 'BCH' in symbol:
-            return symbol.replace('BCH', 'BCC')
+        actual_symbol = dict(
+            BCH='BCC'
+        )
+        return actual_symbol.get(symbol)
 
     def _sign_generator(self, *args):
         params, *_ = args
         if params is None:
-            params = {}
+            params = dict()
 
-        params.update({'timestamp': self._servertime()})
+        params.update({'timestamp': int(time.time() * 1000)})
 
         sign = hmac.new(self._secret.encode('utf-8'),
                         urlencode(sorted(params.items())).encode('utf-8'),
@@ -89,16 +95,16 @@ class Binance(BaseExchange):
 
     def _get_exchange_info(self):
         for _ in range(3):
-            success, stat, message, delay = self._public_api('GET', '/api/v1/exchangeInfo')
-            if success:
+            result_object = self._public_api('GET', '/api/v1/exchangeInfo')
+            if result_object.success:
                 break
 
-            time.sleep(delay)
+            time.sleep(result_object.wait_time)
         else:
-            return False, stat, message, delay
-        
-        step_size = {}
-        for sym in stat['symbols']:
+            return result_object
+
+        step_size = dict()
+        for sym in result_object.data['symbols']:
             symbol = sym['symbol']
             market_coin = symbol[-3:]
 
@@ -111,8 +117,9 @@ class Binance(BaseExchange):
                 })
 
         self.exchange_info = step_size
+        result_object.data = self.exchange_info
 
-        return True, step_size, '', 0
+        return result_object
 
     def _get_step_size(self, symbol):
         symbol = self._symbol_localizing(symbol)
@@ -130,12 +137,6 @@ class Binance(BaseExchange):
             return False, '', '[Binance], ERROR_BODY=[{} 호가 정보가 없습니다.], URL=[get_precision]'.format(pair), 60
 
     def get_available_coin(self):
-        if not self.exchange_info:
-            success, data, message, delay = self._get_exchange_info()
-
-            if not success:
-                return False, '', message, delay
-
         return True, list(self.exchange_info.keys()), '', 0
 
     def buy(self, coin, amount, price=None):
@@ -182,15 +183,16 @@ class Binance(BaseExchange):
         currency_pair = self._symbol_localizing(currency_pair)
         base_market, coin = currency_pair.split('_')
 
-        success, data, message, delay = self.buy(coin + base_market, alt_amount)
+        result_object = self.buy(coin + base_market, alt_amount)
 
-        if success:
+        if result_object.success:
             alt_amount *= 1 - Decimal(td_fee)
             alt_amount -= Decimal(tx_fee[coin])
             alt_amount = alt_amount.quantize(self.bnc_btm_quantizer(currency_pair), rounding=ROUND_DOWN)
-            return True, alt_amount, '', 0
 
-        return False, '', message, delay
+            result_object.data = alt_amount
+
+        return result_object
 
     def alt_to_base(self, currency_pair, btc_amount, alt_amount):
         debugger.debug('Parameters=[{}, {}, {}], function name=[alt_to_base]'.format(
@@ -200,25 +202,22 @@ class Binance(BaseExchange):
         base_market, coin = currency_pair.split('_')
 
         for _ in range(10):
-            suc, data, message, delay = self.sell(coin + base_market, alt_amount)
+            result_object = self.sell(coin + base_market, alt_amount)
 
-            if suc:
-                return True, data, '', 0
+            if result_object.success:
+                break
+            time.sleep(result_object.wait_time)
 
-            else:
-                time.sleep(delay)
-
-        else:
-            return False, '', message, 1
+        return result_object
 
     def get_ticker(self, market):
         for _ in range(3):
-            success, data, message, delay = self._public_api('GET', '/api/v1/ticker/24hr')
-            if success:
-                return True, data, '', time
+            result_object = self._public_api('GET', '/api/v1/ticker/24hr')
+            if result_object.success:
+                break
+        time.sleep(result_object.wait_time)
 
-        else:
-            return False, '', message, delay
+        return result_object
 
     def withdraw(self, coin, amount, to_address, payment_id=None):
         debugger.debug('Parameters=[{}, {}, {}, {}], function name=[withdraw]'.format(coin, amount,
