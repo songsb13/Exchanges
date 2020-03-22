@@ -461,47 +461,35 @@ class Bitfinex(BaseExchange):
 
         return orderbook_object
 
-    async def compare_orderbook(self, other, coins=None, default_btc=1):
-        if coins is None:
-            coins = []
+    async def compare_orderbook(self, other, currency_pairs=None, default_btc=1):
+        if currency_pairs is None:
+            currency_pairs = list()
 
-        currency_pairs = coins
-        err = ""
-        st = 5
-        err2 = ""
-        st2 = 5
         for _ in range(3):
-            bitfinex_result, other_result = await asyncio.gather(self.get_curr_avg_orderbook(currency_pairs,
-                                                                                              default_btc),
-                                                                  other.get_curr_avg_orderbook(currency_pairs,
-                                                                                               default_btc))
-            success, bitfinex_avg_orderbook, err, st = bitfinex_result
-            success2, other_avg_orderbook, err2, st2 = other_result
-            if success and success2:
-                m_to_s = {}
+            bitfinex_object, other_object = await asyncio.gather(self.get_curr_avg_orderbook(currency_pairs, default_btc),
+                                                                 other.get_curr_avg_orderbook(currency_pairs, default_btc))
+
+            is_success = (bitfinex_object.success and other_object.success)
+
+            if is_success:
+                m_to_s, s_to_m = dict(), dict()
+
                 for currency_pair in currency_pairs:
-                    m_ask = bitfinex_avg_orderbook[currency_pair]['asks']
-                    s_bid = other_avg_orderbook[currency_pair]['bids']
+                    m_ask = bitfinex_object.data[currency_pair]['asks']
+                    s_bid = other_object.data[currency_pair]['bids']
                     m_to_s[currency_pair] = float(((s_bid - m_ask) / m_ask).quantize(Decimal(10) ** -8))
 
-                s_to_m = {}
-                for currency_pair in currency_pairs:
-                    m_bid = bitfinex_avg_orderbook[currency_pair]['bids']
-                    s_ask = other_avg_orderbook[currency_pair]['asks']
+                    m_bid = bitfinex_object.data[currency_pair]['bids']
+                    s_ask = other_object.data[currency_pair]['asks']
                     s_to_m[currency_pair] = float(((m_bid - s_ask) / s_ask).quantize(Decimal(10) ** -8))
 
-                ret = (bitfinex_avg_orderbook, other_avg_orderbook, {'m_to_s': m_to_s, 's_to_m': s_to_m})
+                bitfinex_object.data = (bitfinex_object.data, other_object.data, {'m_to_s': m_to_s, 's_to_m': s_to_m})
 
-                return True, ret, '', 0
+                return bitfinex_object
             else:
-                future = asyncio.sleep(st) if st > st2 else asyncio.sleep(st2)
-                await future
-                continue
+                await asyncio.sleep(max(bitfinex_object.wait_time, other_object.wait_time))
         else:
-            if not err:
-                return False, '', err2, st2
-            else:
-                return False, '', err, st
+            return bitfinex_object if bitfinex_object.success is False else other_object
 
 
 if __name__ == '__main__':
