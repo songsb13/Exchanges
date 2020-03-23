@@ -287,7 +287,7 @@ class ExchangeResult(object):
         message: result message if success is False else None
         wait_time: wait time for retry if success is False else 0
     """
-    def __init__(self, success, data, message, wait_time=0):
+    def __init__(self, success, data=None, message='', wait_time=0):
         self._exchange_name = None
 
         self.success = success
