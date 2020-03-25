@@ -34,10 +34,8 @@ class Binance(BaseExchange):
             rq = requests.get(self._base_url + path, params=extra)
             response = rq.json()
 
-            if 'msg' in response:
-                error_message = 'ERROR_BODY=[{}], URL=[{}], PARAMETER=[{}]'.format(response['msg'], path, extra)
-            else:
-                error_message = None
+            error_message = 'ERROR_BODY=[{}], URL=[{}], PARAMETER=[{}]'.format(response['msg'], path, extra) if 'msg' \
+                in response else None
 
         except Exception as ex:
             error_message = 'ERROR_BODY=[{}], URL=[{}], PARAMETER=[{}]'.format(ex, path, extra)
@@ -59,10 +57,8 @@ class Binance(BaseExchange):
             rq = requests.request(method, self._base_url + path, data=query, headers={"X-MBX-APIKEY": self._key})
             response = rq.json()
 
-            if 'msg' in response:
-                error_message = 'ERROR_BODY=[{}], URL=[{}], PARAMETER=[{}]'.format(response['msg'], path, extra)
-            else:
-                error_message = None
+            error_message = 'ERROR_BODY=[{}], URL=[{}], PARAMETER=[{}]'.format(response['msg'], path, extra) if 'msg' \
+                in response else None
 
         except Exception as ex:
             error_message = 'ERROR_BODY=[{}], URL=[{}], PARAMETER=[{}]'.format(ex, path, extra)
@@ -76,6 +72,13 @@ class Binance(BaseExchange):
             BCH='BCC'
         )
         return actual_symbol.get(symbol)
+
+    def _symbol_customizing(self, symobl):
+        actual_symbol = dict(
+            BCC='BCH'
+        )
+
+        return actual_symbol.get(symobl)
 
     def _sign_generator(self, *args):
         params, *_ = args
@@ -280,119 +283,110 @@ class Binance(BaseExchange):
         debugger.debug('Parameters=[{}, {}, {}], function name=[_async_private_api]'.format(method, path, extra))
 
         if extra is None:
-            extra = {}
+            extra = dict()
 
-        async with aiohttp.ClientSession(headers={"X-MBX-APIKEY": self._key}) as s:
+        async with aiohttp.ClientSession(headers={"X-MBX-APIKEY": self._key}) as session:
             query = self._sign_generator(extra)
 
             try:
                 if method == 'GET':
                     sig = query.pop('signature')
                     query = "{}&signature={}".format(urlencode(sorted(extra.items())), sig)
-                    rq = await s.get(self._base_url + path + "?{}".format(query))
+                    rq = await session.get(self._base_url + path + "?{}".format(query))
 
                 else:
-                    rq = await s.post(self._base_url + path, data=query)
+                    rq = await session.post(self._base_url + path, data=query)
 
-                res = await rq.text()
-                res = json.loads(res)
+                response = json.loads(await rq.text())
 
-                if 'msg' in res:
-                    return False, '', '[BINANCE], ERROR_BODY=[{}], URL=[{}], PARAMETER=[{}]'.format(res['msg'],
-                                                                                                    path, extra), 1
-
-                else:
-                    return True, res, '', 0
+                error_message = 'ERROR_BODY=[{}], URL=[{}], PARAMETER=[{}]'.format(response['msg'], path, extra) \
+                    if 'msg' in response else None
 
             except Exception as ex:
-                return False, '', '[BINANCE], ERROR_BODY=[{}], URL=[{}], PARAMETER=[{}]'.format(ex,
-                                                                                                path, extra), 1
+                error_message = 'ERROR_BODY=[{}], URL=[{}], PARAMETER=[{}]'.format(ex, path, extra)
+
+        result = (True, response, '', 0) if error_message is None else (False, '', error_message, 1)
+
+        return ExchangeResult(*result)
 
     async def _async_public_api(self, method, path, extra=None, header=None):
         debugger.debug('Parameters=[{}, {}, {}, {}], function name=[_async_public_api]'.format(method, path, extra, header))
 
         if extra is None:
-            extra = {}
+            extra = dict()
 
-        async with aiohttp.ClientSession() as s:
-            rq = await s.get(self._base_url + path, params=extra)
+        async with aiohttp.ClientSession() as session:
+            rq = await session.get(self._base_url + path, params=extra)
 
         try:
-            res = await rq.text()
-            res = json.loads(res)
+            response = json.loads(await rq.text())
 
-            if 'msg' in res:
-                return False, '', '[BINANCE], ERROR_BODY=[{}], URL=[{}], PARAMETER=[{}]'.format(res['msg'],
-                                                                                                path, extra), 1
-
-            else:
-                return True, res, '', 0
+            error_message = 'ERROR_BODY=[{}], URL=[{}], PARAMETER=[{}]'.format(response['msg'], path, extra) \
+                if 'msg' in response else None
 
         except Exception as ex:
-            return False, '', '[BINANCE], ERROR_BODY=[{}], URL=[{}], PARAMETER=[{}]'.format(ex,
-                                                                                            path, extra), 1
+            error_message = 'ERROR_BODY=[{}], URL=[{}], PARAMETER=[{}]'.format(ex, path, extra)
+
+        result = (True, response, '', 0) if error_message is None else (False, '', error_message, 1)
+
+        return ExchangeResult(*result)
 
     async def _get_balance(self):
         for _ in range(3):
-            success, data, message, delay = await self._async_private_api('GET', '/api/v3/account')
-            if success:
-                return True, data, message, delay
-            time.sleep(delay)
+            result_object = await self._async_private_api('GET', '/api/v3/account')
+            if result_object.success:
+                break
+            time.sleep(result_object.wait_time)
 
-        else:
-            return False, '', message, delay
+        return result_object
 
     async def _get_deposit_addrs(self, symbol):
         for _ in range(3):
-            success, data, message, delay = await self._async_private_api('GET', '/wapi/v3/depositAddress.html', {'asset': symbol})
+            result_object = await self._async_private_api('GET', '/wapi/v3/depositAddress.html', {'asset': symbol})
 
-            if success:
-                return True, data, message, delay
-            time.sleep(delay)
+            if result_object.success:
+                break
+            time.sleep(result_object.wait_time)
 
-        else:
-            return False, '', message, delay
+        return result_object
 
     async def _get_orderbook(self, symbol):
         for _ in range(3):
-            success, data, message, delay = await self._async_public_api('GET', '/api/v1/depth', {'symbol': symbol})
-            if success:
-                return True, data, message, delay
-            time.sleep(delay)
+            result_object = await self._async_public_api('GET', '/api/v1/depth', {'symbol': symbol})
+            if result_object.success:
+                break
+            time.sleep(result_object.wait_time)
 
-        else:
-            return False, '', message, delay
+        return result_object
 
     async def get_deposit_addrs(self, coin_list=None):
-        av_suc, coin_list, av_msg, av_time = self.get_available_coin()
-
-        if not av_suc:
-            return False, '', av_msg, av_time
-
+        coin_list = list(self.exchange_info.keys())
         try:
-            ret_msg = ""
-            rq_dic = {}
+            result_message = str()
+            return_deposit_dict = dict()
             coin_list.append('BTC_BTC')
 
-            for coin in coin_list:
-                coin = coin.split('_')[1]
-                if coin == 'BCH':
-                    coin = 'BCC'
+            for symbol in coin_list:
+                base_, coin = symbol.split('_')
+                coin = self._symbol_customizing(coin)
 
-                rq_suc, rq_data, rq_msg, rq_time = await self._get_deposit_addrs(coin)
+                get_deposit_result_object = await self._get_deposit_addrs(coin)
 
-                if not rq_data['success']:
-                    ret_msg += '[{}]해당 코인은 점검 중입니다.\n'.format(coin)
+                if get_deposit_result_object.data['success'] is False:
+                    result_message += '[{}]해당 코인은 점검 중입니다.\n'.format(coin)
                     continue
 
-                rq_dic[coin] = rq_data['address']
+                return_deposit_dict[coin] = get_deposit_result_object.data['address']
 
-                if 'addressTag' in rq_data:
-                    rq_dic[coin + 'TAG'] = rq_data['addressTag']
-            return True, rq_dic, ret_msg, 0
+                if 'addressTag' in get_deposit_result_object.data:
+                    return_deposit_dict[coin + 'TAG'] = get_deposit_result_object.data['addressTag']
+            result = (True, return_deposit_dict, result_message, 0)
 
         except Exception as ex:
-            return False, '', '[BINANCE] ERROR_BODY=[입금 주소를 가져오는데 실패했습니다. {}]'.format(ex), 1
+            result_message = 'ERROR_BODY=[입금 주소를 가져오는데 실패했습니다. {}]'.format(ex)
+            result = (False, '', result_message, 1)
+
+        return ExchangeResult(*result)
 
     async def get_avg_price(self,coins):  # 내거래 평균매수가
         # 해당 함수는 현재 미사용 상태
