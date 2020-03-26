@@ -526,61 +526,41 @@ class Binance(BaseExchange):
 
     async def compare_orderbook(self, other, coins, default_btc=1):
         for _ in range(3):
-            binance_res, other_res = await asyncio.gather(
+            binance_result_object, other_result_object = await asyncio.gather(
                 self.get_curr_avg_orderbook(coins, default_btc),
                 other.get_curr_avg_orderbook(coins, default_btc)
             )
-
-            binance_suc, binance_avg_orderbook, binance_msg, binance_times = binance_res
-            other_suc, other_avg_orderbook, other_msg, other_times = other_res
 
             if 'BTC' in coins:
                 # 나중에 점검
                 coins.remove('BTC')
 
-            if binance_suc and other_suc:
-                m_to_s = {}
+            success = (binance_result_object.success and other_result_object.success)
+            wait_time = max(binance_result_object.wait_time, other_result_object.wait_time)
+
+            if success:
+                m_to_s, s_to_m = (dict() for _ in range(2))
+
                 for currency_pair in coins:
-                    m_ask = binance_avg_orderbook[currency_pair]['asks']
-                    s_bid = other_avg_orderbook[currency_pair]['bids']
+                    m_ask = binance_result_object.data[currency_pair]['asks']
+                    s_bid = other_result_object.data[currency_pair]['bids']
                     m_to_s[currency_pair] = float(((s_bid - m_ask) / m_ask).quantize(Decimal(10) ** -8))
 
-                s_to_m = {}
-                for currency_pair in coins:
-                    m_bid = binance_avg_orderbook[currency_pair]['bids']
-                    s_ask = other_avg_orderbook[currency_pair]['asks']
+                    m_bid = binance_result_object.data[currency_pair]['bids']
+                    s_ask = other_result_object.data[currency_pair]['asks']
                     s_to_m[currency_pair] = float(((m_bid - s_ask) / s_ask).quantize(Decimal(10) ** -8))
 
-                res = binance_avg_orderbook, other_avg_orderbook, {'m_to_s': m_to_s, 's_to_m': s_to_m}
+                res = binance_result_object.data, other_result_object.data, {'m_to_s': m_to_s, 's_to_m': s_to_m}
 
-                return True, res, '', 0
+                result = (True, res, '', 0)
+                break
 
             else:
-                time.sleep(binance_times)
-                continue
+                time.sleep(wait_time)
 
-        if not binance_suc or not other_suc:
-            return False, '', 'binance_error-[{}] other_error-[{}]'.format(binance_msg, other_msg), binance_times
+        else:
+            error_message = binance_result_object.message + '\n' + other_result_object.message
 
+            result = (False, '', error_message, 1)
 
-if __name__ == '__main__':
-    k = ''
-    s = ''
-    b = Binance(k, s)
-    s, available, *_ = b.get_available_coin()
-    s, d, m, t = b.sell('XRPBTC', 1)
-    loop = asyncio.get_event_loop()
-    # todo ---Done---
-    # s, d, m, t = b.get_available_coin()
-    # s, d, m, t = b.buy('XRPBTC', 1)
-    # s, d, m, t = b.sell('XRPBTC', 1)
-    # s, d, m, t = b.withdraw('XRPBTC', 1, 'test')
-
-    # print(s, d)
-    #
-    # loop = asyncio.get_event_loop()
-    # s, d, m ,t = loop.run_until_complete(b.get_balance())
-    # print(d, m)
-    # s, d, m, t = loop.run_until_complete(b.get_deposit_addrs())
-    # s, d, m, t = loop.run_until_complete(b.get_transaction_fee())
-    # s, d, m, t = loop.run_until_complete(b.get_curr_avg_orderbook(available[:5]))
+        return ExchangeResult(*result)
