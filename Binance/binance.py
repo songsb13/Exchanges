@@ -71,14 +71,16 @@ class Binance(BaseExchange):
         actual_symbol = dict(
             BCH='BCC'
         )
-        return actual_symbol.get(symbol)
+        get_actual_symbol = actual_symbol.get(symbol)
+        return get_actual_symbol if get_actual_symbol else symbol
 
-    def _symbol_customizing(self, symobl):
+    def _symbol_customizing(self, symbol):
         actual_symbol = dict(
             BCC='BCH'
         )
 
-        return actual_symbol.get(symobl)
+        get_actual_symbol = actual_symbol.get(symbol)
+        return get_actual_symbol if get_actual_symbol else symbol
 
     def _sign_generator(self, *args):
         params, *_ = args
@@ -391,34 +393,35 @@ class Binance(BaseExchange):
     async def get_avg_price(self,coins):  # 내거래 평균매수가
         # 해당 함수는 현재 미사용 상태
         try:
-            amount_price_list, res_value = [], []
+            amount_price_list, res_value = (list() for _ in range(2))
             for coin in coins:
-                total_price, bid_count, total_amount = 0, 0, 0
+                total_price, bid_count, total_amount = (int() for _ in range(3))
 
                 for _ in range(10):
-                    hist_suc, history, hist_msg, hist_time = await self._async_public_api(
+                    history_result_object = await self._async_public_api(
                         '/api/v3/allOrders', {'symbol': coin})
 
-                    if hist_suc:
+                    if history_result_object.success:
                         break
 
-                    else:
-                        time.sleep(1)
+                    time.sleep(1)
 
                 else:
                     # history 값을 가져오는데 실패하는 경우.
-                    return False, '', '[Binance]History값을 가져오는데 실패했습니다. [{}]'.format(hist_msg), hist_time
+                    return history_result_object
 
+                history = history_result_object.data
                 history.reverse()
                 for _data in history:
-                    side = _data['side']
+                    trading_type = _data['side']
                     n_price = float(_data['price'])
-                    price = Decimal(n_price - (n_price * 0.1)).quantize(Decimal(10) ** -6)
-                    amount = Decimal(_data['origQty']).quantize(Decimal(10) ** -6)
-                    if side == 'BUY':
+                    # todo 0.1을 곱한 뒤 빼는 이유?
+                    price = Decimal(n_price - (n_price * 0.1)).quantize(Decimal(10) ** -8)
+                    amount = Decimal(_data['origQty']).quantize(Decimal(10) ** -8)
+                    if trading_type == 'BUY':
                         amount_price_list.append({
-                            '_price': price,
-                            '_amount': amount
+                            'price': price,
+                            'amount': amount
                         })
                         total_price += price
                         total_amount += amount
@@ -445,77 +448,81 @@ class Binance(BaseExchange):
         return True, 0.001, '', 0
 
     async def get_transaction_fee(self):
-        fees = {}
-        for _ in range(3):
-            try:
-                async with aiohttp.ClientSession() as s:
-                    try:
-                        rq = await s.get('https://www.binance.com/assetWithdraw/getAllAsset.html')
-                        data_list = await rq.text()
-                        data_list = json.loads(data_list)
+        fees = dict()
+        try:
 
-                        if not data_list:
-                            time.sleep(3)
-                            continue
-                    except Exception as ex:
-                        return False, '', '[BINANCE], ERROR_BODY=[출금 비용을 가져오는데 실패했습니다. {}]'.format(ex), 60
+            for _ in range(3):
+                async with aiohttp.ClientSession() as session:
+                    rq = await session.get('https://www.binance.com/assetWithdraw/getAllAsset.html')
+                    data_list = json.loads(await rq.text())
+
+                    if not data_list:
+                        time.sleep(3)
+                        continue
 
                 for f in data_list:
-                    if f['assetCode'] == 'BCC':
-                        f['assetCode'] = 'BCH'
-                    fees[f['assetCode']] = Decimal(f['transactionFee']).quantize(Decimal(10)**-8)
+                    symbol = self._symbol_customizing(f['assetCode'])
+                    fees[symbol] = Decimal(f['transactionFee']).quantize(Decimal(10)**-8)
 
-                return True, fees, '', 0
+                error_message = None
+                break
 
-            except Exception as ex:
-                return False, '', '[BINANCE], ERROR_BODY=[출금 비용을 가져오는데 실패했습니다. {}]'.format(ex), 60
+            else:
+                error_message = 'ERROR_BODY=[출금 비용을 가져오는데 실패했습니다.]'
 
-        else:
-            return False, '', '[BINANCE], EEROR_BODY=[출금비용을 가져오는데 실패했습니다. {}],', 60
+        except Exception as ex:
+            error_message = 'ERROR_BODY=[출금 비용을 가져오는데 실패했습니다. {}]'.format(ex)
+
+        result = (True, fees, '', 0) if error_message is None else (False, '', error_message, 60)
+
+        return ExchangeResult(*result)
 
     async def get_balance(self):
-        suc, data, message, delay = await self._get_balance()
+        result_object = await self._get_balance()
 
-        if not suc:
-            return False, '', message, delay
+        if result_object.success:
+            balance = dict()
+            for bal in result_object.data['balances']:
+                symbol = self._symbol_customizing(bal['asset'])
+                if float(bal['free']) > 0:
+                    balance[symbol.upper()] = Decimal(bal['free']).quantize(Decimal(10)**-8)
 
-        balance = {}
-        for bal in data['balances']:
-            if bal['asset'] == 'BCC':
-                bal['asset'] = 'BCH'
+            result_object.data = balance
 
-            if float(bal['free']) > 0:
-                balance[bal['asset'].upper()] = Decimal(bal['free']).quantize(Decimal(10)**-8)
-
-        return True, balance, '', 0
+        return result_object
 
     async def get_curr_avg_orderbook(self, coin_list, btc_sum=1):
         try:
-            avg_order_book = {}
+            avg_order_book = dict()
+            failed_coin_log = str()
             for currency_pair in coin_list:
                 if currency_pair == 'BTC_BTC':
                     continue
 
-                sp = currency_pair.split('_')
-                success, book, message, delay = await self._get_orderbook(sp[1] + sp[0])
+                market, coin = currency_pair.split('_')
+                orderbook_result_object = await self._get_orderbook(coin + market)
 
-                if not success:
-                    return False, '', message, delay
+                if orderbook_result_object.success:
+                    avg_order_book[currency_pair] = dict()
+                    for type_ in ['asks', 'bids']:
+                        order_amount, order_sum = (int() for _ in range(2))
 
-                avg_order_book[currency_pair] = {}
-                for type_ in ['asks', 'bids']:
-                    order_amount, order_sum = 0, 0
-
-                    for data in book[type_]:
-                        order_amount += Decimal(data[1])  # 0 - price 1 - qty
-                        order_sum += (Decimal(data[0]) * Decimal(data[1])).quantize(Decimal(10) ** -8)
-                        if order_sum >= Decimal(btc_sum):
-                            _v = ((order_sum / order_amount).quantize(Decimal(10) ** -8))
-                            avg_order_book[currency_pair][type_] = _v
-                            break
-            return True, avg_order_book, '', 0
+                        for data in orderbook_result_object.data[type_]:
+                            price, qty, *_ = data
+                            order_amount += Decimal(qty)  # 0 - price 1 - qty
+                            order_sum += (Decimal(price) * Decimal(qty)).quantize(Decimal(10) ** -8)
+                            if order_sum >= Decimal(btc_sum):
+                                _v = ((order_sum / order_amount).quantize(Decimal(10) ** -8))
+                                avg_order_book[currency_pair][type_] = _v
+                                break
+                else:
+                    failed_coin_log += orderbook_result_object.message + '\n'
+            result = (True, avg_order_book, failed_coin_log, 0)
         except Exception as ex:
-            return False, '', '[BINANCE], ERROR_BODY=[{}], URL=[get_curr_avg_orderbook]'.format(ex), 1
+            error_message = 'ERROR_BODY=[{}], URL=[get_curr_avg_orderbook]'.format(ex)
+            result = (False, '', error_message, 1)
+
+        return ExchangeResult(*result)
 
     async def compare_orderbook(self, other, coins, default_btc=1):
         for _ in range(3):
