@@ -12,8 +12,7 @@ from lxml import html as lh
 from decimal import Decimal, ROUND_DOWN
 from urllib.parse import urlencode
 
-from BaseExchange import BaseExchange
-import Settings as settings
+from base_exchange import BaseExchange, ExchangeResult
 
 
 class RequestError(Exception):
@@ -43,6 +42,8 @@ class BaseBithumb(BaseExchange):
         self._secret = secret
         self._base_url = 'https://api.bithumb.com'
 
+        ExchangeResult.set_exchange_name = 'Bithumb'
+
     def _sign_generator(self, *args):
         extra, data, path, nonce = args
         hmac_data = path + chr(0) + data + chr(0) + nonce
@@ -56,30 +57,27 @@ class BaseBithumb(BaseExchange):
         debugger.debug('[Bithumb]Parameters=[{}, {}, {}, {}], function name=[_public_api]'.format(method, path, extra, header))
 
         try:
-            if extra is None:
-                extra = {}
-
-            else:
-                extra = urlencode(extra)
+            extra = dict() if extra is None else urlencode(extra)
 
             rq = requests.get(self._base_url + path, data=extra)
 
-            res = rq.json()
+            response = rq.json()
 
-            if not res['status'] == '0000':
-                return False, '', '[BITHUMB], ERROR_BODY=[{}], URL=[{}], PARAMETER=[{}]'.format(res['message'],
-                                                                                                path, extra), 1
+            error_message = None if response['status'] == '0000' else 'ERROR_BODY=[{}], URL=[{}], PARAMETER=[{}]'.\
+                format(response['message'], path, extra)
 
-            return True, res, '', 0
         except Exception as ex:
-            return False, '', '[BITHUMB], ERROR_BODY=[{}], URL=[{}], PARAMETER=[{}]'.format(ex, path, extra), 1
+            error_message = 'ERROR_BODY=[{}], URL=[{}], PARAMETER=[{}]'.format(ex, path, extra)
+
+        result = (True, response, '', 0) if error_message is None else (False, '', error_message, 1)
+        return ExchangeResult(*result)
 
     def _private_api(self, method, path, extra=None):
         debugger.debug('[Bithumb]Parameters=[{}, {}, {}], function name=[_private_api]'.format(method, path, extra))
 
         try:
-            if extra is None:
-                extra = {}
+            extra = dict() if extra is None else extra
+
             extra.update({'endpoint': path})
 
             nonce = str(int(time.time() * 1000))
@@ -95,53 +93,59 @@ class BaseBithumb(BaseExchange):
 
             rq = requests.post(self._base_url + path, headers=headers, data=extra)
 
-            res = rq.json()
+            response = rq.json()
 
-            if not res['status'] == '0000':
-                return False, '', '[BITHUMB], ERROR_BODY=[{}], URL=[{}], PARAMETER=[{}]'.format(res['message'],
-                                                                                                path, extra), 1
-            return True, res, '', 0
+            error_message = None if response['status'] == '0000' else 'ERROR_BODY=[{}], URL=[{}], PARAMETER=[{}]'. \
+                format(response['message'], path, extra)
+
         except Exception as ex:
-            return False, '', '[BITHUMB], ERROR_BODY=[{}], URL=[{}], PARAMETER=[{}]'.format(ex, path, extra), 1
+            error_message = 'ERROR_BODY=[{}], URL=[{}], PARAMETER=[{}]'.format(ex, path, extra)
+
+        result = (True, response, '', 0) if error_message is None else (False, '', error_message, 1)
+        return ExchangeResult(*result)
 
     def fee_count(self):
         return 2
 
     def get_ticker(self, market):
         for _ in range(3):
-            success, data, message, time_ = self._public_api('GET', '/public/ticker/{}'.format(market))
-            if success:
-                return True, data, '', 0
+            result_object = self._public_api('GET', '/public/ticker/{}'.format(market))
+            if result_object:
+                break
 
-            time.sleep(time_)
+            time.sleep(result_object.wait_time)
 
-        else:
-            return False, '', message, time_
+        return result_object
 
     def limit_buy(self, coin, amount, price):
-        params = {'order_currency': coin,
-                  'payment_currency': 'KRW',
-                  'units': amount,
-                  'price': price,
-                  'type': 'bid'}
+        params = {
+            'order_currency': coin,
+            'payment_currency': 'KRW',
+            'units': amount,
+            'price': price,
+            'type': 'bid'
+        }
 
         return self._private_api('POST', '/trade/place', params)
 
     def limit_sell(self, coin, amount, price):
-        params = {'order_currency': coin,
-                  'payment_currency': 'KRW',
-                  'units': amount,
-                  'price': price,
-                  'type': 'ask'}
+        params = {
+            'order_currency': coin,
+            'payment_currency': 'KRW',
+            'units': amount,
+            'price': price,
+            'type': 'ask'
+        }
 
         return self._private_api('POST', '/trade/place', params)
 
     def buy(self, coin, amount, price=None):
         debugger.debug('[Bithumb]Parameters=[{}, {}, {}], function name=[buy]'.format(coin, amount, price))
 
-        params = {'currency': coin,
-                  'units': amount
-                  }
+        params = {
+            'currency': coin,
+            'units': amount
+        }
 
         if price:
             return self.limit_buy(coin, amount, price)
@@ -151,9 +155,10 @@ class BaseBithumb(BaseExchange):
     def sell(self, coin, amount, price=None):
         debugger.debug('[Bithumb]Parameters=[{}, {}, {}], function name=[sell]'.format(coin, amount, price))
 
-        params = {'currency': coin,
-                  'units': amount
-                  }
+        params = {
+            'currency': coin,
+            'units': amount
+        }
 
         if price:
             return self.limit_sell(coin, amount, price)
@@ -161,50 +166,56 @@ class BaseBithumb(BaseExchange):
         return self._private_api('POST', '/trade/market_sell', params)
 
     def base_to_alt(self, currency_pair, btc_amount, alt_amount, td_fee, tx_fee):
-        alt = Decimal(alt_amount)
+        alt = Decimal(alt_amount).quantize(Decimal(10) ** -8)
         for _ in range(10):
-            success, data, message, time_ = self.sell('BTC', btc_amount)
-            if success:
+            sell_result_object = self.sell('BTC', btc_amount)
+            if sell_result_object.success:
                 break
-            time.sleep(time_)
+            time.sleep(sell_result_object.wait_time)
 
         else:
-            return False, '', message, time_
+            return sell_result_object
 
         currency_pair = currency_pair.split('_')[1]
         for _ in range(10):
-            success, data, message, time_ = self.buy(currency_pair, alt_amount)
-            if success:
+            buy_result_object = self.buy(currency_pair, alt_amount)
+            if buy_result_object.success:
                 break
 
-            time.sleep(time_)
+            time.sleep(buy_result_object.wait_time)
         else:
-            return False, '', message, time_
+            return buy_result_object
 
         alt *= ((1 - Decimal(td_fee)) ** 2)
         alt -= Decimal(tx_fee[currency_pair.split('_')[1]])
         alt = alt.quantize(Decimal(10) ** -4, rounding=ROUND_DOWN)
 
-        return True, alt, '', 0
+        result = (True, alt)
+
+        return ExchangeResult(*result)
 
     def alt_to_base(self, currency_pair, btc_amount, alt_amount):
         currency_pair = currency_pair.split('_')[1]
         for _ in range(10):
-            success, data, message, time_ = self.sell(currency_pair, alt_amount)
-            if success:
+            sell_result_object = self.sell(currency_pair, alt_amount)
+            if sell_result_object.success:
                 break
-            time.sleep(time_)
+            time.sleep(sell_result_object.wait_time)
         else:
-            return False, '', message, time_
+            return sell_result_object
 
         for _ in range(10):
-            success, data, message, time_ = self.buy('BTC', btc_amount)
-            if success:
-                return
+            buy_result_object = self.buy('BTC', btc_amount)
+            if buy_result_object.success:
+                break
 
-            time.sleep(time_)
+            time.sleep(buy_result_object.wait_time)
         else:
-            return False, '', message, time_
+            return buy_result_object
+
+        result = (True, )
+
+        return ExchangeResult(*result)
 
     def withdraw(self, coin, amount, to_address, payment_id=None):
         debugger.debug('[Bithumb]Parameters=[{}, {}, {}], function name=[withdraw]'.format(coin, amount, to_address, payment_id))
@@ -220,7 +231,7 @@ class BaseBithumb(BaseExchange):
         return self._private_api('POST', '/trade/btc_withdrawal', params)
 
     def get_available_coin(self):
-        return True, [
+        available_coin = [
             'BTC_ETH',
             'BTC_DASH',
             'BTC_LTC',
@@ -232,16 +243,19 @@ class BaseBithumb(BaseExchange):
             'BTC_QTUM',
             'BTC_BTG',
             'BTC_EOS'
-        ], '', 0
+        ]
+
+        result = (True, available_coin)
+
+        return ExchangeResult(*result)
 
     def get_precision(self, pair=None):
-        return True, (-8, -8), '', 0
+        return ExchangeResult(True, (-8, -8))
 
     async def _async_private_api(self, method, path, extra=None):
         debugger.debug('[Bithumb]Parameters=[{}, {}, {}], function name=[_async_private_api]'.format(method, path, extra))
         try:
-            if extra is None:
-                extra = {}
+            extra = dict() if extra is None else extra
 
             nonce = str(int(time.time() * 1000))
             data = urlencode(extra)
@@ -253,146 +267,150 @@ class BaseBithumb(BaseExchange):
                 'Api-Nonce': nonce
             }
 
-            async with aiohttp.ClientSession(headers=header) as s:
-                rq = await s.post(self._base_url + path, data=data)
+            async with aiohttp.ClientSession(headers=header) as session:
+                rq = await session.post(self._base_url + path, data=data)
 
-                res = json.loads(await rq.text())
+                response = json.loads(await rq.text())
 
-                if not res['status'] == '0000':
-                    return False, '', '[BITHUMB], ERROR_BODY=[{}], URL=[{}], PARAMETER=[{}]'.format(res['message'],
-                                                                                                    path, extra), 1
+                error_message = None if response['status'] == '0000' else 'ERROR_BODY=[{}], URL=[{}], PARAMETER=[{}]'.\
+                    format(response['message'], path, extra)
 
-                return True, res, '', 0
         except Exception as ex:
-            return False, '', '[BITHUMB], ERROR_BODY=[{}], URL=[{}], PARAMETER=[{}]'.format(ex, path, extra), 1
+            error_message = ' ERROR_BODY=[{}], URL=[{}], PARAMETER=[{}]'.format(ex, path, extra)
+
+        result = (True, response, '', 0) if error_message is None else (False, '', error_message, 1)
+
+        return ExchangeResult
 
     async def _get_deposit_addrs(self, currency):
         for _ in range(3):
-            success, data, message, time_ = await self._async_private_api('POST', '/info/wallet_address',
+            result_object = await self._async_private_api('POST', '/info/wallet_address',
                                                                           {'currency': currency})
 
-            if success:
-                return True, data, message, time_
-            time.sleep(time_)
+            if result_object.success:
+                break
+            time.sleep(result_object.wait_time)
 
-        else:
-            return False, data, message, time_
+        return result_object
 
     async def _get_orderbook(self, symbol):
         for _ in range(3):
-            success, data, message, time_ = self._public_api('GET', '/public/orderbook/{}'.format(symbol))
-            if success:
-                return True, data, '', 0
+            result_object = self._public_api('GET', '/public/orderbook/{}'.format(symbol))
+            if result_object.success:
+                break
 
-            time.sleep(time_)
+            time.sleep(result_object.wait_time)
 
-        else:
-            return False, '', message, time_
+        return result_object
 
     async def _get_balance(self):
         for _ in range(3):
-            success, data, message, time_ = await self._async_private_api('POST', '/info/balance',
-                                                                          {'currency': 'ALL'})
-            if success:
-                return True, data, '', 0
+            result_object = await self._async_private_api('POST', '/info/balance', {'currency': 'ALL'})
+            if result_object.success:
+                break
 
-            time.sleep(time_)
+            time.sleep(result_object.wait_time)
 
-        else:
-            return False, '', message, time_
+        return result_object
 
     async def _get_trading_fee(self, symbol):
         for _ in range(3):
-            success, data, message, time_ = await self._async_private_api('POST', '/info/account', {'currency': symbol})
-            if success:
-                return True, data, message, time_
+            result_object = await self._async_private_api('POST', '/info/account', {'currency': symbol})
+            if result_object.success:
+                break
 
-            time.sleep(time_)
-        else:
-            return False, data, message, time_
+            time.sleep(result_object.wait_time)
+
+        return result_object
 
     async def get_balance(self):
-        success, data, message, time_ = await self._get_balance()
+        result_object = await self._get_balance()
 
-        if not success:
-            return False, data, message, time_
+        if result_object.success:
+            data = result_object.data
+            response = {key.split('_')[1].upper(): float(data['data'][key]) for key in data['data'] if
+                        key.startswith('available') and float(data['data'][key]) > 0}
 
-        res = {key.split('_')[1].upper(): float(data['data'][key]) for key in data['data'] if
-               key.startswith('available') and float(data['data'][key]) > 0}
+            result_object.data = response
 
-        return True, res, '', 0
+        return result_object
 
     async def get_trading_fee(self):
-        success, data, message, time_ = await self._get_trading_fee('BTC')
-        if not success:
-            return False, data, message, time_
+        result_object = await self._get_trading_fee('BTC')
+        if result_object.success:
+            result_object.data = result_object.data['data']['trade_fee']
 
-        return True, data['data']['trade_fee'], '', 0
+        return result_object
 
     async def get_transaction_fee(self):
         # 현철이 레거시
         try:
             ret = requests.get('https://www.bithumb.com/u1/US138', timeout=60)
-        except:
-            if self.transaction_fee is not None:
-                return True, self.transaction_fee, '', 0
-            else:
-                return False, '', "[BITHUMB] ERROR_BODY=[트랜잭션 수수료 불러오기 에러]", 5
+            #   API 사용이 아니다.
+            doc = lh.fromstring(ret.text)
+            tags = doc.cssselect('table.g_tb_normal.fee_in_out tr')
 
-        #   API 사용이 아니다.
-        doc = lh.fromstring(ret.text)
-        tags = doc.cssselect('table.g_tb_normal.fee_in_out tr')
+            ret_data = dict()
+            for tag in tags[3:]:
+                key = re.search('[A-Z]+', tag.cssselect('td.money_type')[0].text_content()).group()
+                try:
+                    val = tag.cssselect('div.right')[1].text_content()
+                except IndexError:
+                    continue
+                try:
+                    ret_data[key] = Decimal(val).quantize(Decimal(10) ** -8)
+                except ValueError:
+                    pass
 
-        ret_data = {}
-        for tag in tags[3:]:
-            key = re.search('[A-Z]+', tag.cssselect('td.money_type')[0].text_content()).group()
-            try:
-                val = tag.cssselect('div.right')[1].text_content()
-            except IndexError:
-                continue
-            try:
-                ret_data[key] = Decimal(val).quantize(Decimal(10) ** -8)
-            except ValueError:
-                pass
+            self.transaction_fee = ret_data if ret_data else self.transaction_fee
 
-        if ret_data == {}:
-            return False, '', "트랜잭션 수수료 정보 없음 에러", 5
+            result = (False, '', 'ERROR_BODY=[트랜젝션 수수료 없음 에러]', 5) if ret_data is dict() \
+                else (True, ret_data, '', 0)
 
-        self.transaction_fee = ret_data
+        except Exception as ex:
+            result = (False, '', 'ERROR_BODY=[{}]'.format(ex), 5) if self.transaction_fee is None \
+                else (True, self.transaction_fee, '', 0)
 
-        return True, self.transaction_fee, '', 0
+        return ExchangeResult(*result)
 
     async def get_deposit_addrs(self, coin_list=None):
-        ret_data = {}
+        ret_data = dict()
+        failed_log = str()
         # bithumb의 get_available_coin은 하드코딩이므로 data외 값을 받을 필요 없음.
-        _, available_coin, *_ = self.get_available_coin()
-        for currency in available_coin + ['BTC_BTC']:
+        available_result_object = self.get_available_coin()
+        available_coin = available_result_object.data + ['BTC_BTC']
+        for currency in available_coin:
+            # todo test시 결과 값 보고 수정처리 필요.
             currency = currency[4:]
 
-            success, data, message, time_ = await self._get_deposit_addrs(currency)
-            if not success:
-                return False, '', message, time_
+            deposit_result_object = await self._get_deposit_addrs(currency)
+            if deposit_result_object.success:
+                data = deposit_result_object.data
+                if currency in settings.SUB_ADDRESS_COIN_LIST:
+                    try:
+                        address, tag = data['data']['wallet_address'].split('&dt=')
+                        ret_data[currency + 'TAG'] = tag
+                        ret_data[currency] = address
+                    except ValueError:
+                        ret_data[currency] = str()
+                        ret_data[currency + 'TAG'] = str()
+                else:
+                    ret_data[currency] = data['data']['wallet_address']
 
-            if currency in settings.SUB_ADDRESS_COIN_LIST:
-                try:
-                    address, tag = data['data']['wallet_address'].split('&dt=')
-                    ret_data[currency + 'TAG'] = tag
-                    ret_data[currency] = address
-                except ValueError:
-                    ret_data[currency] = ''
-                    ret_data[currency + 'TAG'] = ''
             else:
-                ret_data[currency] = data['data']['wallet_address']
+                failed_log += deposit_result_object.message + '\n'
 
-        return True, ret_data, '', 0
+        result = (True, ret_data, failed_log, 0)
+
+        return ExchangeResult(*result)
 
     async def get_curr_avg_orderbook(self, currencies, default_btc=1):
-        ret = {}
+        ret = dict()
         success, data, message, time_ = await self._get_orderbook('ALL')
         if not success:
             return False, '', message, time_
 
-        btc_avg = {}
+        btc_avg = dict()
         data = data['data']
         for order_type in ['bids', 'asks']:
             rows = data['BTC'][order_type]
