@@ -276,3 +276,34 @@ class BaseExchange(object):
         :return: tuple, 2 different exchange orderbook & profit percent of main & sec exchanges
         """
         pass
+
+
+class ExchangeResult(object):
+    """
+        Return exchange result abstract class
+
+        success: True if success else False
+        data: requested data if success is True else None
+        message: result message if success is False else None
+        wait_time: wait time for retry if success is False else 0
+    """
+    def __init__(self, success, data=None, message='', wait_time=0):
+        self._exchange_name = None
+
+        self.success = success
+        self.data = data
+        self.message = '{}::: {}'.format(self.set_exchange_name, message)
+        self.wait_time = wait_time
+
+    @property
+    def set_exchange_name(self):
+        """
+        Property for containing exchange name into message
+        Must be defined before encapsulation.
+        :return: Binance, Bithumb...
+        """
+        return self._exchange_name
+
+    @set_exchange_name.setter
+    def set_exchange_name(self, name):
+        self._exchange_name = name
