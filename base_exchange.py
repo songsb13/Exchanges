@@ -8,14 +8,12 @@ class BaseExchange(object):
     _key = str
     _secret = str
 
-    def _public_api(self, method, path, extra=None, header=None):
+    def _public_api(self, path, extra=None):
         """
         For using public API
 
-        :param method: Get or Post
         :param path: URL path without Base URL, '/url/path/'
         :param extra: Parameter if required.
-        :param header: Header if required.
         :return:
         return 4 format
         1. success: True if status is 200 else False
@@ -25,11 +23,10 @@ class BaseExchange(object):
         """
         pass
 
-    def _private_api(self, method, path, extra=None):
+    def _private_api(self, path, extra=None):
         """
         For using private API
 
-        :param method: Get or Post
         :param path: URL path without Base URL, '/url/path/'
         :param extra: Parameter if required.
         :return:
