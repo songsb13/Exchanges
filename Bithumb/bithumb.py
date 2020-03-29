@@ -452,62 +452,33 @@ class BaseBithumb(BaseExchange):
 
     async def compare_orderbook(self, other, coins, default_btc=1):
         currency_pairs = coins
-        err = ""
-        st = 5
-        err2 = ""
-        st2 = 5
         for _ in range(3):
-            bithumb_result, other_result = await asyncio.gather(self.get_curr_avg_orderbook(currency_pairs,
-                                                                                             default_btc),
-                                                                 other.get_curr_avg_orderbook(currency_pairs,
-                                                                                              default_btc))
-            success, bithumb_avg_orderbook, err, st = bithumb_result
-            success2, other_avg_orderbook, err2, st2 = other_result
-            if success and success2:
-                m_to_s = {}
+            bithumb_result_object, other_result_object = await asyncio.gather(
+                self.get_curr_avg_orderbook(currency_pairs, default_btc),
+                other.get_curr_avg_orderbook(currency_pairs, default_btc)
+            )
+            success = (bithumb_result_object.success and other_result_object.success)
+            if success:
+                m_to_s, s_to_m = (dict() for _ in range(2))
                 for currency_pair in currency_pairs:
-                    m_ask = bithumb_avg_orderbook[currency_pair]['asks']
-                    s_bid = other_avg_orderbook[currency_pair]['bids']
+                    m_ask = bithumb_result_object.data[currency_pair]['asks']
+                    s_bid = other_result_object.data[currency_pair]['bids']
                     m_to_s[currency_pair] = float(((s_bid - m_ask) / m_ask).quantize(Decimal(10) ** -8))
 
-                s_to_m = {}
-                for currency_pair in currency_pairs:
-                    m_bid = bithumb_avg_orderbook[currency_pair]['bids']
-                    s_ask = other_avg_orderbook[currency_pair]['asks']
+                    m_bid = bithumb_result_object.data[currency_pair]['bids']
+                    s_ask = other_result_object.data[currency_pair]['asks']
                     s_to_m[currency_pair] = float(((m_bid - s_ask) / s_ask).quantize(Decimal(10) ** -8))
 
-                ret = (bithumb_avg_orderbook, other_avg_orderbook, {'m_to_s': m_to_s, 's_to_m': s_to_m})
+                orderbooks = (bithumb_result_object.data, other_result_object.data, {'m_to_s': m_to_s, 's_to_m': s_to_m})
 
-                return True, ret, '', 0
+                result = (True, orderbooks, '', 0)
+                break
+
             else:
-                future = asyncio.sleep(st) if st > st2 else asyncio.sleep(st2)
-                await future
-                continue
+                await asyncio.sleep(max(bithumb_result_object.wait_time, other_result_object.wait_time))
         else:
-            if not err:
-                return False, '', err2, st2
-            else:
-                return False, '', err, st
+            error_message = bithumb_result_object.message + '\n' + other_result_object.message
 
+            result = (False, '', error_message, 1)
 
-if __name__ == '__main__':
-    k = ''
-    s = ''
-
-    b = BaseBithumb(key=k, secret=s)
-    loop = asyncio.get_event_loop()
-    _, available, *_ = b.get_available_coin()
-    s, d, m, t = loop.run_until_complete(b.get_curr_avg_orderbook(available))
-    print(d)
-
-    # s, d, m, t = b.get_available_coin()
-    # s, d, m, t = b.buy('ETH', 1)
-    # s, d, m, t = b.sell('ETH', 1)
-    # s, d, m, t = b.limit_buy('ETH', 1, 100)
-    # s, d, m, t = b.limit_sell('ETH', 1, 100)
-    # s, d, m, t = b.withdraw('ETH', 1, 'test')
-    # s, d, m, t = loop.run_until_complete(b.get_balance())
-    # s, d, m, t = loop.run_until_complete(b.get_trading_fee())
-    # s, d, m, t = loop.run_until_complete(b.get_transaction_fee())
-    # s, d, m, t = loop.run_until_complete(b.get_deposit_addrs())
-    # s, d, m, t = loop.run_until_complete(b.get_curr_avg_orderbook(available))
+        return ExchangeResult(*result)
