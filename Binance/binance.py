@@ -243,7 +243,7 @@ class Binance:
         return suc, data, msg, time_
 
     def get_candle(self, coin, unit, count):
-        path = '/'.join([self._endpoint, 'api', 'v1', 'klines'])
+        path = '/'.join(['api', 'v1', 'klines'])
 
         params = {
                     'symbol': coin,
@@ -251,35 +251,23 @@ class Binance:
                     'limit': count,
         }
         # 1m, 3m, 5m, 15m, 30m, 1h, 2h, 4h, 6h, 8h, 12h, 1d, 3d, 1w, 1M
-        suc, data, msg, time_ = self.public_api(path, params)
-
-        if not suc:
-            return suc, data, msg
-
-        history = {
-            'open': [],
-            'high': [],
-            'low': [],
-            'close': [],
-            'volume': [],
-            'timestamp': [],
-        }
-
+        result_object = self.public_api(path, params)
+        rows = ['open', 'high', 'low', 'close', 'volume', 'timestamp']
+        history = {key_: list() for key_ in rows}
         try:
-            for info in data:  # 리스트가 늘어날 수도?
-                o, h, l, c, vol, ts = list(map(float, info[1:7]))
+            for candle_row in result_object.data:
+                # open, high, low, close, volume, timestamp
+                certain_row = list(map(float, candle_row[1:7]))
 
-                history['open'].append(o)
-                history['high'].append(h)
-                history['low'].append(l)
-                history['close'].append(c)
-                history['volume'].append(vol)
-                history['timestamp'].append(ts)
+                for num, key_ in enumerate(rows):
+                    history[key_].append(certain_row[num])
 
-            return True, history, ''
+            result_object.data = history
 
         except Exception as ex:
-            return False, '', 'history를 가져오는 과정에서 에러가 발생했습니다. =[{}]'.format(ex)
+            result_object.message = 'history를 가져오는 과정에서 에러가 발생했습니다. =[{}]'.format(ex)
+
+        return result_object
 
     async def async_private_api(self, method, path, params=None):
         if params is None:
