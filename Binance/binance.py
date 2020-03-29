@@ -24,8 +24,8 @@ class Binance(BaseExchange):
 
         ExchangeResult.set_exchange_name = 'Binance'
 
-    def _public_api(self, method, path, extra=None, header=None):
-        debugger.debug('Parameters=[{}, {}, {}, {}], function name=[_public_api]'.format(method, path, extra, header))
+    def _public_api(self, path, extra=None):
+        debugger.debug('Parameters=[{}, {}], function name=[_public_api]'.format(path, extra))
 
         if extra is None:
             extra = dict()
@@ -44,8 +44,8 @@ class Binance(BaseExchange):
 
         return ExchangeResult(*result)
 
-    def _private_api(self, method, path, extra=None):
-        debugger.debug('Parameters=[{}, {}, {}], function name=[_private_api]'.format(method, path, extra))
+    def _private_api(self, path, extra=None):
+        debugger.debug('Parameters=[{}, {}], function name=[_private_api]'.format(path, extra))
 
         if extra is None:
             extra = dict()
@@ -54,7 +54,7 @@ class Binance(BaseExchange):
             query = self._sign_generator(extra)
             sig = query.pop('signature')
             query = "{}&signature={}".format(urlencode(sorted(extra.items())), sig)
-            rq = requests.request(method, self._base_url + path, data=query, headers={"X-MBX-APIKEY": self._key})
+            rq = requests.post(self._base_url + path, data=query, headers={"X-MBX-APIKEY": self._key})
             response = rq.json()
 
             error_message = 'ERROR_BODY=[{}], URL=[{}], PARAMETER=[{}]'.format(response['msg'], path, extra) if 'msg' \
@@ -100,7 +100,7 @@ class Binance(BaseExchange):
 
     def _get_exchange_info(self):
         for _ in range(3):
-            result_object = self._public_api('GET', '/api/v1/exchangeInfo')
+            result_object = self._public_api('/api/v1/exchangeInfo')
             if result_object.success:
                 break
 
@@ -157,7 +157,7 @@ class Binance(BaseExchange):
                     'quantity': '{0:4f}'.format(amount).strip(),
                   })
 
-        return self._private_api('POST', '/api/v3/order', params)
+        return self._private_api('/api/v3/order', params)
 
     def sell(self, coin, amount, price=None):
         debugger.debug('Parameters=[{}, {}, {}], function name=[sell]'.format(coin, amount, price))
@@ -172,7 +172,7 @@ class Binance(BaseExchange):
                     'quantity': '{}'.format(amount),
                   })
 
-        return self._private_api('POST', '/api/v3/order', params)
+        return self._private_api('/api/v3/order', params)
 
     def fee_count(self):
         return 1
@@ -217,7 +217,7 @@ class Binance(BaseExchange):
 
     def get_ticker(self, market):
         for _ in range(3):
-            result_object = self._public_api('GET', '/api/v1/ticker/24hr')
+            result_object = self._public_api('/api/v1/ticker/24hr')
             if result_object.success:
                 break
         time.sleep(result_object.wait_time)
@@ -240,7 +240,7 @@ class Binance(BaseExchange):
             tag_dic = {'addressTag': payment_id}
             params.update(tag_dic)
 
-        return self._private_api('POST', '/wapi/v3/withdraw.html', params)
+        return self._private_api('/wapi/v3/withdraw.html', params)
 
     def get_candle(self, coin, unit, count):
         path = '/'.join(['api', 'v1', 'klines'])
@@ -268,6 +268,7 @@ class Binance(BaseExchange):
             result_object.message = 'history를 가져오는 과정에서 에러가 발생했습니다. =[{}]'.format(ex)
 
         return result_object
+
     async def _async_private_api(self, method, path, extra=None):
         debugger.debug('Parameters=[{}, {}, {}], function name=[_async_private_api]'.format(method, path, extra))
 
@@ -298,8 +299,8 @@ class Binance(BaseExchange):
 
         return ExchangeResult(*result)
 
-    async def _async_public_api(self, method, path, extra=None, header=None):
-        debugger.debug('Parameters=[{}, {}, {}, {}], function name=[_async_public_api]'.format(method, path, extra, header))
+    async def _async_public_api(self, path, extra=None):
+        debugger.debug('Parameters=[{}, {},], function name=[_async_public_api]'.format(path, extra))
 
         if extra is None:
             extra = dict()
@@ -341,7 +342,7 @@ class Binance(BaseExchange):
 
     async def _get_orderbook(self, symbol):
         for _ in range(3):
-            result_object = await self._async_public_api('GET', '/api/v1/depth', {'symbol': symbol})
+            result_object = await self._async_public_api('/api/v1/depth', {'symbol': symbol})
             if result_object.success:
                 break
             time.sleep(result_object.wait_time)
