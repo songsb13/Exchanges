@@ -405,13 +405,12 @@ class BaseBithumb(BaseExchange):
         return ExchangeResult(*result)
 
     async def get_curr_avg_orderbook(self, currencies, default_btc=1):
-        ret = dict()
-        success, data, message, time_ = await self._get_orderbook('ALL')
-        if not success:
-            return False, '', message, time_
+        avg_orderbook, btc_average = (dict() for _ in range(2))
+        orderbook_result_object = await self._get_orderbook('ALL')
+        if not orderbook_result_object.success:
+            return orderbook_result_object
 
-        btc_avg = dict()
-        data = data['data']
+        data = orderbook_result_object.data['data']
         for order_type in ['bids', 'asks']:
             rows = data['BTC'][order_type]
             total_price = Decimal(0.0)
@@ -423,31 +422,33 @@ class BaseBithumb(BaseExchange):
                 if total_amount >= default_btc:
                     break
 
-            btc_avg[order_type] = (total_price / total_amount).quantize(Decimal(10) ** -8)
+            btc_average[order_type] = (total_price / total_amount).quantize(Decimal(10) ** -8)
 
         del data['BTC']
 
         for c in data:
-            if 'BTC_' + c.upper() not in currencies:
+            sai_coin = 'BTC_' + c.upper()
+            if sai_coin not in currencies:
                 #   parameter 로 들어온 페어가 아닌 경우에는 제외
                 continue
-            ret['BTC_'+c.upper()] = {}
+            avg_orderbook[sai_coin] = {}
             for order_type in ['bids', 'asks']:
                 rows = data[c][order_type]
                 total_price = Decimal(0.0)
                 total_amount = Decimal(0.0)
                 for row in rows:
                     if order_type == 'bids':
-                        total_price += Decimal(row['price']) / btc_avg['asks'] * Decimal(row['quantity'])
+                        total_price += Decimal(row['price']) / btc_average['asks'] * Decimal(row['quantity'])
                     else:
-                        total_price += Decimal(row['price']) / btc_avg['bids'] * Decimal(row['quantity'])
+                        total_price += Decimal(row['price']) / btc_average['bids'] * Decimal(row['quantity'])
                     total_amount += Decimal(row['quantity'])
 
                     if total_price >= default_btc:
                         break
 
-                ret['BTC_'+c.upper()][order_type] = (total_price / total_amount).quantize(Decimal(10) ** -8)
-        return True, ret, '', 0
+                avg_orderbook[sai_coin][order_type] = (total_price / total_amount).quantize(Decimal(10) ** -8)
+        result = (True, avg_orderbook, '', 0)
+        return ExchangeResult(*result)
 
     async def compare_orderbook(self, other, coins, default_btc=1):
         currency_pairs = coins
