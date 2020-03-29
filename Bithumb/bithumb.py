@@ -53,8 +53,8 @@ class BaseBithumb(BaseExchange):
 
         return signature
 
-    def _public_api(self, method, path, extra=None, header=None):
-        debugger.debug('[Bithumb]Parameters=[{}, {}, {}, {}], function name=[_public_api]'.format(method, path, extra, header))
+    def _public_api(self, path, extra=None):
+        debugger.debug('[Bithumb]Parameters=[ {}, {}], function name=[_public_api]'.format(path, extra))
 
         try:
             extra = dict() if extra is None else urlencode(extra)
@@ -72,8 +72,8 @@ class BaseBithumb(BaseExchange):
         result = (True, response, '', 0) if error_message is None else (False, '', error_message, 1)
         return ExchangeResult(*result)
 
-    def _private_api(self, method, path, extra=None):
-        debugger.debug('[Bithumb]Parameters=[{}, {}, {}], function name=[_private_api]'.format(method, path, extra))
+    def _private_api(self, path, extra=None):
+        debugger.debug('[Bithumb]Parameters=[{}, {}], function name=[_private_api]'.format(path, extra))
 
         try:
             extra = dict() if extra is None else extra
@@ -109,7 +109,7 @@ class BaseBithumb(BaseExchange):
 
     def get_ticker(self, market):
         for _ in range(3):
-            result_object = self._public_api('GET', '/public/ticker/{}'.format(market))
+            result_object = self._public_api('/public/ticker/{}'.format(market))
             if result_object:
                 break
 
@@ -126,7 +126,7 @@ class BaseBithumb(BaseExchange):
             'type': 'bid'
         }
 
-        return self._private_api('POST', '/trade/place', params)
+        return self._private_api('/trade/place', params)
 
     def limit_sell(self, coin, amount, price):
         params = {
@@ -137,7 +137,7 @@ class BaseBithumb(BaseExchange):
             'type': 'ask'
         }
 
-        return self._private_api('POST', '/trade/place', params)
+        return self._private_api('/trade/place', params)
 
     def buy(self, coin, amount, price=None):
         debugger.debug('[Bithumb]Parameters=[{}, {}, {}], function name=[buy]'.format(coin, amount, price))
@@ -150,7 +150,7 @@ class BaseBithumb(BaseExchange):
         if price:
             return self.limit_buy(coin, amount, price)
 
-        return self._private_api('POST', '/trade/market_buy', params)
+        return self._private_api('/trade/market_buy', params)
 
     def sell(self, coin, amount, price=None):
         debugger.debug('[Bithumb]Parameters=[{}, {}, {}], function name=[sell]'.format(coin, amount, price))
@@ -163,7 +163,7 @@ class BaseBithumb(BaseExchange):
         if price:
             return self.limit_sell(coin, amount, price)
 
-        return self._private_api('POST', '/trade/market_sell', params)
+        return self._private_api('/trade/market_sell', params)
 
     def base_to_alt(self, currency_pair, btc_amount, alt_amount, td_fee, tx_fee):
         alt = Decimal(alt_amount).quantize(Decimal(10) ** -8)
@@ -228,7 +228,7 @@ class BaseBithumb(BaseExchange):
         if payment_id:
             params.update({'destination': payment_id})
 
-        return self._private_api('POST', '/trade/btc_withdrawal', params)
+        return self._private_api('/trade/btc_withdrawal', params)
 
     def get_available_coin(self):
         available_coin = [
@@ -295,7 +295,7 @@ class BaseBithumb(BaseExchange):
 
     async def _get_orderbook(self, symbol):
         for _ in range(3):
-            result_object = self._public_api('GET', '/public/orderbook/{}'.format(symbol))
+            result_object = self._public_api('/public/orderbook/{}'.format(symbol))
             if result_object.success:
                 break
 
