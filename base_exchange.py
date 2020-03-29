@@ -157,7 +157,7 @@ class BaseExchange(object):
         :return: success, data, message, time
         """
 
-    async def _async_public_api(self, method, path, extra=None, header=None):
+    async def _async_public_api(self, path, extra=None):
         """
         For using async public API
 
