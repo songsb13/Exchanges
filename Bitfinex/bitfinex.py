@@ -60,7 +60,7 @@ class Bitfinex(BaseExchange):
 
     def _get_symbol_full_name(self):
         for _ in range(3):
-            res_object = self._public_api('GET', '/v2/conf/pub:map:currency:label')
+            res_object = self._public_api('/v2/conf/pub:map:currency:label')
 
             if res_object.success is False:
                 time.sleep(res_object.wait_time)
@@ -71,8 +71,8 @@ class Bitfinex(BaseExchange):
 
         return res_object
 
-    def _public_api(self, method, path, extra=None, header=None):
-        debugger.debug('[Bitfinex]Parameters=[{}, {}, {}, {}], function name=[_public_api]'.format(method, path, extra, header))
+    def _public_api(self, path, extra=None):
+        debugger.debug('[Bitfinex]Parameters=[ {}, {}], function name=[_public_api]'.format(path, extra))
 
         try:
             if extra is None:
@@ -96,8 +96,8 @@ class Bitfinex(BaseExchange):
 
         return ExchangeResult(*result)
 
-    def _private_api(self, method, path, extra=None):
-        debugger.debug('[Bitfinex]Parameters=[{}, {}, {}], function name=[_private_api]'.format(method, path, extra))
+    def _private_api(self, path, extra=None):
+        debugger.debug('[Bitfinex]Parameters=[{}, {}], function name=[_private_api]'.format(path, extra))
 
         try:
             if extra is None:
@@ -128,7 +128,7 @@ class Bitfinex(BaseExchange):
 
     def _currencies(self):
         for _ in range(3):
-            res_object = self._public_api('GET', '/v1/symbols')
+            res_object = self._public_api('/v1/symbols')
 
             if res_object.success:
                 break
@@ -142,7 +142,7 @@ class Bitfinex(BaseExchange):
     def get_ticker(self, market):
         for _ in range(3):
             bitfinex_currency_pair = ''.join(market.split('_')[::-1]).lower()
-            res_object = self._public_api('GET', 'pubticker', {'pair': bitfinex_currency_pair})
+            res_object = self._public_api('pubticker', {'pair': bitfinex_currency_pair})
 
             if res_object.success:
                 res_object.data = float(res_object.data['last_price'])
@@ -164,7 +164,7 @@ class Bitfinex(BaseExchange):
             'price': price
         }
 
-        return self._private_api('POST', '/v1/order/new', params)
+        return self._private_api('/v1/order/new', params)
 
     def sell(self, market, quantity, price=None):
         debugger.debug('[Bitfinex]Parameters=[{}, {}, {}], function name=[sell]'.format(market, quantity, price))
@@ -180,7 +180,7 @@ class Bitfinex(BaseExchange):
             'price': price
         }
 
-        return self._private_api('POST', '/v1/order/new', params)
+        return self._private_api('/v1/order/new', params)
 
     def withdraw(self, coin, amount, to_address, payment_id=None):
         debugger.debug('[Bitfinex]Parameters=[{}, {}, {}, {}], function name=[sell]'.format(coin, amount,
@@ -204,7 +204,7 @@ class Bitfinex(BaseExchange):
         if payment_id:
             params['payment_id'] = payment_id
 
-        return self._private_api('POST', '/v1/withdraw', params)
+        return self._private_api('/v1/withdraw', params)
 
     def get_available_coin(self):
         result_object = self._currencies()
@@ -240,8 +240,8 @@ class Bitfinex(BaseExchange):
         symbol = coin + base_market
         return self.sell(symbol.lower(), alt_amount)
 
-    async def _async_public_api(self, method, path, extra=None, header=None):
-        debugger.debug('[Bitfinex]Parameters=[{}, {}, {}, {}], function name=[_async_public_api]'.format(method, path, extra, header))
+    async def _async_public_api(self, path, extra=None):
+        debugger.debug('[Bitfinex]Parameters=[{}, {}], function name=[_async_public_api]'.format(path, extra))
 
         if extra is None:
             extra = dict()
@@ -309,7 +309,7 @@ class Bitfinex(BaseExchange):
 
     async def _get_orderbook(self, coin):
         for _ in range(3):
-            result_object = await self._async_public_api('GET', '/v1/book/{}'.format(coin))
+            result_object = await self._async_public_api('/v1/book/{}'.format(coin))
 
             if result_object.success:
                 break
@@ -404,7 +404,7 @@ class Bitfinex(BaseExchange):
 
     async def get_orderbook_latest_version(self, coin):
         # For Trading: if AMOUNT > 0 then bid else ask.
-        return await self._async_public_api('GET', '/v2/book/t{}/P0'.format(coin.upper()))
+        return await self._async_public_api('/v2/book/t{}/P0'.format(coin.upper()))
 
     async def get_trading_fee(self):
         result_object = await self._get_trading_fee(symbol=None)
