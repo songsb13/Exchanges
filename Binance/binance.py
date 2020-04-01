@@ -34,15 +34,13 @@ class Binance(BaseExchange):
             rq = requests.get(self._base_url + path, params=extra)
             response = rq.json()
 
-            error_message = 'ERROR_BODY=[{}], URL=[{}], PARAMETER=[{}]'.format(response['msg'], path, extra) if 'msg' \
-                in response else None
+            if 'msg' in response:
+                return ExchangeResult(False, '', 'ERROR_BODY=[{}], URL=[{}], PARAMETER=[{}]'.format(response['msg'], path, extra), 1)
+            else:
+                return ExchangeResult(True, response, '', 0)
 
         except Exception as ex:
-            error_message = 'ERROR_BODY=[{}], URL=[{}], PARAMETER=[{}]'.format(ex, path, extra)
-
-        result = (True, response, '', 0) if error_message is None else (False, '', error_message, 1)
-
-        return ExchangeResult(*result)
+            return ExchangeResult(False, '', 'ERROR_BODY=[{}], URL=[{}], PARAMETER=[{}]'.format(ex, path, extra), 1)
 
     def _private_api(self, path, extra=None):
         debugger.debug('Parameters=[{}, {}], function name=[_private_api]'.format(path, extra))
@@ -57,15 +55,13 @@ class Binance(BaseExchange):
             rq = requests.post(self._base_url + path, data=query, headers={"X-MBX-APIKEY": self._key})
             response = rq.json()
 
-            error_message = 'ERROR_BODY=[{}], URL=[{}], PARAMETER=[{}]'.format(response['msg'], path, extra) if 'msg' \
-                in response else None
+            if 'msg' in response:
+                return ExchangeResult(False, '', 'ERROR_BODY=[{}], URL=[{}], PARAMETER=[{}]'.format(response['msg'], path, extra), 1)
+            else:
+                return ExchangeResult(True, response, '', 0)
 
         except Exception as ex:
-            error_message = 'ERROR_BODY=[{}], URL=[{}], PARAMETER=[{}]'.format(ex, path, extra)
-
-        result = (True, response, '', 0) if error_message is None else (False, '', error_message, 1)
-
-        return ExchangeResult(*result)
+            return ExchangeResult(False, '', 'ERROR_BODY=[{}], URL=[{}], PARAMETER=[{}]'.format(ex, path, extra), 1)
 
     def _symbol_localizing(self, symbol):
         actual_symbol = dict(
@@ -131,18 +127,18 @@ class Binance(BaseExchange):
 
         step_size = Decimal(self.exchange_info[symbol]).normalize()
 
-        return True, step_size, '', 0
+        return ExchangeResult(True, step_size, '', 0)
 
     def get_precision(self, pair=None):
         pair = self._symbol_localizing(pair)
 
         if pair in self.exchange_info:
-            return True, (-8, int(math.log10(float(self.exchange_info[pair])))), '', 0
+            return ExchangeResult(True, (-8, int(math.log10(float(self.exchange_info[pair])))), '', 0)
         else:
-            return False, '', '[Binance], ERROR_BODY=[{} 호가 정보가 없습니다.], URL=[get_precision]'.format(pair), 60
+            return ExchangeResult(False, '', 'ERROR_BODY=[{} 호가 정보가 없습니다.], URL=[get_precision]'.format(pair), 60)
 
     def get_available_coin(self):
-        return True, list(self.exchange_info.keys()), '', 0
+        return ExchangeResult(True, list(self.exchange_info.keys()), '', 0)
 
     def buy(self, coin, amount, price=None):
         debugger.debug('Parameters=[{}, {}, {}], function name=[buy]'.format(coin, amount, price))
@@ -178,7 +174,7 @@ class Binance(BaseExchange):
         return 1
 
     def bnc_btm_quantizer(self, symbol):
-        binance_qtz = self._get_step_size(symbol)[1]
+        binance_qtz = self._get_step_size(symbol).data[1]
         return Decimal(10) ** -4 if binance_qtz < Decimal(10) ** -4 else binance_qtz
 
     def base_to_alt(self, currency_pair, btc_amount, alt_amount, td_fee, tx_fee):
@@ -289,15 +285,14 @@ class Binance(BaseExchange):
 
                 response = json.loads(await rq.text())
 
-                error_message = 'ERROR_BODY=[{}], URL=[{}], PARAMETER=[{}]'.format(response['msg'], path, extra) \
-                    if 'msg' in response else None
+                if 'msg' in response:
+                    return ExchangeResult(False, '', 'ERROR_BODY=[{}], URL=[{}], PARAMETER=[{}]'.format(response['msg'], path, extra), 1)
+
+                else:
+                    return ExchangeResult(True, response, '', 0)
 
             except Exception as ex:
-                error_message = 'ERROR_BODY=[{}], URL=[{}], PARAMETER=[{}]'.format(ex, path, extra)
-
-        result = (True, response, '', 0) if error_message is None else (False, '', error_message, 1)
-
-        return ExchangeResult(*result)
+                return ExchangeResult(False, '', 'ERROR_BODY=[{}], URL=[{}], PARAMETER=[{}]'.format(ex, path, extra), 1)
 
     async def _async_public_api(self, path, extra=None):
         debugger.debug('Parameters=[{}, {},], function name=[_async_public_api]'.format(path, extra))
@@ -311,15 +306,14 @@ class Binance(BaseExchange):
         try:
             response = json.loads(await rq.text())
 
-            error_message = 'ERROR_BODY=[{}], URL=[{}], PARAMETER=[{}]'.format(response['msg'], path, extra) \
-                if 'msg' in response else None
+            if 'msg' in response:
+                return ExchangeResult(False, '', 'ERROR_BODY=[{}], URL=[{}], PARAMETER=[{}]'.format(response['msg'], path, extra), 1)
+
+            else:
+                return ExchangeResult(True, response, '', 0)
 
         except Exception as ex:
-            error_message = 'ERROR_BODY=[{}], URL=[{}], PARAMETER=[{}]'.format(ex, path, extra)
-
-        result = (True, response, '', 0) if error_message is None else (False, '', error_message, 1)
-
-        return ExchangeResult(*result)
+            return ExchangeResult(False, '', 'ERROR_BODY=[{}], URL=[{}], PARAMETER=[{}]'.format(ex, path, extra), 1)
 
     async def _get_balance(self):
         for _ in range(3):
@@ -370,13 +364,10 @@ class Binance(BaseExchange):
 
                 if 'addressTag' in get_deposit_result_object.data:
                     return_deposit_dict[coin + 'TAG'] = get_deposit_result_object.data['addressTag']
-            result = (True, return_deposit_dict, result_message, 0)
+            return ExchangeResult(True, return_deposit_dict, result_message, 0)
 
         except Exception as ex:
-            result_message = 'ERROR_BODY=[입금 주소를 가져오는데 실패했습니다. {}]'.format(ex)
-            result = (False, '', result_message, 1)
-
-        return ExchangeResult(*result)
+            return ExchangeResult(False, '', 'ERROR_BODY=[입금 주소를 가져오는데 실패했습니다. {}]'.format(ex), 1)
 
     async def get_avg_price(self,coins):  # 내거래 평균매수가
         # 해당 함수는 현재 미사용 상태
@@ -427,10 +418,10 @@ class Binance(BaseExchange):
                 }}
                 res_value.append(_values)
 
-            return True, res_value, '', 0
+            return ExchangeResult(True, res_value, '', 0)
 
         except Exception as ex:
-            return False, '', '[Binance]평균 값을 가져오는데 실패했습니다. [{}]'.format(ex), 1
+            return ExchangeResult(False, '', '평균 값을 가져오는데 실패했습니다. [{}]'.format(ex), 1)
 
     async def get_trading_fee(self):
         return True, 0.001, '', 0
@@ -452,18 +443,12 @@ class Binance(BaseExchange):
                     symbol = self._symbol_customizing(f['assetCode'])
                     fees[symbol] = Decimal(f['transactionFee']).quantize(Decimal(10)**-8)
 
-                error_message = None
-                break
-
+                return ExchangeResult(True, fees, '', 0)
             else:
-                error_message = 'ERROR_BODY=[출금 비용을 가져오는데 실패했습니다.]'
+                return ExchangeResult(False, '', 'ERROR_BODY=[출금 비용을 가져오는데 실패했습니다.]', 60)
 
         except Exception as ex:
-            error_message = 'ERROR_BODY=[출금 비용을 가져오는데 실패했습니다. {}]'.format(ex)
-
-        result = (True, fees, '', 0) if error_message is None else (False, '', error_message, 60)
-
-        return ExchangeResult(*result)
+            return ExchangeResult(False, '', 'ERROR_BODY=[출금 비용을 가져오는데 실패했습니다. {}]'.format(ex), 60)
 
     async def get_balance(self):
         result_object = await self._get_balance()
@@ -505,12 +490,9 @@ class Binance(BaseExchange):
                                 break
                 else:
                     failed_coin_log += orderbook_result_object.message + '\n'
-            result = (True, avg_order_book, failed_coin_log, 0)
+            return ExchangeResult(True, avg_order_book, failed_coin_log, 0)
         except Exception as ex:
-            error_message = 'ERROR_BODY=[{}], URL=[get_curr_avg_orderbook]'.format(ex)
-            result = (False, '', error_message, 1)
-
-        return ExchangeResult(*result)
+            return ExchangeResult(False, '', 'ERROR_BODY=[{}], URL=[get_curr_avg_orderbook]'.format(ex), 1)
 
     async def compare_orderbook(self, other, coins, default_btc=1):
         for _ in range(3):
@@ -540,15 +522,10 @@ class Binance(BaseExchange):
 
                 res = binance_result_object.data, other_result_object.data, {'m_to_s': m_to_s, 's_to_m': s_to_m}
 
-                result = (True, res, '', 0)
-                break
-
+                return ExchangeResult(True, res, '', 0)
             else:
                 time.sleep(wait_time)
 
         else:
             error_message = binance_result_object.message + '\n' + other_result_object.message
-
-            result = (False, '', error_message, 1)
-
-        return ExchangeResult(*result)
+            return ExchangeResult(False, '', error_message, 1)
