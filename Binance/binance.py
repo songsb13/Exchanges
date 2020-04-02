@@ -100,7 +100,7 @@ class Binance(BaseExchange):
 
     def _get_exchange_info(self):
         for _ in range(3):
-            result_object = self._public_api('/api/v1/exchangeInfo')
+            result_object = self._public_api('/api/v3/exchangeInfo')
             if result_object.success:
                 break
 
@@ -217,8 +217,9 @@ class Binance(BaseExchange):
         return result_object
 
     def get_ticker(self, market):
+        symbol = self._sai_symbol_converter(market)
         for _ in range(3):
-            result_object = self._public_api('/api/v1/ticker/24hr')
+            result_object = self._public_api('/api/v3/ticker/price', {'symbol': symbol})
             if result_object.success:
                 break
         time.sleep(result_object.wait_time)
@@ -258,7 +259,7 @@ class Binance(BaseExchange):
                     'limit': count,
         }
         # 1m, 3m, 5m, 15m, 30m, 1h, 2h, 4h, 6h, 8h, 12h, 1d, 3d, 1w, 1M
-        result_object = self._public_api('/api/v1/klines', params)
+        result_object = self._public_api('/api/v3/klines', params)
         if result_object.success:
             rows = ['open', 'high', 'low', 'close', 'volume', 'timestamp']
             history = {key_: list() for key_ in rows}
@@ -348,7 +349,7 @@ class Binance(BaseExchange):
 
     async def _get_orderbook(self, symbol):
         for _ in range(3):
-            result_object = await self._async_public_api('/api/v1/depth', {'symbol': symbol})
+            result_object = await self._async_public_api('/api/v3/depth', {'symbol': symbol})
             if result_object.success:
                 break
             time.sleep(result_object.wait_time)
