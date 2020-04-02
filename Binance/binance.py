@@ -7,11 +7,16 @@ import time
 import aiohttp
 import asyncio
 import numpy as np
+import logging
+import datetime
 
 from urllib.parse import urlencode
 from decimal import Decimal, ROUND_DOWN
 
 from base_exchange import BaseExchange, ExchangeResult
+
+logger = logging.getLogger(__name__)
+debugger = logging.getLogger('Debugger')
 
 
 class Binance(BaseExchange):
@@ -82,12 +87,16 @@ class Binance(BaseExchange):
         # BTC_XRP -> xrpbtc
         return ''.join(symbol.split('_')[::-1])
 
+    def _get_server_time(self):
+        return self._public_api('/api/v3/time')
+
     def _sign_generator(self, *args):
         params, *_ = args
         if params is None:
             params = dict()
-
-        params.update({'timestamp': int(time.time() * 1000)})
+        # print(self._get_server_time().data['serverTime'])
+        params.update({'timestamp': int(time.time() * 1000) - 5000})
+        # params.update({'timestamp': int(self._get_server_time().data['serverTime'])})
 
         sign = hmac.new(self._secret.encode('utf-8'),
                         urlencode(sorted(params.items())).encode('utf-8'),
@@ -437,7 +446,7 @@ class Binance(BaseExchange):
             return ExchangeResult(False, '', '평균 값을 가져오는데 실패했습니다. [{}]'.format(ex), 1)
 
     async def get_trading_fee(self):
-        return True, 0.001, '', 0
+        return ExchangeResult(True, 0.001, '', 0)
 
     async def get_transaction_fee(self):
         fees = dict()
