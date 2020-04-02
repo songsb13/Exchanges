@@ -6,6 +6,7 @@ from decimal import *
 import asyncio
 import math
 import aiohttp
+from datetime import datetime, timezone
 from Exchanges.base_exchange import *
 
 
@@ -18,51 +19,56 @@ class ByBit(BaseExchange):
         self._key = key
         self._secret = secret
         self.exchange_info = None
+        self._get_exchange_info()
+
+        ExchangeResult.set_exchange_name = 'ByBit'
 
     def servertime(self):
-        suc, stat, msg, time_ = self.public_api('/v2/public/time')
-
-        return suc, stat, msg, time_
+        return self.public_api('/v2/public/time')
 
     def encrypto(self, params):
         if params is None:
             params = {}
 
-        suc, nonce, msg, t_sleep = self.servertime()
+        servertime_result = self.servertime()
 
-        if not suc:
+        if servertime_result.success is False:
             #  servertime값을 가져오지 못한 경우.
-            return False, '', msg, t_sleep
+            return servertime_result
 
-        params.update({'timestamp': nonce['serverTime']})
+        params.update({'timestamp': int(float(servertime_result.data) * 1000)})
+        params.update({'api_key': self._key})
+        params.update({'recv_window': 10000})
 
-        sign = hmac.new(self._secret.encode('utf-8'),
-                        urlencode(sorted(params.items())).encode('utf-8'),
-                        hashlib.sha256
-                        ).hexdigest()
+        _val = '&'.join(
+            [str(k) + "=" + str(v) for k, v in sorted(params.items()) if (k != 'sign') and (v is not None)])
+        sign = str(hmac.new(bytes(self._secret, "utf-8"), bytes(_val, "utf-8"), digestmod="sha256").hexdigest())
 
-        params.update({'signature': sign})
+        params.update({'sign': sign})
 
-        return True, params, msg, t_sleep
+        return ExchangeResult(True, params, '')
 
     def private_api(self, method, path, params=None):
         if params is None:
             params = {}
 
         try:
-            suc, query, msg, time_ = self.encrypto(params)
+            sign_result = self.encrypto(params)
 
-            rq = requests.request(method, self._endpoint + path, data=query, headers={"X-MBX-APIKEY": self._key})
+            if method.upper() == 'GET':
+                rq = requests.get(self._endpoint + path, params=sign_result.data)
+            else:
+                rq = requests.post(self._endpoint + path, data=sign_result.data)
             res = rq.json()
 
-            if 'msg' in res:
-                return False, '', '값을 가져오는데 실패했습니다. [{}]'.format(res['msg']), 1
-
+            if res['ret_msg'].lower() != 'ok':
+                debugger.debug('{} - {}'.format(path, sign_result.data))
+                return ExchangeResult(False, res, '값을 불러오지 못했습니다. [{}]'.format(res['ret_msg']), 1)
             else:
-                return True, res, '', 1
+                return ExchangeResult(True, res['result'], '')
 
         except Exception as ex:
-            return False, '', '서버와 통신에 실패했습니다. [{}]'.format(ex), 1
+            return ExchangeResult(False, '', '서버와 통신에 실패했습니다. [{}]'.format(ex), 1)
 
     def public_api(self, path, params=None):
         if params is None:
@@ -72,43 +78,42 @@ class ByBit(BaseExchange):
             rq = requests.get(self._endpoint + path, params=params)
             res = rq.json()
 
-            if 'msg' in res:
-                return ExchangeResult(False, '', '값을 가져오는데 실패했습니다. [{}]'.format(res['msg']), 1)
+            if res['ret_msg'] != 'OK':
+                return ExchangeResult(False, '', '값을 가져오는데 실패했습니다. [{}]'.format(res['ret_msg']), 1)
             else:
-                return ExchangeResult(True, res, '', 1)
+                if '/time' in path:
+                    return ExchangeResult(True, res['time_now'], '')
+                return ExchangeResult(True, res['result'], '')
 
         except Exception as ex:
             return ExchangeResult(False, '', '서버와 통신에 실패했습니다. [{}]'.format(ex), 1)
 
-    def get_exchange_info(self):  # API에서 제공하는 서비스 리턴
-        suc, stat, msg, time_ = self.public_api('/api/v1/exchangeInfo')
+    def _get_exchange_info(self):  # API에서 제공하는 서비스 리턴
+        result = self.public_api('/v2/public/symbols')
 
-        if not suc:
+        if result.success is False:
             #  Symbol값을 가져오지 못한 경우.
-            return suc, stat, msg, time_
+            return result
 
         step_size = {}
-        for sym in stat['symbols']:
-            symbol = sym['symbol']
-            market_coin = symbol[-3:]
+        for sym in result.data:
+            market_coin = sym.get('quote_currency')
+            trade_coin = sym.get('base_currency')
+            coin = market_coin + '_' + trade_coin
 
-            if 'BTC' in market_coin:
-                trade_coin = symbol[:-3]
-                # BNBBTC -> BTC-BNB
-                coin = market_coin + '_' + trade_coin
-
-                step_size.update({
-                    coin: sym['filters'][2]['stepSize']
-                })
+            step_size.update({
+                coin: sym['price_filter']['tick_size']
+            })
 
         self.exchange_info = step_size
 
-        return True, step_size, '', 0
+        return ExchangeResult(True, step_size, '')
+
+    def get_market_from_symbol(self, symbol):
+        # bybit does not have market
+        return symbol.split('_')[1]
 
     def get_step_size(self, symbol):
-        if symbol == 'BTC_BCH':
-            symbol = 'BTC_BCC'
-
         step_size = Decimal(self.exchange_info[symbol]).normalize()
 
         return True, step_size, '', 0
@@ -123,59 +128,69 @@ class ByBit(BaseExchange):
             return False, '', '[Binance] {} 호가 정보가 없습니다.'.format(pair), 60
 
     def get_available_coin(self):  # API에서 제공하는 서비스 리턴
-        coins = self.exchange_info.keys()
-        able_coins = []
-        for av in coins:
-            able_coins.append(av)
+        coins = list(self.exchange_info.keys())
 
-        return True, able_coins, '', 0
+        return ExchangeResult(True, coins, '')
 
-    def buy(self, coin, amount):
+    def get_order_history(self, order_id):
+        path = '/open-api/order/list'
+        order_history_result = self.private_api('GET', path, {'order_id': order_id})
+        if order_history_result.success is False:
+            return order_history_result
+
+        # TODO
+        # return all history, and let caller choose necessary info
+        data = order_history_result.data['data'][0]
+        order_history_result.data = dict(
+            price=data['price'],
+            amount=data['qty'],
+            symbol='_'.join([data['symbol'][3:], data['symbol'][:3]]),
+            exec_time=datetime.strptime(
+                data['created_at'], "%Y-%m-%dT%H:%M:%S.%fZ"
+            ).replace(tzinfo=timezone.utc)
+        )
+        return order_history_result
+
+    def buy(self, coin, amount, price=None):
         debugger.info('구매, coin-[{}] amount-[{}] 입력되었습니다.'.format(coin, amount))
         coin = coin.split('_')
-        if coin[1] == 'BCH':
-            coin[1] = 'BCC'
 
         coin = coin[1] + coin[0]
         params = {
-                    'symbol': coin,
-                    'side': 'buy',
-                    'quantity': '{0:4f}'.format(amount).strip(),
-                    'type': 'MARKET'
-                  }
-        buy_suc, buy_data, buy_msg, buy_time = self.private_api('POST', '/api/v3/order', params)
+            'symbol': coin,
+            'side': 'Buy',
+            'qty': amount,
+            'order_type': 'Market',
+            'time_in_force': 'GoodTillCancel'
+        }
+        buy_result = self.private_api('POST', '/v2/private/order/create', params)
 
-        if not buy_suc:
-            #  구매 리퀘스트가 실패한 경우.
-            debugger.debug('구매, 에러가 발생했습니다. [{}] '.format(buy_msg))
-            return False, '', '[Binance]구매, 에러가 발생했습니다.[{}] '.format(buy_msg)
+        if buy_result.success is False:
+            debugger.debug('구매, 에러가 발생했습니다. [{}] '.format(buy_result.message))
+            return ExchangeResult(False, '', '[ByBit] 구매, 에러가 발생했습니다.[{}] '.format(buy_result.message))
 
-        return buy_suc, buy_data, buy_msg, buy_time
+        return buy_result
 
-    def sell(self, coin, amount):
+    def sell(self, coin, amount, price=None):
         debugger.info('판매, coin-[{}] amount-[{}] 입력되었습니다.'.format(coin, amount))
 
         symbol = coin.split('_')
-        if symbol[1] == 'BCH':
-            symbol[1] = 'BCC'
-
         coin = symbol[1] + symbol[0]
 
         params = {
-                    'symbol': coin,
-                    'side': 'sell',
-                    'quantity': '{}'.format(amount),
-                    'type': 'MARKET'
-                  }
+            'symbol': coin,
+            'side': 'Sell',
+            'qty': amount,
+            'order_type': 'Market',
+            'time_in_force': 'GoodTillCancel'
+        }
+        buy_result = self.private_api('POST', '/v2/private/order/create', params)
 
-        sell_suc, sell_data, sell_msg, sell_time = self.private_api('POST', '/api/v3/order', params)
+        if buy_result.success is False:
+            debugger.debug('판매, 에러가 발생했습니다. [{}] '.format(buy_result.message))
+            return ExchangeResult(False, '', '[ByBit] 판매, 에러가 발생했습니다.[{}] '.format(buy_result.message))
 
-        if not sell_suc:
-            #  구매 리퀘스트가 실패한 경우.
-            debugger.debug('판매, 에러가 발생했습니다. [{}] '.format(sell_msg))
-            return False, '', '[Binance]판매, 에러가 발생했습니다.[{}] '.format(sell_msg)
-
-        return sell_suc, sell_data, sell_msg, sell_time
+        return buy_result
 
     def fee_count(self):
         return 1
@@ -217,10 +232,13 @@ class ByBit(BaseExchange):
         else:
             return False, '', '[Binance]AltToBase실패 = [{}]'.format(msg)
 
-    def get_ticker(self):
-        suc, data, msg, time_ = self.public_api('/api/v1/ticker/24hr')
+    def get_ticker(self, symbol):
+        market, coin = symbol.split('_')
+        symbol = (coin+market).upper()
+        ticker_result = self.public_api('/v2/public/tickers', {'symbol': symbol})
+        ticker_result.data = Decimal(ticker_result.data[0]['last_price']).quantize(Decimal(10) ** -8)
 
-        return suc, data, msg, time_
+        return ticker_result
 
     def withdraw(self, coin,amount, to_address, payment_id=None):
         debugger.debug('출금-[{}][{}][{}][{}] 받았습니다.'.format(coin, amount, to_address, payment_id))
@@ -247,11 +265,17 @@ class ByBit(BaseExchange):
     def get_candle(self, coin, unit, count):
         path = '/v2/public/kline/list'
 
+        market, coin = coin.split('_')
+        symbol = (coin+market).upper()
+        if count >= 200:
+            count = 199
+
+        # do +1 since sometimes data is missing
         params = {
-            'symbol': coin,
+            'symbol': symbol,
             'interval': '{}'.format(unit),
-            'from': int(time.time()),
-            'limit': count
+            'from': int(time.time()) - (unit * 60) * (count +1),
+            'limit': (count + 1)
         }
         # 1 3 5 15 30 60 120 240 360 720 "D" "M" "W" "Y"
         result = self.public_api(path, params)
@@ -269,17 +293,18 @@ class ByBit(BaseExchange):
         }
 
         try:
-            for info in result.data:
-                history['open'].append(info.get('open'))
-                history['high'].append(info.get('high'))
-                history['low'].append(info.get('low'))
-                history['close'].append(info.get('close'))
-                history['volume'].append(info.get('volume'))
+            for info in result.data[-count:]:
+                history['open'].append(float(info.get('open')))
+                history['high'].append(float(info.get('high')))
+                history['low'].append(float(info.get('low')))
+                history['close'].append(float(info.get('close')))
+                history['volume'].append(float(info.get('volume')))
                 history['timestamp'].append(info.get('open_time'))
 
             return ExchangeResult(True, history, '')
 
         except Exception as ex:
+            debugger.exception("FATAL")
             return ExchangeResult(
                 False,
                 '',
@@ -290,32 +315,30 @@ class ByBit(BaseExchange):
         if params is None:
             params = {}
 
-        async with aiohttp.ClientSession(headers={"X-MBX-APIKEY": self._key}) as s:
-            crypto_suc, query, crypto_msg, crypto_time = self.encrypto(params)
+        async with aiohttp.ClientSession() as s:
+            sign_result = self.encrypto(params)
 
-            if not crypto_suc:
-                return crypto_suc, query, crypto_msg, crypto_time
+            if sign_result.success is False:
+                return sign_result
 
             try:
                 if method == 'GET':
-                    sig = query.pop('signature')
-                    query = "{}&signature={}".format(urlencode(sorted(params.items())), sig)
+                    query = urlencode(sorted(sign_result.data.items()))
                     rq = await s.get(self._endpoint + path + "?{}".format(query))
 
                 else:
-                    rq = await s.post(self._endpoint + path, data=query)
+                    rq = await s.post(self._endpoint + path, data=sign_result.data)
 
                 res = await rq.text()
                 res = json.loads(res)
 
-                if 'msg' in res:
-                    return False, res, '값을 불러오지 못했습니다. [{}]'.format(res['msg']), 1
-
+                if res['ret_msg'] != 'OK':
+                    return ExchangeResult(False, res, '값을 불러오지 못했습니다. [{}]'.format(res['ret_msg']), 1)
                 else:
-                    return True, res, '', 0
+                    return ExchangeResult(True, res['result'], '')
 
             except Exception as ex:
-                return False, '', '서버와의 통신에 실패했습니다. [{}]'.format(ex), 1
+                return ExchangeResult(False, '', '서버와의 통신에 실패했습니다. [{}]'.format(ex), 1)
 
     async def async_public_api(self, path, params=None):
         if params is None:
@@ -464,20 +487,19 @@ class ByBit(BaseExchange):
             return False, '', '[Binance]출금비용을 가져오는데 실패했습니다. [{}]'.format(ex), 60
 
     async def balance(self):
-        suc, data, msg, time_ = await self.async_private_api('GET', '/api/v3/account')
-
-        if not suc:
-            return suc, data, msg, time_
-
         balance = {}
-        for bal in data['balances']:
-            if bal['asset'] == 'BCC':
-                bal['asset'] = 'BCH'
+        for coin in ['BTC', 'ETH', 'XRP', 'EOS']:
+            balance_result = await self.async_private_api('GET', '/v2/private/wallet/balance', {'coin': coin})
 
-            if float(bal['free']) > 0:
-                balance[bal['asset'].upper()] = float(bal['free'])  # asset-> 코인이름 free -> 거래가능한 코인수
+            if balance_result.success is False:
+                return balance_result
 
-        return True, balance, '', 0
+            for key, bal in balance_result.data.items():
+
+                if float(bal['wallet_balance']) > 0:
+                    balance[key.upper()] = float(bal['wallet_balance'])
+
+        return ExchangeResult(True, balance, '')
 
     async def get_curr_avg_orderbook(self, coin_list, btc_sum=1):  # 상위 평균매도/매수가 구함
         try:

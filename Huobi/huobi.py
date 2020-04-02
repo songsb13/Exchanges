@@ -149,7 +149,7 @@ class Huobi:
         return suc, data, msg, times
 
     def sell(self, coin, amount):
-        debugger.info('### sell [{}],[{}] 입력됨'.format(coin,amount))
+        debugger.info('### sell [{}],[{}] 입력됨'.format(coin, amount))
 
         coin = coin.split('_')
         currency_pair = coin[1].lower() + coin[0].lower()

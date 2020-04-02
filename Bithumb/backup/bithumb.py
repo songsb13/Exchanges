@@ -514,7 +514,9 @@ class Bithumb:
         return {'b_to_p': b_to_p, 'p_to_b': p_to_b, 'b_o_b': bithumb_avg_orderbook, 'p_o_b': poloniex_avg_orderbook}
 
 if __name__ == '__main__':
-    bit = Bithumb('5921ef4e1e53622c4d46f827e3fcb527', '687d509dbaeaa2a01675bed46e629551')
+    # {'secret': 'e2fbc69806679ccb599ff8910a51cf55', 'key': '66532396a269f0af7212fc5869bfc79d'},
+    # bit = Bithumb('5921ef4e1e53622c4d46f827e3fcb527', '687d509dbaeaa2a01675bed46e629551')
+    bit = Bithumb('66532396a269f0af7212fc5869bfc79d', 'e2fbc69806679ccb599ff8910a51cf55')
     a = bit.balance()
     print(bit.get_trading_fee())
     print(bit.get_transaction_fee())

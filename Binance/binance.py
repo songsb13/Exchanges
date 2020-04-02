@@ -1,3 +1,4 @@
+from pyinstaller_patch import *
 import hmac
 import math
 import hashlib
@@ -11,7 +12,7 @@ import numpy as np
 from urllib.parse import urlencode
 from decimal import Decimal, ROUND_DOWN
 
-from base_exchange import BaseExchange, ExchangeResult
+from Exchanges.base_exchange import BaseExchange, ExchangeResult
 
 
 class Binance(BaseExchange):
@@ -108,13 +109,12 @@ class Binance(BaseExchange):
             symbol = sym['symbol']
             market_coin = symbol[-3:]
 
-            if 'BTC' in market_coin:
-                trade_coin = symbol[:-3]
-                coin = market_coin + '_' + trade_coin
+            trade_coin = symbol[:-3]
+            coin = market_coin + '_' + trade_coin
 
-                step_size.update({
-                    coin: sym['filters'][2]['stepSize']
-                })
+            step_size.update({
+                coin: sym['filters'][2]['stepSize']
+            })
 
         self.exchange_info = step_size
         result_object.data = self.exchange_info
@@ -137,7 +137,10 @@ class Binance(BaseExchange):
             return False, '', '[Binance], ERROR_BODY=[{} 호가 정보가 없습니다.], URL=[get_precision]'.format(pair), 60
 
     def get_available_coin(self):
-        return True, list(self.exchange_info.keys()), '', 0
+        return ExchangeResult(True, list(self.exchange_info.keys()), '')
+
+    def get_market_from_symbol(self, symbol):
+        return symbol.split('_')[0]
 
     def buy(self, coin, amount, price=None):
         debugger.debug('Parameters=[{}, {}, {}], function name=[buy]'.format(coin, amount, price))
