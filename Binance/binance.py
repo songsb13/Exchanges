@@ -78,6 +78,10 @@ class Binance(BaseExchange):
         get_actual_symbol = actual_symbol.get(symbol)
         return get_actual_symbol if get_actual_symbol else symbol
 
+    def _sai_symbol_converter(self, symbol):
+        # BTC_XRP -> xrpbtc
+        return ''.join(symbol.split('_')[::-1])
+
     def _sign_generator(self, *args):
         params, *_ = args
         if params is None:
@@ -184,7 +188,8 @@ class Binance(BaseExchange):
         currency_pair = self._symbol_localizing(currency_pair)
         base_market, coin = currency_pair.split('_')
 
-        result_object = self.buy(coin + base_market, alt_amount)
+        symbol = self._sai_symbol_converter(currency_pair)
+        result_object = self.buy(symbol, alt_amount)
 
         if result_object.success:
             alt_amount *= 1 - Decimal(td_fee)
@@ -200,10 +205,10 @@ class Binance(BaseExchange):
             currency_pair, btc_amount, alt_amount
         ))
         currency_pair = self._symbol_localizing(currency_pair)
-        base_market, coin = currency_pair.split('_')
 
+        symbol = self._sai_symbol_converter(currency_pair)
         for _ in range(10):
-            result_object = self.sell(coin + base_market, alt_amount)
+            result_object = self.sell(symbol, alt_amount)
 
             if result_object.success:
                 break
@@ -239,29 +244,36 @@ class Binance(BaseExchange):
         return self._private_api('/wapi/v3/withdraw.html', params)
 
     def get_candle(self, coin, unit, count):
-        path = '/'.join(['api', 'v1', 'klines'])
+        symbol = self._sai_symbol_converter(coin)
+
+        if unit >= 60:
+            interval = '{}h'.format(unit/60)
+
+        else:
+            interval = '{}m'.format(unit)
 
         params = {
-                    'symbol': coin,
-                    'interval': '{}m'.format(unit),
+                    'symbol': symbol,
+                    'interval': interval,
                     'limit': count,
         }
         # 1m, 3m, 5m, 15m, 30m, 1h, 2h, 4h, 6h, 8h, 12h, 1d, 3d, 1w, 1M
-        result_object = self.public_api(path, params)
-        rows = ['open', 'high', 'low', 'close', 'volume', 'timestamp']
-        history = {key_: list() for key_ in rows}
-        try:
-            for candle_row in result_object.data:
-                # open, high, low, close, volume, timestamp
-                certain_row = list(map(float, candle_row[1:7]))
+        result_object = self._public_api('/api/v1/klines', params)
+        if result_object.success:
+            rows = ['open', 'high', 'low', 'close', 'volume', 'timestamp']
+            history = {key_: list() for key_ in rows}
+            try:
+                for candle_row in result_object.data:
+                    # open, high, low, close, volume, timestamp
+                    certain_row = list(map(float, candle_row[1:7]))
 
-                for num, key_ in enumerate(rows):
-                    history[key_].append(certain_row[num])
+                    for num, key_ in enumerate(rows):
+                        history[key_].append(certain_row[num])
 
-            result_object.data = history
+                result_object.data = history
 
-        except Exception as ex:
-            result_object.message = 'history를 가져오는 과정에서 에러가 발생했습니다. =[{}]'.format(ex)
+            except Exception as ex:
+                result_object.message = 'history를 가져오는 과정에서 에러가 발생했습니다. =[{}]'.format(ex)
 
         return result_object
 
