@@ -8,14 +8,12 @@ class BaseExchange(object):
     _key = str
     _secret = str
 
-    def _public_api(self, method, path, extra=None, header=None):
+    def _public_api(self, path, extra=None):
         """
         For using public API
 
-        :param method: Get or Post
         :param path: URL path without Base URL, '/url/path/'
         :param extra: Parameter if required.
-        :param header: Header if required.
         :return:
         return 4 format
         1. success: True if status is 200 else False
@@ -25,11 +23,10 @@ class BaseExchange(object):
         """
         pass
 
-    def _private_api(self, method, path, extra=None):
+    def _private_api(self, path, extra=None):
         """
         For using private API
 
-        :param method: Get or Post
         :param path: URL path without Base URL, '/url/path/'
         :param extra: Parameter if required.
         :return:
@@ -160,7 +157,7 @@ class BaseExchange(object):
         :return: success, data, message, time
         """
 
-    async def _async_public_api(self, method, path, extra=None, header=None):
+    async def _async_public_api(self, path, extra=None):
         """
         For using async public API
 
@@ -287,7 +284,7 @@ class ExchangeResult(object):
         message: result message if success is False else None
         wait_time: wait time for retry if success is False else 0
     """
-    def __init__(self, success, data, message, wait_time=0):
+    def __init__(self, success, data=None, message='', wait_time=0):
         self._exchange_name = None
 
         self.success = success

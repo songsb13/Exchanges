@@ -25,8 +25,8 @@ class Binance(BaseExchange):
 
         ExchangeResult.set_exchange_name = 'Binance'
 
-    def _public_api(self, method, path, extra=None, header=None):
-        debugger.debug('Parameters=[{}, {}, {}, {}], function name=[_public_api]'.format(method, path, extra, header))
+    def _public_api(self, path, extra=None):
+        debugger.debug('Parameters=[{}, {}], function name=[_public_api]'.format(path, extra))
 
         if extra is None:
             extra = dict()
@@ -36,19 +36,15 @@ class Binance(BaseExchange):
             response = rq.json()
 
             if 'msg' in response:
-                error_message = 'ERROR_BODY=[{}], URL=[{}], PARAMETER=[{}]'.format(response['msg'], path, extra)
+                return ExchangeResult(False, '', 'ERROR_BODY=[{}], URL=[{}], PARAMETER=[{}]'.format(response['msg'], path, extra), 1)
             else:
-                error_message = None
+                return ExchangeResult(True, response, '', 0)
 
         except Exception as ex:
-            error_message = 'ERROR_BODY=[{}], URL=[{}], PARAMETER=[{}]'.format(ex, path, extra)
+            return ExchangeResult(False, '', 'ERROR_BODY=[{}], URL=[{}], PARAMETER=[{}]'.format(ex, path, extra), 1)
 
-        result = (True, response, '', 0) if error_message is None else (False, '', error_message, 1)
-
-        return ExchangeResult(*result)
-
-    def _private_api(self, method, path, extra=None):
-        debugger.debug('Parameters=[{}, {}, {}], function name=[_private_api]'.format(method, path, extra))
+    def _private_api(self, path, extra=None):
+        debugger.debug('Parameters=[{}, {}], function name=[_private_api]'.format(path, extra))
 
         if extra is None:
             extra = dict()
@@ -57,26 +53,31 @@ class Binance(BaseExchange):
             query = self._sign_generator(extra)
             sig = query.pop('signature')
             query = "{}&signature={}".format(urlencode(sorted(extra.items())), sig)
-            rq = requests.request(method, self._base_url + path, data=query, headers={"X-MBX-APIKEY": self._key})
+            rq = requests.post(self._base_url + path, data=query, headers={"X-MBX-APIKEY": self._key})
             response = rq.json()
 
             if 'msg' in response:
-                error_message = 'ERROR_BODY=[{}], URL=[{}], PARAMETER=[{}]'.format(response['msg'], path, extra)
+                return ExchangeResult(False, '', 'ERROR_BODY=[{}], URL=[{}], PARAMETER=[{}]'.format(response['msg'], path, extra), 1)
             else:
-                error_message = None
+                return ExchangeResult(True, response, '', 0)
 
         except Exception as ex:
-            error_message = 'ERROR_BODY=[{}], URL=[{}], PARAMETER=[{}]'.format(ex, path, extra)
-
-        result = (True, response, '', 0) if error_message is None else (False, '', error_message, 1)
-
-        return ExchangeResult(*result)
+            return ExchangeResult(False, '', 'ERROR_BODY=[{}], URL=[{}], PARAMETER=[{}]'.format(ex, path, extra), 1)
 
     def _symbol_localizing(self, symbol):
         actual_symbol = dict(
             BCH='BCC'
         )
-        return actual_symbol.get(symbol)
+        get_actual_symbol = actual_symbol.get(symbol)
+        return get_actual_symbol if get_actual_symbol else symbol
+
+    def _symbol_customizing(self, symbol):
+        actual_symbol = dict(
+            BCC='BCH'
+        )
+
+        get_actual_symbol = actual_symbol.get(symbol)
+        return get_actual_symbol if get_actual_symbol else symbol
 
     def _sign_generator(self, *args):
         params, *_ = args
@@ -96,7 +97,7 @@ class Binance(BaseExchange):
 
     def _get_exchange_info(self):
         for _ in range(3):
-            result_object = self._public_api('GET', '/api/v1/exchangeInfo')
+            result_object = self._public_api('/api/v1/exchangeInfo')
             if result_object.success:
                 break
 
@@ -126,15 +127,15 @@ class Binance(BaseExchange):
 
         step_size = Decimal(self.exchange_info[symbol]).normalize()
 
-        return True, step_size, '', 0
+        return ExchangeResult(True, step_size, '', 0)
 
     def get_precision(self, pair=None):
         pair = self._symbol_localizing(pair)
 
         if pair in self.exchange_info:
-            return True, (-8, int(math.log10(float(self.exchange_info[pair])))), '', 0
+            return ExchangeResult(True, (-8, int(math.log10(float(self.exchange_info[pair])))), '', 0)
         else:
-            return False, '', '[Binance], ERROR_BODY=[{} 호가 정보가 없습니다.], URL=[get_precision]'.format(pair), 60
+            return ExchangeResult(False, '', 'ERROR_BODY=[{} 호가 정보가 없습니다.], URL=[get_precision]'.format(pair), 60)
 
     def get_available_coin(self):
         return ExchangeResult(True, list(self.exchange_info.keys()), '')
@@ -155,7 +156,7 @@ class Binance(BaseExchange):
                     'quantity': '{0:4f}'.format(amount).strip(),
                   })
 
-        return self._private_api('POST', '/api/v3/order', params)
+        return self._private_api('/api/v3/order', params)
 
     def sell(self, coin, amount, price=None):
         debugger.debug('Parameters=[{}, {}, {}], function name=[sell]'.format(coin, amount, price))
@@ -170,13 +171,13 @@ class Binance(BaseExchange):
                     'quantity': '{}'.format(amount),
                   })
 
-        return self._private_api('POST', '/api/v3/order', params)
+        return self._private_api('/api/v3/order', params)
 
     def fee_count(self):
         return 1
 
     def bnc_btm_quantizer(self, symbol):
-        binance_qtz = self._get_step_size(symbol)[1]
+        binance_qtz = self._get_step_size(symbol).data[1]
         return Decimal(10) ** -4 if binance_qtz < Decimal(10) ** -4 else binance_qtz
 
     def base_to_alt(self, currency_pair, btc_amount, alt_amount, td_fee, tx_fee):
@@ -215,7 +216,7 @@ class Binance(BaseExchange):
 
     def get_ticker(self, market):
         for _ in range(3):
-            result_object = self._public_api('GET', '/api/v1/ticker/24hr')
+            result_object = self._public_api('/api/v1/ticker/24hr')
             if result_object.success:
                 break
         time.sleep(result_object.wait_time)
@@ -238,10 +239,10 @@ class Binance(BaseExchange):
             tag_dic = {'addressTag': payment_id}
             params.update(tag_dic)
 
-        return self._private_api('POST', '/wapi/v3/withdraw.html', params)
+        return self._private_api('/wapi/v3/withdraw.html', params)
 
     def get_candle(self, coin, unit, count):
-        path = '/'.join([self._base_url, 'api', 'v1', 'klines'])
+        path = '/'.join(['api', 'v1', 'klines'])
 
         params = {
                     'symbol': coin,
@@ -249,185 +250,160 @@ class Binance(BaseExchange):
                     'limit': count,
         }
         # 1m, 3m, 5m, 15m, 30m, 1h, 2h, 4h, 6h, 8h, 12h, 1d, 3d, 1w, 1M
-        suc, data, message, delay = self._public_api('GET', path, params)
-
-        if not suc:
-            return suc, data, message, delay
-
-        history = {
-            'open': [],
-            'high': [],
-            'low': [],
-            'close': [],
-            'volume': [],
-            'timestamp': [],
-        }
-
+        result_object = self.public_api(path, params)
+        rows = ['open', 'high', 'low', 'close', 'volume', 'timestamp']
+        history = {key_: list() for key_ in rows}
         try:
-            for info in data:  # 리스트가 늘어날 수도?
-                o, h, l, c, vol, ts = list(map(float, info[1:7]))
+            for candle_row in result_object.data:
+                # open, high, low, close, volume, timestamp
+                certain_row = list(map(float, candle_row[1:7]))
 
-                history['open'].append(o)
-                history['high'].append(h)
-                history['low'].append(l)
-                history['close'].append(c)
-                history['volume'].append(vol)
-                history['timestamp'].append(ts)
+                for num, key_ in enumerate(rows):
+                    history[key_].append(certain_row[num])
 
-            return True, history, ''
+            result_object.data = history
 
         except Exception as ex:
-            return False, '', 'history를 가져오는 과정에서 에러가 발생했습니다. =[{}]'.format(ex)
+            result_object.message = 'history를 가져오는 과정에서 에러가 발생했습니다. =[{}]'.format(ex)
+
+        return result_object
 
     async def _async_private_api(self, method, path, extra=None):
         debugger.debug('Parameters=[{}, {}, {}], function name=[_async_private_api]'.format(method, path, extra))
 
         if extra is None:
-            extra = {}
+            extra = dict()
 
-        async with aiohttp.ClientSession(headers={"X-MBX-APIKEY": self._key}) as s:
+        async with aiohttp.ClientSession(headers={"X-MBX-APIKEY": self._key}) as session:
             query = self._sign_generator(extra)
 
             try:
                 if method == 'GET':
                     sig = query.pop('signature')
                     query = "{}&signature={}".format(urlencode(sorted(extra.items())), sig)
-                    rq = await s.get(self._base_url + path + "?{}".format(query))
+                    rq = await session.get(self._base_url + path + "?{}".format(query))
 
                 else:
-                    rq = await s.post(self._base_url + path, data=query)
+                    rq = await session.post(self._base_url + path, data=query)
 
-                res = await rq.text()
-                res = json.loads(res)
+                response = json.loads(await rq.text())
 
-                if 'msg' in res:
-                    return False, '', '[BINANCE], ERROR_BODY=[{}], URL=[{}], PARAMETER=[{}]'.format(res['msg'],
-                                                                                                    path, extra), 1
+                if 'msg' in response:
+                    return ExchangeResult(False, '', 'ERROR_BODY=[{}], URL=[{}], PARAMETER=[{}]'.format(response['msg'], path, extra), 1)
 
                 else:
-                    return True, res, '', 0
+                    return ExchangeResult(True, response, '', 0)
 
             except Exception as ex:
-                return False, '', '[BINANCE], ERROR_BODY=[{}], URL=[{}], PARAMETER=[{}]'.format(ex,
-                                                                                                path, extra), 1
+                return ExchangeResult(False, '', 'ERROR_BODY=[{}], URL=[{}], PARAMETER=[{}]'.format(ex, path, extra), 1)
 
-    async def _async_public_api(self, method, path, extra=None, header=None):
-        debugger.debug('Parameters=[{}, {}, {}, {}], function name=[_async_public_api]'.format(method, path, extra, header))
+    async def _async_public_api(self, path, extra=None):
+        debugger.debug('Parameters=[{}, {},], function name=[_async_public_api]'.format(path, extra))
 
         if extra is None:
-            extra = {}
+            extra = dict()
 
-        async with aiohttp.ClientSession() as s:
-            rq = await s.get(self._base_url + path, params=extra)
+        async with aiohttp.ClientSession() as session:
+            rq = await session.get(self._base_url + path, params=extra)
 
         try:
-            res = await rq.text()
-            res = json.loads(res)
+            response = json.loads(await rq.text())
 
-            if 'msg' in res:
-                return False, '', '[BINANCE], ERROR_BODY=[{}], URL=[{}], PARAMETER=[{}]'.format(res['msg'],
-                                                                                                path, extra), 1
+            if 'msg' in response:
+                return ExchangeResult(False, '', 'ERROR_BODY=[{}], URL=[{}], PARAMETER=[{}]'.format(response['msg'], path, extra), 1)
 
             else:
-                return True, res, '', 0
+                return ExchangeResult(True, response, '', 0)
 
         except Exception as ex:
-            return False, '', '[BINANCE], ERROR_BODY=[{}], URL=[{}], PARAMETER=[{}]'.format(ex,
-                                                                                            path, extra), 1
+            return ExchangeResult(False, '', 'ERROR_BODY=[{}], URL=[{}], PARAMETER=[{}]'.format(ex, path, extra), 1)
 
     async def _get_balance(self):
         for _ in range(3):
-            success, data, message, delay = await self._async_private_api('GET', '/api/v3/account')
-            if success:
-                return True, data, message, delay
-            time.sleep(delay)
+            result_object = await self._async_private_api('GET', '/api/v3/account')
+            if result_object.success:
+                break
+            time.sleep(result_object.wait_time)
 
-        else:
-            return False, '', message, delay
+        return result_object
 
     async def _get_deposit_addrs(self, symbol):
         for _ in range(3):
-            success, data, message, delay = await self._async_private_api('GET', '/wapi/v3/depositAddress.html', {'asset': symbol})
+            result_object = await self._async_private_api('GET', '/wapi/v3/depositAddress.html', {'asset': symbol})
 
-            if success:
-                return True, data, message, delay
-            time.sleep(delay)
+            if result_object.success:
+                break
+            time.sleep(result_object.wait_time)
 
-        else:
-            return False, '', message, delay
+        return result_object
 
     async def _get_orderbook(self, symbol):
         for _ in range(3):
-            success, data, message, delay = await self._async_public_api('GET', '/api/v1/depth', {'symbol': symbol})
-            if success:
-                return True, data, message, delay
-            time.sleep(delay)
+            result_object = await self._async_public_api('/api/v1/depth', {'symbol': symbol})
+            if result_object.success:
+                break
+            time.sleep(result_object.wait_time)
 
-        else:
-            return False, '', message, delay
+        return result_object
 
     async def get_deposit_addrs(self, coin_list=None):
-        av_suc, coin_list, av_msg, av_time = self.get_available_coin()
-
-        if not av_suc:
-            return False, '', av_msg, av_time
-
+        coin_list = list(self.exchange_info.keys())
         try:
-            ret_msg = ""
-            rq_dic = {}
+            result_message = str()
+            return_deposit_dict = dict()
             coin_list.append('BTC_BTC')
 
-            for coin in coin_list:
-                coin = coin.split('_')[1]
-                if coin == 'BCH':
-                    coin = 'BCC'
+            for symbol in coin_list:
+                base_, coin = symbol.split('_')
+                coin = self._symbol_customizing(coin)
 
-                rq_suc, rq_data, rq_msg, rq_time = await self._get_deposit_addrs(coin)
+                get_deposit_result_object = await self._get_deposit_addrs(coin)
 
-                if not rq_data['success']:
-                    ret_msg += '[{}]해당 코인은 점검 중입니다.\n'.format(coin)
+                if get_deposit_result_object.data['success'] is False:
+                    result_message += '[{}]해당 코인은 점검 중입니다.\n'.format(coin)
                     continue
 
-                rq_dic[coin] = rq_data['address']
+                return_deposit_dict[coin] = get_deposit_result_object.data['address']
 
-                if 'addressTag' in rq_data:
-                    rq_dic[coin + 'TAG'] = rq_data['addressTag']
-            return True, rq_dic, ret_msg, 0
+                if 'addressTag' in get_deposit_result_object.data:
+                    return_deposit_dict[coin + 'TAG'] = get_deposit_result_object.data['addressTag']
+            return ExchangeResult(True, return_deposit_dict, result_message, 0)
 
         except Exception as ex:
-            return False, '', '[BINANCE] ERROR_BODY=[입금 주소를 가져오는데 실패했습니다. {}]'.format(ex), 1
+            return ExchangeResult(False, '', 'ERROR_BODY=[입금 주소를 가져오는데 실패했습니다. {}]'.format(ex), 1)
 
     async def get_avg_price(self,coins):  # 내거래 평균매수가
         # 해당 함수는 현재 미사용 상태
         try:
-            amount_price_list, res_value = [], []
+            amount_price_list, res_value = (list() for _ in range(2))
             for coin in coins:
-                total_price, bid_count, total_amount = 0, 0, 0
+                total_price, bid_count, total_amount = (int() for _ in range(3))
 
                 for _ in range(10):
-                    hist_suc, history, hist_msg, hist_time = await self._async_public_api(
+                    history_result_object = await self._async_public_api(
                         '/api/v3/allOrders', {'symbol': coin})
 
-                    if hist_suc:
+                    if history_result_object.success:
                         break
 
-                    else:
-                        time.sleep(1)
+                    time.sleep(1)
 
                 else:
                     # history 값을 가져오는데 실패하는 경우.
-                    return False, '', '[Binance]History값을 가져오는데 실패했습니다. [{}]'.format(hist_msg), hist_time
+                    return history_result_object
 
+                history = history_result_object.data
                 history.reverse()
                 for _data in history:
-                    side = _data['side']
+                    trading_type = _data['side']
                     n_price = float(_data['price'])
-                    price = Decimal(n_price - (n_price * 0.1)).quantize(Decimal(10) ** -6)
-                    amount = Decimal(_data['origQty']).quantize(Decimal(10) ** -6)
-                    if side == 'BUY':
+                    # todo 0.1을 곱한 뒤 빼는 이유?
+                    price = Decimal(n_price - (n_price * 0.1)).quantize(Decimal(10) ** -8)
+                    amount = Decimal(_data['origQty']).quantize(Decimal(10) ** -8)
+                    if trading_type == 'BUY':
                         amount_price_list.append({
-                            '_price': price,
-                            '_amount': amount
+                            'price': price,
+                            'amount': amount
                         })
                         total_price += price
                         total_amount += amount
@@ -445,144 +421,114 @@ class Binance(BaseExchange):
                 }}
                 res_value.append(_values)
 
-            return True, res_value, '', 0
+            return ExchangeResult(True, res_value, '', 0)
 
         except Exception as ex:
-            return False, '', '[Binance]평균 값을 가져오는데 실패했습니다. [{}]'.format(ex), 1
+            return ExchangeResult(False, '', '평균 값을 가져오는데 실패했습니다. [{}]'.format(ex), 1)
 
     async def get_trading_fee(self):
         return True, 0.001, '', 0
 
     async def get_transaction_fee(self):
-        fees = {}
-        for _ in range(3):
-            try:
-                async with aiohttp.ClientSession() as s:
-                    try:
-                        rq = await s.get('https://www.binance.com/assetWithdraw/getAllAsset.html')
-                        data_list = await rq.text()
-                        data_list = json.loads(data_list)
+        fees = dict()
+        try:
 
-                        if not data_list:
-                            time.sleep(3)
-                            continue
-                    except Exception as ex:
-                        return False, '', '[BINANCE], ERROR_BODY=[출금 비용을 가져오는데 실패했습니다. {}]'.format(ex), 60
+            for _ in range(3):
+                async with aiohttp.ClientSession() as session:
+                    rq = await session.get('https://www.binance.com/assetWithdraw/getAllAsset.html')
+                    data_list = json.loads(await rq.text())
+
+                    if not data_list:
+                        time.sleep(3)
+                        continue
 
                 for f in data_list:
-                    if f['assetCode'] == 'BCC':
-                        f['assetCode'] = 'BCH'
-                    fees[f['assetCode']] = Decimal(f['transactionFee']).quantize(Decimal(10)**-8)
+                    symbol = self._symbol_customizing(f['assetCode'])
+                    fees[symbol] = Decimal(f['transactionFee']).quantize(Decimal(10)**-8)
 
-                return True, fees, '', 0
+                return ExchangeResult(True, fees, '', 0)
+            else:
+                return ExchangeResult(False, '', 'ERROR_BODY=[출금 비용을 가져오는데 실패했습니다.]', 60)
 
-            except Exception as ex:
-                return False, '', '[BINANCE], ERROR_BODY=[출금 비용을 가져오는데 실패했습니다. {}]'.format(ex), 60
-
-        else:
-            return False, '', '[BINANCE], EEROR_BODY=[출금비용을 가져오는데 실패했습니다. {}],', 60
+        except Exception as ex:
+            return ExchangeResult(False, '', 'ERROR_BODY=[출금 비용을 가져오는데 실패했습니다. {}]'.format(ex), 60)
 
     async def get_balance(self):
-        suc, data, message, delay = await self._get_balance()
+        result_object = await self._get_balance()
 
-        if not suc:
-            return False, '', message, delay
+        if result_object.success:
+            balance = dict()
+            for bal in result_object.data['balances']:
+                symbol = self._symbol_customizing(bal['asset'])
+                if float(bal['free']) > 0:
+                    balance[symbol.upper()] = Decimal(bal['free']).quantize(Decimal(10)**-8)
 
-        balance = {}
-        for bal in data['balances']:
-            if bal['asset'] == 'BCC':
-                bal['asset'] = 'BCH'
+            result_object.data = balance
 
-            if float(bal['free']) > 0:
-                balance[bal['asset'].upper()] = Decimal(bal['free']).quantize(Decimal(10)**-8)
-
-        return True, balance, '', 0
+        return result_object
 
     async def get_curr_avg_orderbook(self, coin_list, btc_sum=1):
         try:
-            avg_order_book = {}
+            avg_order_book = dict()
+            failed_coin_log = str()
             for currency_pair in coin_list:
                 if currency_pair == 'BTC_BTC':
                     continue
 
-                sp = currency_pair.split('_')
-                success, book, message, delay = await self._get_orderbook(sp[1] + sp[0])
+                market, coin = currency_pair.split('_')
+                orderbook_result_object = await self._get_orderbook(coin + market)
 
-                if not success:
-                    return False, '', message, delay
+                if orderbook_result_object.success:
+                    avg_order_book[currency_pair] = dict()
+                    for type_ in ['asks', 'bids']:
+                        order_amount, order_sum = (int() for _ in range(2))
 
-                avg_order_book[currency_pair] = {}
-                for type_ in ['asks', 'bids']:
-                    order_amount, order_sum = 0, 0
-
-                    for data in book[type_]:
-                        order_amount += Decimal(data[1])  # 0 - price 1 - qty
-                        order_sum += (Decimal(data[0]) * Decimal(data[1])).quantize(Decimal(10) ** -8)
-                        if order_sum >= Decimal(btc_sum):
-                            _v = ((order_sum / order_amount).quantize(Decimal(10) ** -8))
-                            avg_order_book[currency_pair][type_] = _v
-                            break
-            return True, avg_order_book, '', 0
+                        for data in orderbook_result_object.data[type_]:
+                            price, qty, *_ = data
+                            order_amount += Decimal(qty)  # 0 - price 1 - qty
+                            order_sum += (Decimal(price) * Decimal(qty)).quantize(Decimal(10) ** -8)
+                            if order_sum >= Decimal(btc_sum):
+                                _v = ((order_sum / order_amount).quantize(Decimal(10) ** -8))
+                                avg_order_book[currency_pair][type_] = _v
+                                break
+                else:
+                    failed_coin_log += orderbook_result_object.message + '\n'
+            return ExchangeResult(True, avg_order_book, failed_coin_log, 0)
         except Exception as ex:
-            return False, '', '[BINANCE], ERROR_BODY=[{}], URL=[get_curr_avg_orderbook]'.format(ex), 1
+            return ExchangeResult(False, '', 'ERROR_BODY=[{}], URL=[get_curr_avg_orderbook]'.format(ex), 1)
 
     async def compare_orderbook(self, other, coins, default_btc=1):
         for _ in range(3):
-            binance_res, other_res = await asyncio.gather(
+            binance_result_object, other_result_object = await asyncio.gather(
                 self.get_curr_avg_orderbook(coins, default_btc),
                 other.get_curr_avg_orderbook(coins, default_btc)
             )
-
-            binance_suc, binance_avg_orderbook, binance_msg, binance_times = binance_res
-            other_suc, other_avg_orderbook, other_msg, other_times = other_res
 
             if 'BTC' in coins:
                 # 나중에 점검
                 coins.remove('BTC')
 
-            if binance_suc and other_suc:
-                m_to_s = {}
+            success = (binance_result_object.success and other_result_object.success)
+            wait_time = max(binance_result_object.wait_time, other_result_object.wait_time)
+
+            if success:
+                m_to_s, s_to_m = (dict() for _ in range(2))
+
                 for currency_pair in coins:
-                    m_ask = binance_avg_orderbook[currency_pair]['asks']
-                    s_bid = other_avg_orderbook[currency_pair]['bids']
+                    m_ask = binance_result_object.data[currency_pair]['asks']
+                    s_bid = other_result_object.data[currency_pair]['bids']
                     m_to_s[currency_pair] = float(((s_bid - m_ask) / m_ask).quantize(Decimal(10) ** -8))
 
-                s_to_m = {}
-                for currency_pair in coins:
-                    m_bid = binance_avg_orderbook[currency_pair]['bids']
-                    s_ask = other_avg_orderbook[currency_pair]['asks']
+                    m_bid = binance_result_object.data[currency_pair]['bids']
+                    s_ask = other_result_object.data[currency_pair]['asks']
                     s_to_m[currency_pair] = float(((m_bid - s_ask) / s_ask).quantize(Decimal(10) ** -8))
 
-                res = binance_avg_orderbook, other_avg_orderbook, {'m_to_s': m_to_s, 's_to_m': s_to_m}
+                res = binance_result_object.data, other_result_object.data, {'m_to_s': m_to_s, 's_to_m': s_to_m}
 
-                return True, res, '', 0
-
+                return ExchangeResult(True, res, '', 0)
             else:
-                time.sleep(binance_times)
-                continue
+                time.sleep(wait_time)
 
-        if not binance_suc or not other_suc:
-            return False, '', 'binance_error-[{}] other_error-[{}]'.format(binance_msg, other_msg), binance_times
-
-
-if __name__ == '__main__':
-    k = ''
-    s = ''
-    b = Binance(k, s)
-    s, available, *_ = b.get_available_coin()
-    s, d, m, t = b.sell('XRPBTC', 1)
-    loop = asyncio.get_event_loop()
-    # todo ---Done---
-    # s, d, m, t = b.get_available_coin()
-    # s, d, m, t = b.buy('XRPBTC', 1)
-    # s, d, m, t = b.sell('XRPBTC', 1)
-    # s, d, m, t = b.withdraw('XRPBTC', 1, 'test')
-
-    # print(s, d)
-    #
-    # loop = asyncio.get_event_loop()
-    # s, d, m ,t = loop.run_until_complete(b.get_balance())
-    # print(d, m)
-    # s, d, m, t = loop.run_until_complete(b.get_deposit_addrs())
-    # s, d, m, t = loop.run_until_complete(b.get_transaction_fee())
-    # s, d, m, t = loop.run_until_complete(b.get_curr_avg_orderbook(available[:5]))
+        else:
+            error_message = binance_result_object.message + '\n' + other_result_object.message
+            return ExchangeResult(False, '', error_message, 1)
