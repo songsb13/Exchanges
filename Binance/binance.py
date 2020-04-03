@@ -30,8 +30,6 @@ class Binance(BaseExchange):
         ExchangeResult.set_exchange_name = 'Binance'
 
     def _public_api(self, path, extra=None):
-        debugger.debug('Parameters=[{}, {}], function name=[_public_api]'.format(path, extra))
-
         if extra is None:
             extra = dict()
 
@@ -47,7 +45,7 @@ class Binance(BaseExchange):
         except Exception as ex:
             return ExchangeResult(False, '', 'ERROR_BODY=[{}], URL=[{}], PARAMETER=[{}]'.format(ex, path, extra), 1)
 
-    def _private_api(self, path, extra=None):
+    def _private_api(self, method, path, extra=None):
         debugger.debug('Parameters=[{}, {}], function name=[_private_api]'.format(path, extra))
 
         if extra is None:
@@ -57,7 +55,11 @@ class Binance(BaseExchange):
             query = self._sign_generator(extra)
             sig = query.pop('signature')
             query = "{}&signature={}".format(urlencode(sorted(extra.items())), sig)
-            rq = requests.post(self._base_url + path, data=query, headers={"X-MBX-APIKEY": self._key})
+
+            if method == 'GET':
+                rq = requests.get(self._base_url + path, params=query, headers={"X-MBX-APIKEY": self._key})
+            else:
+                rq = requests.post(self._base_url + path, data=query, headers={"X-MBX-APIKEY": self._key})
             response = rq.json()
 
             if 'msg' in response:
@@ -166,7 +168,7 @@ class Binance(BaseExchange):
                     'quantity': '{0:4f}'.format(amount).strip(),
                   })
 
-        return self._private_api('/api/v3/order', params)
+        return self._private_api('GET', '/api/v3/order', params)
 
     def sell(self, coin, amount, price=None):
         debugger.debug('Parameters=[{}, {}, {}], function name=[sell]'.format(coin, amount, price))
@@ -181,7 +183,7 @@ class Binance(BaseExchange):
                     'quantity': '{}'.format(amount),
                   })
 
-        return self._private_api('/api/v3/order', params)
+        return self._private_api('GET', '/api/v3/order', params)
 
     def fee_count(self):
         return 1
@@ -251,7 +253,7 @@ class Binance(BaseExchange):
             tag_dic = {'addressTag': payment_id}
             params.update(tag_dic)
 
-        return self._private_api('/wapi/v3/withdraw.html', params)
+        return self._private_api('POST', '/wapi/v3/withdraw.html', params)
 
     def get_candle(self, coin, unit, count):
         symbol = self._sai_symbol_converter(coin)
