@@ -23,11 +23,12 @@ class BaseExchange(object):
         """
         pass
 
-    def _private_api(self, path, extra=None):
+    def _private_api(self, method, path, extra=None):
         """
         For using private API
 
         :param path: URL path without Base URL, '/url/path/'
+        :param method: input required request type GET or POST
         :param extra: Parameter if required.
         :return:
         return 4 format
