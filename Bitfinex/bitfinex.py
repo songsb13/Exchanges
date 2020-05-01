@@ -84,17 +84,16 @@ class Bitfinex(BaseExchange):
 
             if 'message' in response:
                 error_message = 'ERROR_BODY=[{}], URL=[{}], PARAMETER=[{}]'.format(response['message'], path, extra)
+                return ExchangeResult(False, '', error_message, 1)
             elif 'error' in response:
                 error_message = 'ERROR_BODY=[{}], URL=[{}], PARAMETER=[{}]'.format(response['error'], path, extra)
+                return ExchangeResult(False, '', error_message, 1)
             else:
-                error_message = None
-
+                return ExchangeResult(True, response, '', 0)
+                
         except Exception as ex:
             error_message = 'ERROR_BODY=[{}], URL=[{}], PARAMETER=[{}]'.format(ex, path, extra)
-
-        result = (True, response, '', 0) if error_message is None else (False, '', error_message, 1)
-
-        return ExchangeResult(*result)
+            return ExchangeResult(False, '', error_message, 1)
 
     def _private_api(self, path, extra=None):
         debugger.debug('[Bitfinex]Parameters=[{}, {}], function name=[_private_api]'.format(path, extra))
@@ -115,16 +114,15 @@ class Bitfinex(BaseExchange):
 
             if 'message' in response:
                 error_message = 'ERROR_BODY=[{}], URL=[{}], PARAMETER=[{}]'.format(response['message'], path, extra)
+                return ExchangeResult(False, '', error_message, 1)
             elif 'error' in response:
                 error_message = 'ERROR_BODY=[{}], URL=[{}], PARAMETER=[{}]'.format(response['error'], path, extra)
+                return ExchangeResult(False, '', error_message, 1)
             else:
-                error_message = None
+                return ExchangeResult(True, response, '', 0)
         except Exception as ex:
             error_message = 'ERROR_BODY=[{}], URL=[{}], PARAMETER=[{}]'.format(ex, path, extra)
-
-        result = (True, response, '', 0) if error_message is None else (False, '', error_message, 1)
-
-        return ExchangeResult(*result)
+            return ExchangeResult(False, '', error_message, 1)
 
     def _currencies(self):
         for _ in range(3):
@@ -137,7 +135,7 @@ class Bitfinex(BaseExchange):
         return res_object
 
     def get_precision(self, pair=None):
-        return True, (-8, -8), '', 0
+        return ExchangeResult(True, (-8, -8), '', 0)
 
     def get_ticker(self, market):
         for _ in range(3):
@@ -147,7 +145,9 @@ class Bitfinex(BaseExchange):
             if res_object.success:
                 res_object.data = float(res_object.data['last_price'])
                 break
-
+                
+        return res_object
+        
     def buy(self, market, quantity, price=None):
         debugger.debug('[Bitfinex]Parameters=[{}, {}, {}], function name=[buy]'.format(market, quantity, price))
 
@@ -254,16 +254,15 @@ class Bitfinex(BaseExchange):
 
                 if 'message' in response:
                     error_message = 'ERROR_BODY=[{}], URL=[{}], PARAMETER=[{}]'.format(response['message'], path, extra)
+                    return ExchangeResult(False, '', error_message, 1)
                 elif 'error' in response:
                     error_message = 'ERROR_BODY=[{}], URL=[{}], PARAMETER=[{}]'.format(response['error'], path, extra)
+                    return ExchangeResult(False, '', error_message, 1)
                 else:
-                    error_message = None
+                    return ExchangeResult(True, response, '', 1)
         except Exception as ex:
             error_message = 'ERROR_BODY=[{}], URL=[{}], PARAMETER=[{}]'.format(ex, path, extra)
-
-        result = (True, response, '', 0) if error_message is None else (False, '', error_message, 1)
-
-        return ExchangeResult(*result)
+            return ExchangeResult(False, '', error_message, 1)
 
     async def _async_private_api(self, method, path, extra=None):
         debugger.debug('[Bitfinex]Parameters=[{}, {}, {}], function name=[_async_private_api]'.format(method, path, extra))
@@ -285,16 +284,15 @@ class Bitfinex(BaseExchange):
 
                 if 'message' in response:
                     error_message = 'ERROR_BODY=[{}], URL=[{}], PARAMETER=[{}]'.format(response['message'], path, extra)
+                    return ExchangeResult(False, '', error_message, 1)
                 elif 'error' in response:
                     error_message = 'ERROR_BODY=[{}], URL=[{}], PARAMETER=[{}]'.format(response['error'], path, extra)
+                    return ExchangeResult(False, '', error_message, 1)
                 else:
-                    error_message = None
+                    return ExchangeResult(True, response, '', 0)
         except Exception as ex:
             error_message = 'ERROR_BODY=[{}], URL=[{}], PARAMETER=[{}]'.format(ex, path, extra)
-
-        result = (True, response, '', 0) if error_message is None else (False, '', error_message, 1)
-
-        return ExchangeResult(*result)
+            return ExchangeResult(False, '', error_message, 1)
 
     async def _get_balance(self):
         for _ in range(3):
@@ -320,14 +318,22 @@ class Bitfinex(BaseExchange):
     async def _get_deposit_addrs(self, currency):
         if currency == 'ethereum classic':
             currency = 'ethereumc'
-
+            
         params = {
             'method': currency,
             'wallet_name': 'exchange',
 
         }
-        return await self._async_private_api('POST', '/v1/deposit/new', params)
 
+        for _ in range(3):
+            result_object = await self._async_private_api('POST', '/v1/deposit/new', params)
+            
+            if result_object.success:
+                break
+            time.sleep(result_object.wait_time)
+            
+        return result_object
+        
     async def _get_trading_fee(self, symbol):
         for _ in range(3):
             result_object = await self._async_private_api('POST', '/v1/account_infos')
