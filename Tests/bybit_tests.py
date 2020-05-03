@@ -28,7 +28,7 @@ class TestNotification(unittest.TestCase):
 
     def test_get_balance(self):
         loop = asyncio.get_event_loop()
-        balance_result = loop.run_until_complete(self.exchange.balance())
+        balance_result = loop.run_until_complete(self.exchange.get_balance())
         self.assertIn('BTC', balance_result.data)
 
     def test_trade(self):

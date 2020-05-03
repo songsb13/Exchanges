@@ -13,7 +13,7 @@ from Exchanges.base_exchange import *
 class ByBit(BaseExchange):
     def __init__(self, key, secret):
         self._endpoint = 'https://api{}.bybit.com'.format(
-            '-testnet' if 'pydevd' in sys.modules else ''
+            '-testnet' if os.environ.get('SAI_DEBUG') == 1 else ''
         )
 
         self._key = key
@@ -79,6 +79,7 @@ class ByBit(BaseExchange):
             res = rq.json()
 
             if res['ret_msg'] != 'OK':
+                debugger.debug('bybit: public api: {}'.format(res['ret_msg']))
                 return ExchangeResult(False, '', '값을 가져오는데 실패했습니다. [{}]'.format(res['ret_msg']), 1)
             else:
                 if '/time' in path:
@@ -132,7 +133,7 @@ class ByBit(BaseExchange):
 
         return ExchangeResult(True, coins, '')
 
-    def get_order_history(self, order_id):
+    def get_order_history(self, order_id, symbol):
         path = '/open-api/order/list'
         order_history_result = self.private_api('GET', path, {'order_id': order_id})
         if order_history_result.success is False:
@@ -147,7 +148,7 @@ class ByBit(BaseExchange):
             symbol='_'.join([data['symbol'][3:], data['symbol'][:3]]),
             exec_time=datetime.strptime(
                 data['created_at'], "%Y-%m-%dT%H:%M:%S.%fZ"
-            ).replace(tzinfo=timezone.utc)
+            ).replace(tzinfo=timezone.utc).timestamp()
         )
         return order_history_result
 
@@ -159,7 +160,7 @@ class ByBit(BaseExchange):
         params = {
             'symbol': coin,
             'side': 'Buy',
-            'qty': amount,
+            'qty': int(amount),
             'order_type': 'Market',
             'time_in_force': 'GoodTillCancel'
         }
@@ -180,7 +181,7 @@ class ByBit(BaseExchange):
         params = {
             'symbol': coin,
             'side': 'Sell',
-            'qty': amount,
+            'qty': int(amount),
             'order_type': 'Market',
             'time_in_force': 'GoodTillCancel'
         }
@@ -236,7 +237,8 @@ class ByBit(BaseExchange):
         market, coin = symbol.split('_')
         symbol = (coin+market).upper()
         ticker_result = self.public_api('/v2/public/tickers', {'symbol': symbol})
-        ticker_result.data = Decimal(ticker_result.data[0]['last_price']).quantize(Decimal(10) ** -8)
+        if ticker_result.success:
+            ticker_result.data = Decimal(ticker_result.data[0]['last_price']).quantize(Decimal(10) ** -8)
 
         return ticker_result
 
@@ -455,8 +457,8 @@ class ByBit(BaseExchange):
         except Exception as ex:
             return False, '', '[Binance]평균 값을 가져오는데 실패했습니다. [{}]'.format(ex), 1
 
-    async def get_trading_fee(self): #Binance는 trade_fee가 0.1로 되어있음.
-        return True, 0.001, '', 0
+    async def get_trading_fee(self):
+        return 0.001
 
     async def get_transaction_fee(self):
         fees = {}
@@ -486,7 +488,7 @@ class ByBit(BaseExchange):
         except Exception as ex:
             return False, '', '[Binance]출금비용을 가져오는데 실패했습니다. [{}]'.format(ex), 60
 
-    async def balance(self):
+    async def get_balance(self):
         balance = {}
         for coin in ['BTC', 'ETH', 'XRP', 'EOS']:
             balance_result = await self.async_private_api('GET', '/v2/private/wallet/balance', {'coin': coin})

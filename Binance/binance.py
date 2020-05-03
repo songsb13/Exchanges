@@ -11,6 +11,7 @@ import numpy as np
 
 from urllib.parse import urlencode
 from decimal import Decimal, ROUND_DOWN
+from datetime import datetime
 
 from Exchanges.base_exchange import BaseExchange, ExchangeResult
 
@@ -26,8 +27,6 @@ class Binance(BaseExchange):
         ExchangeResult.set_exchange_name = 'Binance'
 
     def _public_api(self, path, extra=None):
-        debugger.debug('Parameters=[{}, {}], function name=[_public_api]'.format(path, extra))
-
         if extra is None:
             extra = dict()
 
@@ -36,14 +35,16 @@ class Binance(BaseExchange):
             response = rq.json()
 
             if 'msg' in response:
+                debugger.warning('Parameters=[{}, {}], function name=[_public_api]'.format(path, extra))
                 return ExchangeResult(False, '', 'ERROR_BODY=[{}], URL=[{}], PARAMETER=[{}]'.format(response['msg'], path, extra), 1)
             else:
                 return ExchangeResult(True, response, '', 0)
 
         except Exception as ex:
+            debugger.error('Parameters=[{}, {}], function name=[_public_api]'.format(path, extra))
             return ExchangeResult(False, '', 'ERROR_BODY=[{}], URL=[{}], PARAMETER=[{}]'.format(ex, path, extra), 1)
 
-    def _private_api(self, path, extra=None):
+    def _private_api(self, path, extra=None, method='POST'):
         debugger.debug('Parameters=[{}, {}], function name=[_private_api]'.format(path, extra))
 
         if extra is None:
@@ -53,7 +54,10 @@ class Binance(BaseExchange):
             query = self._sign_generator(extra)
             sig = query.pop('signature')
             query = "{}&signature={}".format(urlencode(sorted(extra.items())), sig)
-            rq = requests.post(self._base_url + path, data=query, headers={"X-MBX-APIKEY": self._key})
+            if method == 'POST':
+                rq = requests.post(self._base_url + path, data=query, headers={"X-MBX-APIKEY": self._key})
+            else:
+                rq = requests.get(self._base_url + path, params=query, headers={"X-MBX-APIKEY": self._key})
             response = rq.json()
 
             if 'msg' in response:
@@ -150,11 +154,14 @@ class Binance(BaseExchange):
 
         params['type'] = 'MARKET' if price is None else 'LIMIT'
 
+        market, symbol = coin.split('_')
+        symbol = symbol + market
+        amount = int(amount/Decimal(self.exchange_info[coin])) * Decimal(self.exchange_info[coin])
         params.update({
-                    'symbol': coin,
-                    'side': 'buy',
-                    'quantity': '{0:4f}'.format(amount).strip(),
-                  })
+            'symbol': symbol,
+            'side': 'buy',
+            'quantity': '{}'.format(amount).strip(),
+        })
 
         return self._private_api('/api/v3/order', params)
 
@@ -165,13 +172,40 @@ class Binance(BaseExchange):
 
         params['type'] = 'MARKET' if price is None else 'LIMIT'
 
+        market, symbol = coin.split('_')
+        symbol = symbol + market
+        amount = int(amount / Decimal(self.exchange_info[coin])) * Decimal(self.exchange_info[coin])
         params.update({
-                    'symbol': coin,
-                    'side': 'sell',
-                    'quantity': '{}'.format(amount),
-                  })
+            'symbol': symbol,
+            'side': 'sell',
+            'quantity': '{}'.format(amount),
+        })
 
         return self._private_api('/api/v3/order', params)
+
+    def get_order_history(self, id_key, coin):
+        path = '/api/v3/order'
+        symbol = ''.join(coin.split('_')[::-1])
+
+        params = dict(
+            orderId=id_key,
+            symbol=symbol
+        )
+
+        order_history_result = self._private_api(path, params, 'GET')
+        if order_history_result.success is False:
+            return order_history_result
+
+        # TODO
+        # return all history, and let caller choose necessary info
+        data = order_history_result.data
+        order_history_result.data = dict(
+            price=float(data['cummulativeQuoteQty'])/float(data['executedQty']),
+            amount=Decimal(data['executedQty']).quantize(Decimal(10)**-8),
+            symbol='_'.join([data['symbol'][3:], data['symbol'][:3]]),
+            exec_time=data['time']/1000
+        )
+        return order_history_result
 
     def fee_count(self):
         return 1
@@ -214,12 +248,21 @@ class Binance(BaseExchange):
 
         return result_object
 
-    def get_ticker(self, market):
+    def get_ticker(self, coin):
+        market, symbol = coin.split('_')
+        symbol = symbol + market
         for _ in range(3):
-            result_object = self._public_api('/api/v1/ticker/24hr')
+            result_object = self._public_api('/api/v3/ticker/price', {'symbol': symbol})
             if result_object.success:
                 break
         time.sleep(result_object.wait_time)
+
+        # TODO
+        # make a general rule for return values
+        try:
+            result_object.data = Decimal(result_object.data['price']).quantize(Decimal(10)**-8)
+        except TypeError:
+            print("DEBUG HERE")
 
         return result_object
 
@@ -242,15 +285,17 @@ class Binance(BaseExchange):
         return self._private_api('/wapi/v3/withdraw.html', params)
 
     def get_candle(self, coin, unit, count):
-        path = '/'.join(['api', 'v1', 'klines'])
+        path = '/api/v1/klines'
 
+        market, symbol = coin.split('_')
+        symbol = symbol+market
         params = {
-                    'symbol': coin,
-                    'interval': '{}m'.format(unit),
-                    'limit': count,
+            'symbol': symbol,
+            'interval': '{}m'.format(unit),
+            'limit': count,
         }
         # 1m, 3m, 5m, 15m, 30m, 1h, 2h, 4h, 6h, 8h, 12h, 1d, 3d, 1w, 1M
-        result_object = self.public_api(path, params)
+        result_object = self._public_api(path, params)
         rows = ['open', 'high', 'low', 'close', 'volume', 'timestamp']
         history = {key_: list() for key_ in rows}
         try:
@@ -258,8 +303,9 @@ class Binance(BaseExchange):
                 # open, high, low, close, volume, timestamp
                 certain_row = list(map(float, candle_row[1:7]))
 
-                for num, key_ in enumerate(rows):
+                for num, key_ in enumerate(rows[:5]):
                     history[key_].append(certain_row[num])
+                history['timestamp'].append(certain_row[5]/1000)
 
             result_object.data = history
 
@@ -427,7 +473,7 @@ class Binance(BaseExchange):
             return ExchangeResult(False, '', '평균 값을 가져오는데 실패했습니다. [{}]'.format(ex), 1)
 
     async def get_trading_fee(self):
-        return True, 0.001, '', 0
+        return 0.00075
 
     async def get_transaction_fee(self):
         fees = dict()
