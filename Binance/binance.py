@@ -240,14 +240,14 @@ class Binance(BaseExchange):
 
     def get_candle(self, coin, unit, count):
         path = '/'.join(['api', 'v1', 'klines'])
-
+        coin =
         params = {
                     'symbol': coin,
                     'interval': '{}m'.format(unit),
                     'limit': count,
         }
         # 1m, 3m, 5m, 15m, 30m, 1h, 2h, 4h, 6h, 8h, 12h, 1d, 3d, 1w, 1M
-        result_object = self.public_api(path, params)
+        result_object = self._public_api(path, params)
         rows = ['open', 'high', 'low', 'close', 'volume', 'timestamp']
         history = {key_: list() for key_ in rows}
         try:
