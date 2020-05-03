@@ -26,8 +26,6 @@ class Bitfinex(BaseExchange):
 
         self._symbol_full_name = {}
 
-        ExchangeResult.set_exchange_name = 'Bitfinex'
-
     def _sign_generator(self, *args):
         payload, *_ = args
         j = json.dumps(payload) if payload else ''
@@ -73,7 +71,7 @@ class Bitfinex(BaseExchange):
         return res_object
 
     def _public_api(self, path, extra=None):
-        debugger.debug('[Bitfinex]Parameters=[ {}, {}], function name=[_public_api]'.format(path, extra))
+        debugger.debug('[{}]Parameters=[ {}, {}], function name=[_public_api]'.format(self.name, path, extra))
 
         try:
             if extra is None:
@@ -84,20 +82,20 @@ class Bitfinex(BaseExchange):
             response = rq.json()
 
             if 'message' in response:
-                error_message = 'ERROR_BODY=[{}], URL=[{}], PARAMETER=[{}]'.format(response['message'], path, extra)
+                error_message = '{}::: ERROR_BODY=[{}], URL=[{}], PARAMETER=[{}]'.format(self.name, response['message'], path, extra)
                 return ExchangeResult(False, '', error_message, 1)
             elif 'error' in response:
-                error_message = 'ERROR_BODY=[{}], URL=[{}], PARAMETER=[{}]'.format(response['error'], path, extra)
+                error_message = '{}::: ERROR_BODY=[{}], URL=[{}], PARAMETER=[{}]'.format(self.name, response['error'], path, extra)
                 return ExchangeResult(False, '', error_message, 1)
             else:
                 return ExchangeResult(True, response, '', 0)
                 
         except Exception as ex:
-            error_message = 'ERROR_BODY=[{}], URL=[{}], PARAMETER=[{}]'.format(ex, path, extra)
+            error_message = '{}::: ERROR_BODY=[{}], URL=[{}], PARAMETER=[{}]'.format(self.name, ex, path, extra)
             return ExchangeResult(False, '', error_message, 1)
 
     def _private_api(self, path, extra=None):
-        debugger.debug('[Bitfinex]Parameters=[{}, {}], function name=[_private_api]'.format(path, extra))
+        debugger.debug('[{}]Parameters=[{}, {}], function name=[_private_api]'.format(self.name, path, extra))
 
         try:
             if extra is None:
@@ -114,15 +112,15 @@ class Bitfinex(BaseExchange):
             response = rq.json()
 
             if 'message' in response:
-                error_message = 'ERROR_BODY=[{}], URL=[{}], PARAMETER=[{}]'.format(response['message'], path, extra)
+                error_message = '{}::: ERROR_BODY=[{}], URL=[{}], PARAMETER=[{}]'.format(self.name, response['message'], path, extra)
                 return ExchangeResult(False, '', error_message, 1)
             elif 'error' in response:
-                error_message = 'ERROR_BODY=[{}], URL=[{}], PARAMETER=[{}]'.format(response['error'], path, extra)
+                error_message = '{}::: ERROR_BODY=[{}], URL=[{}], PARAMETER=[{}]'.format(self.name, response['error'], path, extra)
                 return ExchangeResult(False, '', error_message, 1)
             else:
                 return ExchangeResult(True, response, '', 0)
         except Exception as ex:
-            error_message = 'ERROR_BODY=[{}], URL=[{}], PARAMETER=[{}]'.format(ex, path, extra)
+            error_message = '{}::: ERROR_BODY=[{}], URL=[{}], PARAMETER=[{}]'.format(self.name, ex, path, extra)
             return ExchangeResult(False, '', error_message, 1)
 
     def _currencies(self):
@@ -150,7 +148,7 @@ class Bitfinex(BaseExchange):
         return res_object
         
     def buy(self, market, quantity, price=None):
-        debugger.debug('[Bitfinex]Parameters=[{}, {}, {}], function name=[buy]'.format(market, quantity, price))
+        debugger.debug('[{}]Parameters=[{}, {}, {}], function name=[buy]'.format(self.name, market, quantity, price))
 
         price = 1 if price is None else price
 
@@ -168,7 +166,7 @@ class Bitfinex(BaseExchange):
         return self._private_api('/v1/order/new', params)
 
     def sell(self, market, quantity, price=None):
-        debugger.debug('[Bitfinex]Parameters=[{}, {}, {}], function name=[sell]'.format(market, quantity, price))
+        debugger.debug('[{}]Parameters=[{}, {}, {}], function name=[sell]'.format(self.name, market, quantity, price))
 
         amount, price = [str(Decimal(data).quantize(Decimal(10) ** -8)) for data in [quantity, price]]
         market_type = 'market' if price is None else 'limit'
@@ -184,7 +182,7 @@ class Bitfinex(BaseExchange):
         return self._private_api('/v1/order/new', params)
 
     def withdraw(self, coin, amount, to_address, payment_id=None):
-        debugger.debug('[Bitfinex]Parameters=[{}, {}, {}, {}], function name=[sell]'.format(coin, amount,
+        debugger.debug('[{}]Parameters=[{}, {}, {}, {}], function name=[sell]'.format(self.name, coin, amount,
                                                                                             to_address, payment_id))
         if not self._symbol_full_name:
             # 로직 상 deposit_addrs에서 값이 지정됨.
@@ -242,7 +240,7 @@ class Bitfinex(BaseExchange):
         return self.sell(symbol.lower(), alt_amount)
 
     async def _async_public_api(self, path, extra=None):
-        debugger.debug('[Bitfinex]Parameters=[{}, {}], function name=[_async_public_api]'.format(path, extra))
+        debugger.debug('[{}]Parameters=[{}, {}], function name=[_async_public_api]'.format(self.name, path, extra))
 
         if extra is None:
             extra = dict()
@@ -254,19 +252,19 @@ class Bitfinex(BaseExchange):
                 response = json.loads(await rq.text())
 
                 if 'message' in response:
-                    error_message = 'ERROR_BODY=[{}], URL=[{}], PARAMETER=[{}]'.format(response['message'], path, extra)
+                    error_message = '{}::: ERROR_BODY=[{}], URL=[{}], PARAMETER=[{}]'.format(self.name, response['message'], path, extra)
                     return ExchangeResult(False, '', error_message, 1)
                 elif 'error' in response:
-                    error_message = 'ERROR_BODY=[{}], URL=[{}], PARAMETER=[{}]'.format(response['error'], path, extra)
+                    error_message = '{}::: ERROR_BODY=[{}], URL=[{}], PARAMETER=[{}]'.format(self.name, response['error'], path, extra)
                     return ExchangeResult(False, '', error_message, 1)
                 else:
                     return ExchangeResult(True, response, '', 1)
         except Exception as ex:
-            error_message = 'ERROR_BODY=[{}], URL=[{}], PARAMETER=[{}]'.format(ex, path, extra)
+            error_message = '{}::: ERROR_BODY=[{}], URL=[{}], PARAMETER=[{}]'.format(self.name, ex, path, extra)
             return ExchangeResult(False, '', error_message, 1)
 
     async def _async_private_api(self, method, path, extra=None):
-        debugger.debug('[Bitfinex]Parameters=[{}, {}, {}], function name=[_async_private_api]'.format(method, path, extra))
+        debugger.debug('[{}]Parameters=[{}, {}, {}], function name=[_async_private_api]'.format(self.name, method, path, extra))
 
         if extra is None:
             extra = dict()
@@ -284,15 +282,15 @@ class Bitfinex(BaseExchange):
                 response = json.loads(await rq.text())
 
                 if 'message' in response:
-                    error_message = 'ERROR_BODY=[{}], URL=[{}], PARAMETER=[{}]'.format(response['message'], path, extra)
+                    error_message = '{}::: ERROR_BODY=[{}], URL=[{}], PARAMETER=[{}]'.format(self.name, response['message'], path, extra)
                     return ExchangeResult(False, '', error_message, 1)
                 elif 'error' in response:
-                    error_message = 'ERROR_BODY=[{}], URL=[{}], PARAMETER=[{}]'.format(response['error'], path, extra)
+                    error_message = '{}::: ERROR_BODY=[{}], URL=[{}], PARAMETER=[{}]'.format(self.name, response['error'], path, extra)
                     return ExchangeResult(False, '', error_message, 1)
                 else:
                     return ExchangeResult(True, response, '', 0)
         except Exception as ex:
-            error_message = 'ERROR_BODY=[{}], URL=[{}], PARAMETER=[{}]'.format(ex, path, extra)
+            error_message = '{}::: ERROR_BODY=[{}], URL=[{}], PARAMETER=[{}]'.format(self.name, ex, path, extra)
             return ExchangeResult(False, '', error_message, 1)
 
     async def _get_balance(self):
