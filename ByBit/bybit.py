@@ -138,6 +138,10 @@ class ByBit(BaseExchange):
         order_history_result = self.private_api('GET', path, {'order_id': order_id})
         if order_history_result.success is False:
             return order_history_result
+        if 'data' not in order_history_result.data or len(order_history_result.data['data']) == 0:
+            order_history_result.success = False
+            order_history_result.message += ' / data does not exist'
+            return order_history_result
 
         # TODO
         # return all history, and let caller choose necessary info
