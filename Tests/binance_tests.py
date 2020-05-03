@@ -8,8 +8,8 @@ class TestNotification(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.exchange = binance.Binance(
-            'TKDnalovGwQ8C4OmJJVuvFqsz7yMi8DqY6a7q10ye3429yoT5LwSTLjnRUU8xOZk ',
-            'qtAau2myG2pctRy5s9jpUJLwMlZ2iqNcFvUT2ckTgyIFVILp3T884JJug5DNB3rk'
+            'key ',
+            'secret'
         )
 
     def test_exchange_info(self):
