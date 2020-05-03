@@ -18,7 +18,8 @@ class Bitfinex(BaseExchange):
         :param secret: input your upbit secret
         '''
         self._base_url = 'https://api.bitfinex.com'
-
+        self.name = 'bitfinex'
+        
         if kwargs:
             self._key = kwargs['key']
             self._secret = kwargs['secret']
