@@ -8,21 +8,19 @@ class TestNotification(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.exchange = binance.Binance(
-            'key ',
-            'secret'
+            'oYQYru6IvzCgxSFaCRdRQyKCHfpUQEEujZAxJsCw5LEjuR7D2F8S7pIGxrN9u2lB ',
+            '4WcKtsR88UqGMyYUuKVb7XZlo0adfr8z3eOtZZm4mRWaWTfJTc4prLcZ29Ti8zXl'
         )
 
     def test_exchange_info(self):
+        # get default info for taking deposit fee and etc..
         result = self.exchange._get_exchange_info()
-        self.assertEqual(len(result.data), 4)
-        self.assertEqual(
-            sorted(list(result.data.keys())),
-            sorted(['USD_BTC', 'USD_ETH', 'USD_XRP', 'USD_EOS'])
+        self.assertTrue(result.success)
+        self.assertIn(
+            'BTC_ETH',
+            sorted(list(result.data.keys()))
         )
-        self.assertEqual(result.data.get('USD_BTC'), '0.5')
-        self.assertEqual(result.data.get('USD_ETH'), '0.05')
-        self.assertEqual(result.data.get('USD_XRP'), '0.0001')
-        self.assertEqual(result.data.get('USD_EOS'), '0.001')
+        self.assertEqual(result.data.get('BTC_ETH'), '0.001')
 
     def test_get_candle(self):
         result = self.exchange.get_candle("BTC_XRP", 1, 199)
