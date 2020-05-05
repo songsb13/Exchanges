@@ -374,7 +374,7 @@ class Binance(BaseExchange):
         except Exception as ex:
             return ExchangeResult(False, '', 'ERROR_BODY=[입금 주소를 가져오는데 실패했습니다. {}]'.format(ex), 1)
 
-    async def get_avg_price(self,coins):  # 내거래 평균매수가
+    async def get_avg_price(self, coins):  # 내거래 평균매수가
         # 해당 함수는 현재 미사용 상태
         try:
             amount_price_list, res_value = (list() for _ in range(2))
