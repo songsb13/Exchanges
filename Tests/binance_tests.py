@@ -5,6 +5,7 @@ import time
 
 
 class TestNotification(unittest.TestCase):
+    symbol_set = ['BTC_ETH', 'BTC_XRP']
     @classmethod
     def setUpClass(cls):
         cls.exchange = binance.Binance(
@@ -43,7 +44,7 @@ class TestNotification(unittest.TestCase):
     
     def test_get_avg_price(self):
         loop = asyncio.get_event_loop()
-        result = loop.run_until_complete(self.exchange.get_balance())
+        result = loop.run_until_complete(self.exchange.get_avg_price(self.symbol_set))
         self.assertTrue(result.success)
         self.assertIn('BTC', result.data)
         print(result.data)
