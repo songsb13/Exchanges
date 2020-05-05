@@ -12,7 +12,7 @@ from urllib.parse import urlencode
 from decimal import Decimal, ROUND_DOWN
 
 from base_exchange import BaseExchange, ExchangeResult
-
+from Util.pyinstaller_patch import *
 
 class Binance(BaseExchange):
     def __init__(self, key, secret):
@@ -240,7 +240,6 @@ class Binance(BaseExchange):
 
     def get_candle(self, coin, unit, count):
         path = '/'.join(['api', 'v1', 'klines'])
-        coin =
         params = {
                     'symbol': coin,
                     'interval': '{}m'.format(unit),
@@ -344,7 +343,9 @@ class Binance(BaseExchange):
         return result_object
 
     async def get_deposit_addrs(self, coin_list=None):
-        coin_list = list(self.exchange_info.keys())
+        if coin_list is None:
+            coin_list = list(self.exchange_info.keys())
+            
         try:
             result_message = str()
             return_deposit_dict = dict()
