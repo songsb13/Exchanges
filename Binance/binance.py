@@ -356,11 +356,15 @@ class Binance(BaseExchange):
                 coin = self._symbol_customizing(coin)
 
                 get_deposit_result_object = await self._get_deposit_addrs(coin)
-
-                if get_deposit_result_object.data['success'] is False:
+                
+                if not get_deposit_result_object.success:
+                    result_message += '[{}]해당 코인은 값을 가져오는데 실패했습니다.\n'.format(get_deposit_result_object.message)
+                    continue
+                    
+                elif get_deposit_result_object.data['success'] is False:
                     result_message += '[{}]해당 코인은 점검 중입니다.\n'.format(coin)
                     continue
-
+                
                 return_deposit_dict[coin] = get_deposit_result_object.data['address']
 
                 if 'addressTag' in get_deposit_result_object.data:
