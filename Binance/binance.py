@@ -10,6 +10,7 @@ import numpy as np
 
 from urllib.parse import urlencode
 from decimal import Decimal, ROUND_DOWN
+from enum import Enum
 
 from base_exchange import BaseExchange, ExchangeResult
 from Util.pyinstaller_patch import *
@@ -380,10 +381,12 @@ class Binance(BaseExchange):
             amount_price_list, res_value = (list() for _ in range(2))
             for coin in coins:
                 total_price, bid_count, total_amount = (int() for _ in range(3))
-
+                
+                sp = coin.split('_')
+                coin = sp[1] + sp[0]
                 for _ in range(10):
-                    history_result_object = await self._async_public_api(
-                        '/api/v3/allOrders', {'symbol': coin})
+                    history_result_object = await self._async_private_api(
+                        'GET', '/api/v3/allOrders', {'symbol': coin})
 
                     if history_result_object.success:
                         break
@@ -397,6 +400,10 @@ class Binance(BaseExchange):
                 history = history_result_object.data
                 history.reverse()
                 for _data in history:
+                    if not _data['status'] == 'FILLED':
+                        # 매매 완료 상태가 아닌 경우 continue
+                        continue
+                    
                     trading_type = _data['side']
                     n_price = float(_data['price'])
                     # todo 0.1을 곱한 뒤 빼는 이유?
