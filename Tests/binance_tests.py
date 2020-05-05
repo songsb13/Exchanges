@@ -27,15 +27,6 @@ class TestNotification(unittest.TestCase):
         self.assertTrue(result.success)
         self.assertEqual(len(result.data['timestamp']), 199)
     
-    def test_base_to_alt(self):
-        # buy alt coin
-        result = self.exchange.base_to_alt()
-        pass
-    
-    def test_alt_to_base(self):
-        # sell alt coin
-        pass
-    
     def test_get_deposit_addrs(self):
         loop = asyncio.get_event_loop()
         result = loop.run_until_complete(self.exchange.get_deposit_addrs())
