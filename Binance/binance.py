@@ -14,7 +14,7 @@ from urllib.parse import urlencode
 from decimal import Decimal, ROUND_DOWN
 from enum import Enum
 
-from base_exchange import BaseExchange, ExchangeResult
+from Exchanges.base_exchange import BaseExchange, ExchangeResult
 from Util.pyinstaller_patch import *
 
 
