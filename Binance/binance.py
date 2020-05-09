@@ -7,6 +7,8 @@ import time
 import aiohttp
 import asyncio
 import numpy as np
+import logging
+import datetime
 
 from urllib.parse import urlencode
 from decimal import Decimal, ROUND_DOWN
@@ -15,19 +17,17 @@ from enum import Enum
 from base_exchange import BaseExchange, ExchangeResult
 from Util.pyinstaller_patch import *
 
+
 class Binance(BaseExchange):
     def __init__(self, key, secret):
+        self.name = 'Binance'
         self._base_url = 'https://api.binance.com'
         self._key = key
         self._secret = secret
         self.exchange_info = None
         self._get_exchange_info()
 
-        ExchangeResult.set_exchange_name = 'Binance'
-
     def _public_api(self, path, extra=None):
-        debugger.debug('Parameters=[{}, {}], function name=[_public_api]'.format(path, extra))
-
         if extra is None:
             extra = dict()
 
@@ -36,15 +36,15 @@ class Binance(BaseExchange):
             response = rq.json()
 
             if 'msg' in response:
-                return ExchangeResult(False, '', 'ERROR_BODY=[{}], URL=[{}], PARAMETER=[{}]'.format(response['msg'], path, extra), 1)
+                return ExchangeResult(False, '', '{}::: ERROR_BODY=[{}], URL=[{}], PARAMETER=[{}]'.format(self.name, response['msg'], path, extra), 1)
             else:
                 return ExchangeResult(True, response, '', 0)
 
         except Exception as ex:
             return ExchangeResult(False, '', 'ERROR_BODY=[{}], URL=[{}], PARAMETER=[{}]'.format(ex, path, extra), 1)
 
-    def _private_api(self, path, extra=None):
-        debugger.debug('Parameters=[{}, {}], function name=[_private_api]'.format(path, extra))
+    def _private_api(self, method, path, extra=None):
+        debugger.debug('{}::: Parameters=[{}, {}], function name=[_private_api]'.format(self.name, path, extra))
 
         if extra is None:
             extra = dict()
@@ -53,7 +53,11 @@ class Binance(BaseExchange):
             query = self._sign_generator(extra)
             sig = query.pop('signature')
             query = "{}&signature={}".format(urlencode(sorted(extra.items())), sig)
-            rq = requests.post(self._base_url + path, data=query, headers={"X-MBX-APIKEY": self._key})
+
+            if method == 'GET':
+                rq = requests.get(self._base_url + path, params=query, headers={"X-MBX-APIKEY": self._key})
+            else:
+                rq = requests.post(self._base_url + path, data=query, headers={"X-MBX-APIKEY": self._key})
             response = rq.json()
 
             if 'msg' in response:
@@ -79,12 +83,18 @@ class Binance(BaseExchange):
         get_actual_symbol = actual_symbol.get(symbol)
         return get_actual_symbol if get_actual_symbol else symbol
 
+    def _sai_symbol_converter(self, symbol):
+        # BTC_XRP -> xrpbtc
+        return ''.join(symbol.split('_')[::-1])
+
+    def _get_server_time(self):
+        return self._public_api('/api/v3/time')
+
     def _sign_generator(self, *args):
         params, *_ = args
         if params is None:
             params = dict()
-
-        params.update({'timestamp': int(time.time() * 1000)})
+        params.update({'timestamp': int(time.time() * 1000) - 5000})
 
         sign = hmac.new(self._secret.encode('utf-8'),
                         urlencode(sorted(params.items())).encode('utf-8'),
@@ -97,7 +107,7 @@ class Binance(BaseExchange):
 
     def _get_exchange_info(self):
         for _ in range(3):
-            result_object = self._public_api('/api/v1/exchangeInfo')
+            result_object = self._public_api('/api/v3/exchangeInfo')
             if result_object.success:
                 break
 
@@ -136,13 +146,13 @@ class Binance(BaseExchange):
         if pair in self.exchange_info:
             return ExchangeResult(True, (-8, int(math.log10(float(self.exchange_info[pair])))), '', 0)
         else:
-            return ExchangeResult(False, '', 'ERROR_BODY=[{} 호가 정보가 없습니다.], URL=[get_precision]'.format(pair), 60)
+            return ExchangeResult(False, '', '{}::: ERROR_BODY=[{} 호가 정보가 없습니다.], URL=[get_precision]'.format(self.name, pair), 60)
 
     def get_available_coin(self):
         return ExchangeResult(True, list(self.exchange_info.keys()), '', 0)
 
     def buy(self, coin, amount, price=None):
-        debugger.debug('Parameters=[{}, {}, {}], function name=[buy]'.format(coin, amount, price))
+        debugger.debug('{}::: Parameters=[{}, {}, {}], function name=[buy]'.format(self.name, coin, amount, price))
 
         params = dict()
 
@@ -154,10 +164,10 @@ class Binance(BaseExchange):
                     'quantity': '{0:4f}'.format(amount).strip(),
                   })
 
-        return self._private_api('/api/v3/order', params)
+        return self._private_api('GET', '/api/v3/order', params)
 
     def sell(self, coin, amount, price=None):
-        debugger.debug('Parameters=[{}, {}, {}], function name=[sell]'.format(coin, amount, price))
+        debugger.debug('{}::: Parameters=[{}, {}, {}], function name=[sell]'.format(self.name, coin, amount, price))
 
         params = dict()
 
@@ -169,7 +179,7 @@ class Binance(BaseExchange):
                     'quantity': '{}'.format(amount),
                   })
 
-        return self._private_api('/api/v3/order', params)
+        return self._private_api('GET', '/api/v3/order', params)
 
     def fee_count(self):
         return 1
@@ -179,13 +189,14 @@ class Binance(BaseExchange):
         return Decimal(10) ** -4 if binance_qtz < Decimal(10) ** -4 else binance_qtz
 
     def base_to_alt(self, currency_pair, btc_amount, alt_amount, td_fee, tx_fee):
-        debugger.debug('Parameters=[{}, {}, {}, {}], function name=[base_to_alt]'.format(
-            currency_pair, btc_amount, alt_amount, td_fee, tx_fee
+        debugger.debug('{}::: Parameters=[{}, {}, {}, {}], function name=[base_to_alt]'.format(
+            self.name, currency_pair, btc_amount, alt_amount, td_fee, tx_fee
         ))
         currency_pair = self._symbol_localizing(currency_pair)
         base_market, coin = currency_pair.split('_')
 
-        result_object = self.buy(coin + base_market, alt_amount)
+        symbol = self._sai_symbol_converter(currency_pair)
+        result_object = self.buy(symbol, alt_amount)
 
         if result_object.success:
             alt_amount *= 1 - Decimal(td_fee)
@@ -197,14 +208,14 @@ class Binance(BaseExchange):
         return result_object
 
     def alt_to_base(self, currency_pair, btc_amount, alt_amount):
-        debugger.debug('Parameters=[{}, {}, {}], function name=[alt_to_base]'.format(
-            currency_pair, btc_amount, alt_amount
+        debugger.debug('{}::: Parameters=[{}, {}, {}], function name=[alt_to_base]'.format(
+            self.name, currency_pair, btc_amount, alt_amount
         ))
         currency_pair = self._symbol_localizing(currency_pair)
-        base_market, coin = currency_pair.split('_')
 
+        symbol = self._sai_symbol_converter(currency_pair)
         for _ in range(10):
-            result_object = self.sell(coin + base_market, alt_amount)
+            result_object = self.sell(symbol, alt_amount)
 
             if result_object.success:
                 break
@@ -213,8 +224,9 @@ class Binance(BaseExchange):
         return result_object
 
     def get_ticker(self, market):
+        symbol = self._sai_symbol_converter(market)
         for _ in range(3):
-            result_object = self._public_api('/api/v1/ticker/24hr')
+            result_object = self._public_api('/api/v3/ticker/price', {'symbol': symbol})
             if result_object.success:
                 break
         time.sleep(result_object.wait_time)
@@ -222,8 +234,8 @@ class Binance(BaseExchange):
         return result_object
 
     def withdraw(self, coin, amount, to_address, payment_id=None):
-        debugger.debug('Parameters=[{}, {}, {}, {}], function name=[withdraw]'.format(coin, amount,
-                                                                                      to_address, payment_id))
+        debugger.debug('{}::: Parameters=[{}, {}, {}, {}], function name=[withdraw]'.format(self.name, coin, amount,
+                                                                                            to_address, payment_id))
 
         coin = self._symbol_localizing(coin)
         params = {
@@ -237,36 +249,44 @@ class Binance(BaseExchange):
             tag_dic = {'addressTag': payment_id}
             params.update(tag_dic)
 
-        return self._private_api('/wapi/v3/withdraw.html', params)
+        return self._private_api('POST', '/wapi/v3/withdraw.html', params)
 
     def get_candle(self, coin, unit, count):
-        path = '/'.join(['api', 'v1', 'klines'])
+        symbol = self._sai_symbol_converter(coin)
+
+        if unit >= 60:
+            interval = '{}h'.format(unit/60)
+
+        else:
+            interval = '{}m'.format(unit)
+
         params = {
-                    'symbol': coin,
-                    'interval': '{}m'.format(unit),
+                    'symbol': symbol,
+                    'interval': interval,
                     'limit': count,
         }
         # 1m, 3m, 5m, 15m, 30m, 1h, 2h, 4h, 6h, 8h, 12h, 1d, 3d, 1w, 1M
-        result_object = self._public_api(path, params)
-        rows = ['open', 'high', 'low', 'close', 'volume', 'timestamp']
-        history = {key_: list() for key_ in rows}
-        try:
-            for candle_row in result_object.data:
-                # open, high, low, close, volume, timestamp
-                certain_row = list(map(float, candle_row[1:7]))
+        result_object = self._public_api('/api/v3/klines', params)
+        if result_object.success:
+            rows = ['open', 'high', 'low', 'close', 'volume', 'timestamp']
+            history = {key_: list() for key_ in rows}
+            try:
+                for candle_row in result_object.data:
+                    # open, high, low, close, volume, timestamp
+                    certain_row = list(map(float, candle_row[1:7]))
 
-                for num, key_ in enumerate(rows):
-                    history[key_].append(certain_row[num])
+                    for num, key_ in enumerate(rows):
+                        history[key_].append(certain_row[num])
 
-            result_object.data = history
+                result_object.data = history
 
-        except Exception as ex:
-            result_object.message = 'history를 가져오는 과정에서 에러가 발생했습니다. =[{}]'.format(ex)
+            except Exception as ex:
+                result_object.message = 'history를 가져오는 과정에서 에러가 발생했습니다. =[{}]'.format(ex)
 
         return result_object
 
     async def _async_private_api(self, method, path, extra=None):
-        debugger.debug('Parameters=[{}, {}, {}], function name=[_async_private_api]'.format(method, path, extra))
+        debugger.debug('{}::: Parameters=[{}, {}, {}], function name=[_async_private_api]'.format(self.name, method, path, extra))
 
         if extra is None:
             extra = dict()
@@ -286,16 +306,16 @@ class Binance(BaseExchange):
                 response = json.loads(await rq.text())
 
                 if 'msg' in response:
-                    return ExchangeResult(False, '', 'ERROR_BODY=[{}], URL=[{}], PARAMETER=[{}]'.format(response['msg'], path, extra), 1)
+                    return ExchangeResult(False, '', '{}::: ERROR_BODY=[{}], URL=[{}], PARAMETER=[{}]'.format(self.name, response['msg'], path, extra), 1)
 
                 else:
                     return ExchangeResult(True, response, '', 0)
 
             except Exception as ex:
-                return ExchangeResult(False, '', 'ERROR_BODY=[{}], URL=[{}], PARAMETER=[{}]'.format(ex, path, extra), 1)
+                return ExchangeResult(False, '', '{}::: ERROR_BODY=[{}], URL=[{}], PARAMETER=[{}]'.format(self.name, ex, path, extra), 1)
 
     async def _async_public_api(self, path, extra=None):
-        debugger.debug('Parameters=[{}, {},], function name=[_async_public_api]'.format(path, extra))
+        debugger.debug('{}::: Parameters=[{}, {},], function name=[_async_public_api]'.format(self.name, path, extra))
 
         if extra is None:
             extra = dict()
@@ -307,13 +327,13 @@ class Binance(BaseExchange):
             response = json.loads(await rq.text())
 
             if 'msg' in response:
-                return ExchangeResult(False, '', 'ERROR_BODY=[{}], URL=[{}], PARAMETER=[{}]'.format(response['msg'], path, extra), 1)
+                return ExchangeResult(False, '', '{}::: ERROR_BODY=[{}], URL=[{}], PARAMETER=[{}]'.format(self.name, response['msg'], path, extra), 1)
 
             else:
                 return ExchangeResult(True, response, '', 0)
 
         except Exception as ex:
-            return ExchangeResult(False, '', 'ERROR_BODY=[{}], URL=[{}], PARAMETER=[{}]'.format(ex, path, extra), 1)
+            return ExchangeResult(False, '', '{}::: ERROR_BODY=[{}], URL=[{}], PARAMETER=[{}]'.format(self.name, ex, path, extra), 1)
 
     async def _get_balance(self):
         for _ in range(3):
@@ -336,7 +356,7 @@ class Binance(BaseExchange):
 
     async def _get_orderbook(self, symbol):
         for _ in range(3):
-            result_object = await self._async_public_api('/api/v1/depth', {'symbol': symbol})
+            result_object = await self._async_public_api('/api/v3/depth', {'symbol': symbol})
             if result_object.success:
                 break
             time.sleep(result_object.wait_time)
@@ -373,7 +393,7 @@ class Binance(BaseExchange):
             return ExchangeResult(True, return_deposit_dict, result_message, 0)
 
         except Exception as ex:
-            return ExchangeResult(False, '', 'ERROR_BODY=[입금 주소를 가져오는데 실패했습니다. {}]'.format(ex), 1)
+            return ExchangeResult(False, '', '{}::: ERROR_BODY=[입금 주소를 가져오는데 실패했습니다. {}]'.format(self.name, ex), 1)
 
     async def get_avg_price(self, coins):  # 내거래 평균매수가
         # 해당 함수는 현재 미사용 상태
@@ -433,10 +453,10 @@ class Binance(BaseExchange):
             return ExchangeResult(True, res_value, '', 0)
 
         except Exception as ex:
-            return ExchangeResult(False, '', '평균 값을 가져오는데 실패했습니다. [{}]'.format(ex), 1)
+            return ExchangeResult(False, '', '{}::: 평균 값을 가져오는데 실패했습니다. [{}]'.format(self.name, ex), 1)
 
     async def get_trading_fee(self):
-        return True, 0.001, '', 0
+        return ExchangeResult(True, 0.001, '', 0)
 
     async def get_transaction_fee(self):
         fees = dict()
@@ -457,10 +477,10 @@ class Binance(BaseExchange):
 
                 return ExchangeResult(True, fees, '', 0)
             else:
-                return ExchangeResult(False, '', 'ERROR_BODY=[출금 비용을 가져오는데 실패했습니다.]', 60)
+                return ExchangeResult(False, '', '{}::: ERROR_BODY=[출금 비용을 가져오는데 실패했습니다.]'.format(self.name), 60)
 
         except Exception as ex:
-            return ExchangeResult(False, '', 'ERROR_BODY=[출금 비용을 가져오는데 실패했습니다. {}]'.format(ex), 60)
+            return ExchangeResult(False, '', '{}::: ERROR_BODY=[출금 비용을 가져오는데 실패했습니다. {}]'.format(self.name, ex), 60)
 
     async def get_balance(self):
         result_object = await self._get_balance()
@@ -504,7 +524,7 @@ class Binance(BaseExchange):
                     failed_coin_log += orderbook_result_object.message + '\n'
             return ExchangeResult(True, avg_order_book, failed_coin_log, 0)
         except Exception as ex:
-            return ExchangeResult(False, '', 'ERROR_BODY=[{}], URL=[get_curr_avg_orderbook]'.format(ex), 1)
+            return ExchangeResult(False, '', '{}::: ERROR_BODY=[{}], URL=[get_curr_avg_orderbook]'.format(self.name, ex), 1)
 
     async def compare_orderbook(self, other, coins, default_btc=1):
         for _ in range(3):
