@@ -36,12 +36,16 @@ class Binance(BaseExchange):
             response = rq.json()
 
             if 'msg' in response:
-                return ExchangeResult(False, '', '{}::: ERROR_BODY=[{}], URL=[{}], PARAMETER=[{}]'.format(self.name, response['msg'], path, extra), 1)
+                msg = '{}::: ERROR_BODY=[{}], URL=[{}], PARAMETER=[{}]'.format(self.name, response['msg'], path, extra)
+                debugger.debug(msg)
+                return ExchangeResult(False, '', msg, 1)
             else:
                 return ExchangeResult(True, response, '', 0)
 
         except Exception as ex:
-            return ExchangeResult(False, '', 'ERROR_BODY=[{}], URL=[{}], PARAMETER=[{}]'.format(ex, path, extra), 1)
+            msg = '{}::: ERROR_BODY=[{}], URL=[{}], PARAMETER=[{}]'.format(self.name, ex, path, extra)
+            debugger.debug(msg)
+            return ExchangeResult(False, '', msg, 1)
 
     def _private_api(self, method, path, extra=None):
         debugger.debug('{}::: Parameters=[{}, {}], function name=[_private_api]'.format(self.name, path, extra))
@@ -61,12 +65,16 @@ class Binance(BaseExchange):
             response = rq.json()
 
             if 'msg' in response:
-                return ExchangeResult(False, '', 'ERROR_BODY=[{}], URL=[{}], PARAMETER=[{}]'.format(response['msg'], path, extra), 1)
+                msg = 'ERROR_BODY=[{}], URL=[{}], PARAMETER=[{}]'.format(response['msg'], path, extra)
+                debugger.debug(msg)
+                return ExchangeResult(False, '', msg, 1)
             else:
                 return ExchangeResult(True, response, '', 0)
 
         except Exception as ex:
-            return ExchangeResult(False, '', 'ERROR_BODY=[{}], URL=[{}], PARAMETER=[{}]'.format(ex, path, extra), 1)
+            msg = '{}::: ERROR_BODY=[{}], URL=[{}], PARAMETER=[{}]'.format(self.name, ex, path, extra)
+            debugger.debug(msg)
+            return ExchangeResult(False, '', msg, 1)
 
     def _symbol_localizing(self, symbol):
         actual_symbol = dict(
@@ -306,13 +314,17 @@ class Binance(BaseExchange):
                 response = json.loads(await rq.text())
 
                 if 'msg' in response:
-                    return ExchangeResult(False, '', '{}::: ERROR_BODY=[{}], URL=[{}], PARAMETER=[{}]'.format(self.name, response['msg'], path, extra), 1)
+                    msg = '{}::: ERROR_BODY=[{}], URL=[{}], PARAMETER=[{}]'.format(self.name, response['msg'], path, extra)
+                    debugger.debug(msg)
+                    return ExchangeResult(False, '', msg, 1)
 
                 else:
                     return ExchangeResult(True, response, '', 0)
 
             except Exception as ex:
-                return ExchangeResult(False, '', '{}::: ERROR_BODY=[{}], URL=[{}], PARAMETER=[{}]'.format(self.name, ex, path, extra), 1)
+                msg = '{}::: ERROR_BODY=[{}], URL=[{}], PARAMETER=[{}]'.format(self.name, ex, path, extra)
+                debugger.debug(msg)
+                return ExchangeResult(False, '', 1)
 
     async def _async_public_api(self, path, extra=None):
         debugger.debug('{}::: Parameters=[{}, {},], function name=[_async_public_api]'.format(self.name, path, extra))
@@ -327,13 +339,17 @@ class Binance(BaseExchange):
             response = json.loads(await rq.text())
 
             if 'msg' in response:
-                return ExchangeResult(False, '', '{}::: ERROR_BODY=[{}], URL=[{}], PARAMETER=[{}]'.format(self.name, response['msg'], path, extra), 1)
+                msg = '{}::: ERROR_BODY=[{}], URL=[{}], PARAMETER=[{}]'.format(self.name, response['msg'], path, extra)
+                debugger.debug(msg)
+                return ExchangeResult(False, '', msg, 1)
 
             else:
                 return ExchangeResult(True, response, '', 0)
 
         except Exception as ex:
-            return ExchangeResult(False, '', '{}::: ERROR_BODY=[{}], URL=[{}], PARAMETER=[{}]'.format(self.name, ex, path, extra), 1)
+            msg = '{}::: ERROR_BODY=[{}], URL=[{}], PARAMETER=[{}]'.format(self.name, ex, path, extra)
+            debugger.debug(msg)
+            return ExchangeResult(False, '', msg, 1)
 
     async def _get_balance(self):
         for _ in range(3):
