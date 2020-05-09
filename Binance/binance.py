@@ -28,6 +28,7 @@ class Binance(BaseExchange):
         self._get_exchange_info()
 
     def _public_api(self, path, extra=None):
+        debugger.debug('{}::: Parameters=[{}, {}], function name=[_public_api]'.format(self.name, path, extra))
         if extra is None:
             extra = dict()
 
