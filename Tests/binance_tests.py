@@ -62,13 +62,21 @@ class TestNotification(unittest.TestCase):
         self.assertIn('BTC', result.data)
         print(result.data)
     
-    def test_trade(self):
-        buy_result = self.exchange.buy('BTC_XRP', 1)
+    def test_market_trade(self):
+        converted_coin = self.exchange._sai_symbol_converter('BTC_XRP')
+        buy_result = self.exchange.buy(converted_coin, 1)
+        if buy_result.success:
+            print(buy_result.data)
+        else:
+            print(buy_result.message)
         self.assertTrue(buy_result.success)
-        self.assertEqual(1, buy_result.data.get('qty'))
-        sell_result = self.exchange.sell('BTC_XRP', 1)
+        
+        sell_result = self.exchange.sell(converted_coin, 1)
+        if sell_result.success:
+            print(sell_result.data)
+        else:
+            print(sell_result.message)
         self.assertTrue(sell_result.success)
-        self.assertEqual(1, sell_result.data.get('qty'))
 
     def test_servertime(self):
         servertime_result = self.exchange
