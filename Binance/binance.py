@@ -173,7 +173,7 @@ class Binance(BaseExchange):
                     'quantity': '{0:4f}'.format(amount).strip(),
                   })
 
-        return self._private_api('GET', '/api/v3/order', params)
+        return self._private_api('POST', '/api/v3/order', params)
 
     def sell(self, coin, amount, price=None):
         debugger.debug('{}::: Parameters=[{}, {}, {}], function name=[sell]'.format(self.name, coin, amount, price))
@@ -188,7 +188,7 @@ class Binance(BaseExchange):
                     'quantity': '{}'.format(amount),
                   })
 
-        return self._private_api('GET', '/api/v3/order', params)
+        return self._private_api('POST', '/api/v3/order', params)
 
     def fee_count(self):
         return 1
