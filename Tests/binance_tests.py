@@ -1,5 +1,5 @@
 import unittest
-from Binance import binance
+from Exchanges.Binance import binance
 import asyncio
 import time
 
@@ -22,7 +22,7 @@ class TestNotification(unittest.TestCase):
             sorted(list(result.data.keys()))
         )
         self.assertEqual(result.data.get('BTC_ETH'), '0.001')
-
+    
     def test_get_candle(self):
         result = self.exchange.get_candle("BTC_XRP", 1, 199)
         self.assertTrue(result.success)
@@ -35,6 +35,13 @@ class TestNotification(unittest.TestCase):
         self.assertIn('BTC', result.data)
         print(result.data)
     
+    def test_get_transaction_fee(self):
+        loop = asyncio.get_event_loop()
+        result = loop.run_until_complete(self.exchange.get_transaction_fee())
+        self.assertTrue(result.success)
+        self.assertIn('BTC', result.data)
+        print(result.data)
+
     def test_get_balance(self):
         loop = asyncio.get_event_loop()
         balance_result = loop.run_until_complete(self.exchange.get_balance())
@@ -50,10 +57,10 @@ class TestNotification(unittest.TestCase):
         print(result.data)
     
     def test_trade(self):
-        buy_result = self.exchange.buy('USD_BTC', 1)
+        buy_result = self.exchange.buy('BTC_XRP', 1)
         self.assertTrue(buy_result.success)
         self.assertEqual(1, buy_result.data.get('qty'))
-        sell_result = self.exchange.sell('USD_BTC', 1)
+        sell_result = self.exchange.sell('BTC_XRP', 1)
         self.assertTrue(sell_result.success)
         self.assertEqual(1, sell_result.data.get('qty'))
 
