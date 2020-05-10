@@ -23,6 +23,12 @@ class TestNotification(unittest.TestCase):
         )
         self.assertEqual(result.data.get('BTC_ETH'), '0.001')
     
+    def test_get_available_coin(self):
+        result = self.exchange.get_available_coin()
+        self.assertTrue(result.success)
+        self.assertIn('BTC_XRP', result.data)
+        print(result.data)
+    
     def test_get_candle(self):
         result = self.exchange.get_candle("BTC_XRP", 1, 199)
         self.assertTrue(result.success)
