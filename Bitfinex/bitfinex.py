@@ -8,8 +8,8 @@ import aiohttp
 import asyncio
 from decimal import Decimal, ROUND_DOWN
 
-from base_exchange import BaseExchange, ExchangeResult
-
+from Exchanges.base_exchange import BaseExchange, ExchangeResult
+from Util.pyinstaller_patch import *
 
 class Bitfinex(BaseExchange):
     def __init__(self, *args, **kwargs):
@@ -83,15 +83,18 @@ class Bitfinex(BaseExchange):
 
             if 'message' in response:
                 error_message = '{}::: ERROR_BODY=[{}], URL=[{}], PARAMETER=[{}]'.format(self.name, response['message'], path, extra)
+                debugger.debug(error_message)
                 return ExchangeResult(False, '', error_message, 1)
             elif 'error' in response:
                 error_message = '{}::: ERROR_BODY=[{}], URL=[{}], PARAMETER=[{}]'.format(self.name, response['error'], path, extra)
+                debugger.debug(error_message)
                 return ExchangeResult(False, '', error_message, 1)
             else:
                 return ExchangeResult(True, response, '', 0)
                 
         except Exception as ex:
             error_message = '{}::: ERROR_BODY=[{}], URL=[{}], PARAMETER=[{}]'.format(self.name, ex, path, extra)
+            debugger.debug(error_message)
             return ExchangeResult(False, '', error_message, 1)
 
     def _private_api(self, path, extra=None):
@@ -113,14 +116,17 @@ class Bitfinex(BaseExchange):
 
             if 'message' in response:
                 error_message = '{}::: ERROR_BODY=[{}], URL=[{}], PARAMETER=[{}]'.format(self.name, response['message'], path, extra)
+                debugger.debug(error_message)
                 return ExchangeResult(False, '', error_message, 1)
             elif 'error' in response:
                 error_message = '{}::: ERROR_BODY=[{}], URL=[{}], PARAMETER=[{}]'.format(self.name, response['error'], path, extra)
+                debugger.debug(error_message)
                 return ExchangeResult(False, '', error_message, 1)
             else:
                 return ExchangeResult(True, response, '', 0)
         except Exception as ex:
             error_message = '{}::: ERROR_BODY=[{}], URL=[{}], PARAMETER=[{}]'.format(self.name, ex, path, extra)
+            debugger.debug(error_message)
             return ExchangeResult(False, '', error_message, 1)
 
     def _currencies(self):
@@ -132,7 +138,9 @@ class Bitfinex(BaseExchange):
             time.sleep(res_object.wait_time)
 
         return res_object
-
+    
+    def _sai_symbol_converter(self, convert):
+    
     def get_precision(self, pair=None):
         return ExchangeResult(True, (-8, -8), '', 0)
 
@@ -183,7 +191,7 @@ class Bitfinex(BaseExchange):
 
     def withdraw(self, coin, amount, to_address, payment_id=None):
         debugger.debug('[{}]Parameters=[{}, {}, {}, {}], function name=[sell]'.format(self.name, coin, amount,
-                                                                                            to_address, payment_id))
+                                                                                      to_address, payment_id))
         if not self._symbol_full_name:
             # 로직 상 deposit_addrs에서 값이 지정됨.
             result_object = self._get_symbol_full_name()
