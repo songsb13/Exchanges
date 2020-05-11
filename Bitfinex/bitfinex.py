@@ -11,13 +11,15 @@ from decimal import Decimal, ROUND_DOWN
 from Exchanges.base_exchange import BaseExchange, ExchangeResult
 from Util.pyinstaller_patch import *
 
+
 class Bitfinex(BaseExchange):
     def __init__(self, *args, **kwargs):
         '''
-        :param key: input your upbit key
-        :param secret: input your upbit secret
+            :param key: input your upbit key
+            :param secret: input your upbit secret
         '''
         self._base_url = 'https://api.bitfinex.com'
+        self._public_base_url = 'https://api-pub.bitfinex.com'
         self.name = 'bitfinex'
         
         if kwargs:
@@ -71,7 +73,7 @@ class Bitfinex(BaseExchange):
         return res_object
 
     def _public_api(self, path, extra=None):
-        debugger.debug('[{}]Parameters=[ {}, {}], function name=[_public_api]'.format(self.name, path, extra))
+        debugger.debug('[{}]Parameters=[{}, {}], function name=[_public_api]'.format(self.name, path, extra))
 
         try:
             if extra is None:
@@ -147,9 +149,10 @@ class Bitfinex(BaseExchange):
         return ExchangeResult(True, (-8, -8), '', 0)
 
     def get_ticker(self, market):
+        # 30 req/min
         for _ in range(3):
-            bitfinex_currency_pair = ''.join(market.split('_')[::-1]).lower()
-            res_object = self._public_api('pubticker', {'pair': bitfinex_currency_pair})
+            symbol = self._sai_symbol_converter(market)
+            res_object = self._public_api('/pubticker', {'pair': symbol})
 
             if res_object.success:
                 res_object.data = float(res_object.data['last_price'])
@@ -231,8 +234,8 @@ class Bitfinex(BaseExchange):
         return result_object
 
     def base_to_alt(self, currency, tradable_btc, alt_amount, td_fee, tx_fee):
+        symbol = self._sai_symbol_converter(currency)
         base_market, coin = currency.split('_')
-        symbol = coin + base_market
         result_object = self.buy(symbol.lower(), alt_amount)
         if result_object:
             alt = alt_amount
@@ -263,14 +266,17 @@ class Bitfinex(BaseExchange):
 
                 if 'message' in response:
                     error_message = '{}::: ERROR_BODY=[{}], URL=[{}], PARAMETER=[{}]'.format(self.name, response['message'], path, extra)
+                    debugger.debug(error_message)
                     return ExchangeResult(False, '', error_message, 1)
                 elif 'error' in response:
                     error_message = '{}::: ERROR_BODY=[{}], URL=[{}], PARAMETER=[{}]'.format(self.name, response['error'], path, extra)
+                    debugger.debug(error_message)
                     return ExchangeResult(False, '', error_message, 1)
                 else:
                     return ExchangeResult(True, response, '', 1)
         except Exception as ex:
             error_message = '{}::: ERROR_BODY=[{}], URL=[{}], PARAMETER=[{}]'.format(self.name, ex, path, extra)
+            debugger.debug(error_message)
             return ExchangeResult(False, '', error_message, 1)
 
     async def _async_private_api(self, method, path, extra=None):
@@ -293,14 +299,17 @@ class Bitfinex(BaseExchange):
 
                 if 'message' in response:
                     error_message = '{}::: ERROR_BODY=[{}], URL=[{}], PARAMETER=[{}]'.format(self.name, response['message'], path, extra)
+                    debugger.debug(error_message)
                     return ExchangeResult(False, '', error_message, 1)
                 elif 'error' in response:
                     error_message = '{}::: ERROR_BODY=[{}], URL=[{}], PARAMETER=[{}]'.format(self.name, response['error'], path, extra)
+                    debugger.debug(error_message)
                     return ExchangeResult(False, '', error_message, 1)
                 else:
                     return ExchangeResult(True, response, '', 0)
         except Exception as ex:
             error_message = '{}::: ERROR_BODY=[{}], URL=[{}], PARAMETER=[{}]'.format(self.name, ex, path, extra)
+            debugger.debug(error_message)
             return ExchangeResult(False, '', error_message, 1)
 
     async def _get_balance(self):
@@ -315,8 +324,10 @@ class Bitfinex(BaseExchange):
         return result_object
 
     async def _get_orderbook(self, coin):
+        # 30 req/min
         for _ in range(3):
-            result_object = await self._async_public_api('/v1/book/{}'.format(coin))
+            # For Trading: if AMOUNT > 0 then bid else ask.
+            result_object = await self._async_public_api('/v2/book/t{}/P0'.format(coin))
 
             if result_object.success:
                 break
@@ -371,7 +382,7 @@ class Bitfinex(BaseExchange):
             result_object.data = {value['currency'].lower(): float(value['amount']) for value in result_object.data if
                                   value['type'] == 'exchange'}
         else:
-            result_object.message = 'ERROR_BODY=[Do not have available balance.], URL=[/v1/balances]'
+            result_object.message = 'ERROR_BODY=[밸런스가 없습니다.], URL=[/v1/balances]'
 
         return result_object
 
@@ -416,10 +427,6 @@ class Bitfinex(BaseExchange):
             coin_set_object.data = coins
 
         return coin_set_object
-
-    async def get_orderbook_latest_version(self, coin):
-        # For Trading: if AMOUNT > 0 then bid else ask.
-        return await self._async_public_api('/v2/book/t{}/P0'.format(coin.upper()))
 
     async def get_trading_fee(self):
         result_object = await self._get_trading_fee(symbol=None)

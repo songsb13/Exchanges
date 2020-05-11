@@ -1,5 +1,5 @@
 import unittest
-from Exchanges.Binance import binance
+from Exchanges.Bitfinex import bitfinex
 import asyncio
 import time
 
@@ -9,27 +9,34 @@ class TestNotification(unittest.TestCase):
     
     @classmethod
     def setUpClass(cls):
-        cls.exchange = binance.Binance(
+        cls.exchange = bitfinex.Bitfinex(
             'oYQYru6IvzCgxSFaCRdRQyKCHfpUQEEujZAxJsCw5LEjuR7D2F8S7pIGxrN9u2lB ',
             '4WcKtsR88UqGMyYUuKVb7XZlo0adfr8z3eOtZZm4mRWaWTfJTc4prLcZ29Ti8zXl'
         )
     
-    def test_exchange_info(self):
-        # get default info for taking deposit fee and etc..
-        result = self.exchange._get_exchange_info()
+    def test_get_ticker(self):
+        symbol = self.exchange._sai_symbol_converter(self.symbol_set[0])
+        result = self.exchange.get_ticker(symbol)
         self.assertTrue(result.success)
         print(result.data)
-        self.assertIn(
-            'BTC_ETH',
-            sorted(list(result.data.keys()))
-        )
-    
+
     def test_get_available_coin(self):
         result = self.exchange.get_available_coin()
         self.assertTrue(result.success)
         self.assertIn('BTC_XRP', result.data)
         print(result.data)
     
+    def test_get_curr_avg_orderbook(self):
+        result = self.exchange.get_curr_avg_orderbook(self.symbol_set)
+        self.assertTrue(result.success)
+        
+    def test_get_balance(self):
+        loop = asyncio.get_event_loop()
+        balance_result = loop.run_until_complete(self.exchange.get_balance())
+        self.assertTrue(balance_result.success)
+        self.assertIn('BTC', balance_result.data)
+        print(balance_result.data)
+
     def test_get_candle(self):
         result = self.exchange.get_candle("BTC_XRP", 1, 199)
         self.assertTrue(result.success)
@@ -49,13 +56,6 @@ class TestNotification(unittest.TestCase):
         self.assertTrue(result.success)
         self.assertIn('BTC', result.data)
         print(result.data)
-    
-    def test_get_balance(self):
-        loop = asyncio.get_event_loop()
-        balance_result = loop.run_until_complete(self.exchange.get_balance())
-        self.assertTrue(balance_result.success)
-        self.assertIn('BTC', balance_result.data)
-        print(balance_result.data)
     
     def test_get_avg_price(self):
         loop = asyncio.get_event_loop()
