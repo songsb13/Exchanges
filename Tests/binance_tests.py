@@ -17,12 +17,12 @@ class TestNotification(unittest.TestCase):
         # get default info for taking deposit fee and etc..
         result = self.exchange._get_exchange_info()
         self.assertTrue(result.success)
+        print(result.data)
         self.assertIn(
             'BTC_ETH',
             sorted(list(result.data.keys()))
         )
-        self.assertEqual(result.data.get('BTC_ETH'), '0.001')
-    
+
     def test_get_available_coin(self):
         result = self.exchange.get_available_coin()
         self.assertTrue(result.success)
@@ -32,6 +32,7 @@ class TestNotification(unittest.TestCase):
     def test_get_candle(self):
         result = self.exchange.get_candle("BTC_XRP", 1, 199)
         self.assertTrue(result.success)
+        print(result.data)
         self.assertEqual(len(result.data['timestamp']), 199)
     
     def test_get_deposit_addrs(self):
@@ -64,14 +65,14 @@ class TestNotification(unittest.TestCase):
     
     def test_market_trade(self):
         converted_coin = self.exchange._sai_symbol_converter('BTC_XRP')
-        buy_result = self.exchange.buy(converted_coin, 1)
+        buy_result = self.exchange.buy(converted_coin, 5)
         if buy_result.success:
             print(buy_result.data)
         else:
             print(buy_result.message)
         self.assertTrue(buy_result.success)
         
-        sell_result = self.exchange.sell(converted_coin, 1)
+        sell_result = self.exchange.sell(converted_coin, 5)
         if sell_result.success:
             print(sell_result.data)
         else:
