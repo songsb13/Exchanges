@@ -139,7 +139,9 @@ class Bitfinex(BaseExchange):
 
         return res_object
     
-    def _sai_symbol_converter(self, convert):
+    def _sai_symbol_converter(self, symbol):
+        # BTC_XRP -> XRPBTC
+        return ''.join(symbol.split('_')[::-1])
     
     def get_precision(self, pair=None):
         return ExchangeResult(True, (-8, -8), '', 0)
