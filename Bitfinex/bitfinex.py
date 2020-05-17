@@ -9,7 +9,7 @@ import asyncio
 
 from decimal import Decimal, ROUND_DOWN
 
-from Exchanges.base_exchange import BaseExchange, ExchangeResult
+from Exchanges.base_exchange import BaseExchange, ExchangeResult, DataStore
 from Util.pyinstaller_patch import *
 
 
