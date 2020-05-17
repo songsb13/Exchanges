@@ -80,12 +80,6 @@ class Bitfinex(BaseExchange):
 
         return res_object
 
-    def _websocket_public_channel(self):
-        pass
-
-    def _websocket_private_channel(self):
-        pass
-
     def _public_api(self, path, extra=None):
         debugger.debug('[{}]Parameters=[{}, {}], function name=[_public_api]'.format(self.name, path, extra))
 
@@ -265,7 +259,11 @@ class Bitfinex(BaseExchange):
         base_market, coin = currency.split('_')
         symbol = coin + base_market
         return self.sell(symbol.lower(), alt_amount)
-
+    
+    def _subscribe_orderbook(self, symbol):
+        self._websocket_object.send('{"event": "subscribe", "channel": "book", "symbol": "t{}"}'.format(symbol))
+        return self._websocket_object.get_receive_data()
+        
     async def _async_public_api(self, path, extra=None):
         debugger.debug('[{}]Parameters=[{}, {}], function name=[_async_public_api]'.format(self.name, path, extra))
 
@@ -476,7 +474,7 @@ class Bitfinex(BaseExchange):
                 coin = self._symbol_localizing(coin)
 
             symbol = coin + base_market
-            orderbook_object = await self._get_orderbook(symbol)
+            orderbook_object = self._subscribe_orderbook(symbol)
             if not orderbook_object.success:
                 return orderbook_object
             
