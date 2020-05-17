@@ -304,3 +304,13 @@ class ExchangeResult(object):
     @set_exchange_name.setter
     def set_exchange_name(self, name):
         self._exchange_name = name
+
+
+class DataStore(object):
+    """
+    
+    """
+    def __init__(self):
+        self._orderbook_dic = dict()
+        self._candle_dic = dict()
+        self._balance_dic = dict()
