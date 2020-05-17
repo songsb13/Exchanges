@@ -6,6 +6,7 @@ import requests
 import time
 import aiohttp
 import asyncio
+
 from decimal import Decimal, ROUND_DOWN
 
 from Exchanges.base_exchange import BaseExchange, ExchangeResult
@@ -24,6 +25,9 @@ class Bitfinex(BaseExchange):
         self._websocket_url = 'wss://api.bitfinex.com/ws/2'
         self._public_websocket_url = 'wss://api-pub.bitfinex.com/ws/2'
         
+        self._websocket_object = DataStore(websocket_url='wss://api.bitfinex.com/ws/2')
+        self._public_websocket_object = DataStore(websocket_url='wss://api-pub.bitfinex.com/ws/2')
+
         self.name = 'bitfinex'
         
         if kwargs:
