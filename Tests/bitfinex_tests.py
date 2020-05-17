@@ -10,8 +10,8 @@ class TestNotification(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.exchange = bitfinex.Bitfinex(
-            'qfbl7FNHhPbXgGhJVSDaoJMxXcJnphhDoDLnugNk4QI ',
-            'wIvD1OOUYMxXONNB7biRjUtltTDY9hcD1BlFO6IqVx6'
+            key='qfbl7FNHhPbXgGhJVSDaoJMxXcJnphhDoDLnugNk4QI ',
+            secret='wIvD1OOUYMxXONNB7biRjUtltTDY9hcD1BlFO6IqVx6'
         )
     
     def test_get_ticker(self):
@@ -27,12 +27,14 @@ class TestNotification(unittest.TestCase):
         print(result.data)
     
     def test_get_curr_avg_orderbook(self):
+        # todo orderbook 같이 빈번히 Call 되는데 min당 req 제한이 있는경우 Websocket으로 처리
         loop = asyncio.get_event_loop()
         result = loop.run_until_complete(self.exchange.get_curr_avg_orderbook(self.symbol_set))
         self.assertTrue(result.success)
         print(result.data)
 
     def test_get_balance(self):
+        # todo Key Secret 생성 안되는 이슈로 이후 테스트 재개
         loop = asyncio.get_event_loop()
         balance_result = loop.run_until_complete(self.exchange.get_balance())
         self.assertTrue(balance_result.success)

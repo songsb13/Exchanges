@@ -84,11 +84,11 @@ class Bitfinex(BaseExchange):
             response = rq.json()
 
             if 'message' in response:
-                error_message = '{}::: ERROR_BODY=[{}], URL=[{}], PARAMETER=[{}]'.format(self.name, response[0]['message'], path, extra)
+                error_message = '{}::: ERROR_BODY=[{}], URL=[{}], PARAMETER=[{}]'.format(self.name, response, path, extra)
                 debugger.debug(error_message)
                 return ExchangeResult(False, '', error_message, 1)
             elif 'error' in response:
-                error_message = '{}::: ERROR_BODY=[{}], URL=[{}], PARAMETER=[{}]'.format(self.name, response[0]['error'], path, extra)
+                error_message = '{}::: ERROR_BODY=[{}], URL=[{}], PARAMETER=[{}]'.format(self.name, response, path, extra)
                 debugger.debug(error_message)
                 return ExchangeResult(False, '', error_message, 1)
             else:
@@ -117,11 +117,11 @@ class Bitfinex(BaseExchange):
             response = rq.json()
 
             if 'message' in response:
-                error_message = '{}::: ERROR_BODY=[{}], URL=[{}], PARAMETER=[{}]'.format(self.name, response[0]['message'], path, extra)
+                error_message = '{}::: ERROR_BODY=[{}], URL=[{}], PARAMETER=[{}]'.format(self.name, response, path, extra)
                 debugger.debug(error_message)
                 return ExchangeResult(False, '', error_message, 1)
             elif 'error' in response:
-                error_message = '{}::: ERROR_BODY=[{}], URL=[{}], PARAMETER=[{}]'.format(self.name, response[0]['error'], path, extra)
+                error_message = '{}::: ERROR_BODY=[{}], URL=[{}], PARAMETER=[{}]'.format(self.name, response, path, extra)
                 debugger.debug(error_message)
                 return ExchangeResult(False, '', error_message, 1)
             else:
@@ -265,11 +265,11 @@ class Bitfinex(BaseExchange):
                 response = json.loads(await rq.text())
 
                 if 'message' in response:
-                    error_message = '{}::: ERROR_BODY=[{}], URL=[{}], PARAMETER=[{}]'.format(self.name, response[0]['message'], path, extra)
+                    error_message = '{}::: ERROR_BODY=[{}], URL=[{}], PARAMETER=[{}]'.format(self.name, response, path, extra)
                     debugger.debug(error_message)
                     return ExchangeResult(False, '', error_message, 1)
                 elif 'error' in response:
-                    error_message = '{}::: ERROR_BODY=[{}], URL=[{}], PARAMETER=[{}]'.format(self.name, response[0]['error'], path, extra)
+                    error_message = '{}::: ERROR_BODY=[{}], URL=[{}], PARAMETER=[{}]'.format(self.name, response, path, extra)
                     debugger.debug(error_message)
                     return ExchangeResult(False, '', error_message, 1)
                 else:
@@ -298,11 +298,11 @@ class Bitfinex(BaseExchange):
                 response = json.loads(await rq.text())
 
                 if 'message' in response:
-                    error_message = '{}::: ERROR_BODY=[{}], URL=[{}], PARAMETER=[{}]'.format(self.name, response[0]['message'], path, extra)
+                    error_message = '{}::: ERROR_BODY=[{}], URL=[{}], PARAMETER=[{}]'.format(self.name, response, path, extra)
                     debugger.debug(error_message)
                     return ExchangeResult(False, '', error_message, 1)
                 elif 'error' in response:
-                    error_message = '{}::: ERROR_BODY=[{}], URL=[{}], PARAMETER=[{}]'.format(self.name, response[0]['error'], path, extra)
+                    error_message = '{}::: ERROR_BODY=[{}], URL=[{}], PARAMETER=[{}]'.format(self.name, response, path, extra)
                     debugger.debug(error_message)
                     return ExchangeResult(False, '', error_message, 1)
                 else:
@@ -314,7 +314,7 @@ class Bitfinex(BaseExchange):
 
     async def _get_balance(self):
         for _ in range(3):
-            result_object = await self._async_private_api('POST', '/v1/balances')
+            result_object = await self._async_private_api('POST', '/v2/auth/r/wallets')
 
             if result_object.success:
                 break
