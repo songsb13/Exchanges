@@ -10,8 +10,8 @@ class TestNotification(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.exchange = bitfinex.Bitfinex(
-            'oYQYru6IvzCgxSFaCRdRQyKCHfpUQEEujZAxJsCw5LEjuR7D2F8S7pIGxrN9u2lB ',
-            '4WcKtsR88UqGMyYUuKVb7XZlo0adfr8z3eOtZZm4mRWaWTfJTc4prLcZ29Ti8zXl'
+            'qfbl7FNHhPbXgGhJVSDaoJMxXcJnphhDoDLnugNk4QI ',
+            'wIvD1OOUYMxXONNB7biRjUtltTDY9hcD1BlFO6IqVx6'
         )
     
     def test_get_ticker(self):
@@ -27,9 +27,11 @@ class TestNotification(unittest.TestCase):
         print(result.data)
     
     def test_get_curr_avg_orderbook(self):
-        result = self.exchange.get_curr_avg_orderbook(self.symbol_set)
+        loop = asyncio.get_event_loop()
+        result = loop.run_until_complete(self.exchange.get_curr_avg_orderbook(self.symbol_set))
         self.assertTrue(result.success)
-        
+        print(result.data)
+
     def test_get_balance(self):
         loop = asyncio.get_event_loop()
         balance_result = loop.run_until_complete(self.exchange.get_balance())

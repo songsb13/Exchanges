@@ -84,11 +84,11 @@ class Bitfinex(BaseExchange):
             response = rq.json()
 
             if 'message' in response:
-                error_message = '{}::: ERROR_BODY=[{}], URL=[{}], PARAMETER=[{}]'.format(self.name, response['message'], path, extra)
+                error_message = '{}::: ERROR_BODY=[{}], URL=[{}], PARAMETER=[{}]'.format(self.name, response[0]['message'], path, extra)
                 debugger.debug(error_message)
                 return ExchangeResult(False, '', error_message, 1)
             elif 'error' in response:
-                error_message = '{}::: ERROR_BODY=[{}], URL=[{}], PARAMETER=[{}]'.format(self.name, response['error'], path, extra)
+                error_message = '{}::: ERROR_BODY=[{}], URL=[{}], PARAMETER=[{}]'.format(self.name, response[0]['error'], path, extra)
                 debugger.debug(error_message)
                 return ExchangeResult(False, '', error_message, 1)
             else:
@@ -117,11 +117,11 @@ class Bitfinex(BaseExchange):
             response = rq.json()
 
             if 'message' in response:
-                error_message = '{}::: ERROR_BODY=[{}], URL=[{}], PARAMETER=[{}]'.format(self.name, response['message'], path, extra)
+                error_message = '{}::: ERROR_BODY=[{}], URL=[{}], PARAMETER=[{}]'.format(self.name, response[0]['message'], path, extra)
                 debugger.debug(error_message)
                 return ExchangeResult(False, '', error_message, 1)
             elif 'error' in response:
-                error_message = '{}::: ERROR_BODY=[{}], URL=[{}], PARAMETER=[{}]'.format(self.name, response['error'], path, extra)
+                error_message = '{}::: ERROR_BODY=[{}], URL=[{}], PARAMETER=[{}]'.format(self.name, response[0]['error'], path, extra)
                 debugger.debug(error_message)
                 return ExchangeResult(False, '', error_message, 1)
             else:
@@ -265,11 +265,11 @@ class Bitfinex(BaseExchange):
                 response = json.loads(await rq.text())
 
                 if 'message' in response:
-                    error_message = '{}::: ERROR_BODY=[{}], URL=[{}], PARAMETER=[{}]'.format(self.name, response['message'], path, extra)
+                    error_message = '{}::: ERROR_BODY=[{}], URL=[{}], PARAMETER=[{}]'.format(self.name, response[0]['message'], path, extra)
                     debugger.debug(error_message)
                     return ExchangeResult(False, '', error_message, 1)
                 elif 'error' in response:
-                    error_message = '{}::: ERROR_BODY=[{}], URL=[{}], PARAMETER=[{}]'.format(self.name, response['error'], path, extra)
+                    error_message = '{}::: ERROR_BODY=[{}], URL=[{}], PARAMETER=[{}]'.format(self.name, response[0]['error'], path, extra)
                     debugger.debug(error_message)
                     return ExchangeResult(False, '', error_message, 1)
                 else:
@@ -298,11 +298,11 @@ class Bitfinex(BaseExchange):
                 response = json.loads(await rq.text())
 
                 if 'message' in response:
-                    error_message = '{}::: ERROR_BODY=[{}], URL=[{}], PARAMETER=[{}]'.format(self.name, response['message'], path, extra)
+                    error_message = '{}::: ERROR_BODY=[{}], URL=[{}], PARAMETER=[{}]'.format(self.name, response[0]['message'], path, extra)
                     debugger.debug(error_message)
                     return ExchangeResult(False, '', error_message, 1)
                 elif 'error' in response:
-                    error_message = '{}::: ERROR_BODY=[{}], URL=[{}], PARAMETER=[{}]'.format(self.name, response['error'], path, extra)
+                    error_message = '{}::: ERROR_BODY=[{}], URL=[{}], PARAMETER=[{}]'.format(self.name, response[0]['error'], path, extra)
                     debugger.debug(error_message)
                     return ExchangeResult(False, '', error_message, 1)
                 else:
@@ -461,16 +461,24 @@ class Bitfinex(BaseExchange):
             if coin in ['QTUM', 'DASH', 'IOTA']:
                 coin = self._symbol_localizing(coin)
 
-            symbol = (coin + base_market).lower()
+            symbol = coin + base_market
             orderbook_object = await self._get_orderbook(symbol)
             if not orderbook_object.success:
                 return orderbook_object
-
+            
+            data_dict = dict(bids=list(),
+                             asks=list())
+            for data in orderbook_object.data:
+                price, count, amount = data
+                
+                type_ = 'bids' if amount > 0 else 'asks'
+                data_dict[type_].append(dict(price=price, amount=abs(amount)))
+                
             avg_orderbook[pair] = dict()
             for order_type in ['asks', 'bids']:
                 sum_ = Decimal(0.0)
                 total_coin_num = Decimal(0.0)
-                for data in orderbook_object.data[order_type]:
+                for data in data_dict[order_type]:
                     price = data['price']
                     alt_coin_num = data['amount']
                     sum_ += Decimal(price) * Decimal(alt_coin_num)
