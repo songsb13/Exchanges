@@ -20,6 +20,10 @@ class Bitfinex(BaseExchange):
         '''
         self._base_url = 'https://api.bitfinex.com'
         self._public_base_url = 'https://api-pub.bitfinex.com'
+        
+        self._websocket_url = 'wss://api.bitfinex.com/ws/2'
+        self._public_websocket_url = 'wss://api-pub.bitfinex.com/ws/2'
+        
         self.name = 'bitfinex'
         
         if kwargs:
@@ -71,6 +75,12 @@ class Bitfinex(BaseExchange):
             res_object.data = self._symbol_full_name = dic
 
         return res_object
+
+    def _websocket_public_channel(self):
+        pass
+
+    def _websocket_private_channel(self):
+        pass
 
     def _public_api(self, path, extra=None):
         debugger.debug('[{}]Parameters=[{}, {}], function name=[_public_api]'.format(self.name, path, extra))
