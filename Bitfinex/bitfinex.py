@@ -107,7 +107,7 @@ class Bitfinex(BaseExchange):
             debugger.debug(error_message)
             return ExchangeResult(False, '', error_message, 1)
 
-    def _private_api(self, path, extra=None):
+    def _private_api(self, method, path, extra=None):
         debugger.debug('[{}]Parameters=[{}, {}], function name=[_private_api]'.format(self.name, path, extra))
 
         try:
@@ -120,7 +120,7 @@ class Bitfinex(BaseExchange):
 
             sign_ = self._sign_generator(extra)
 
-            rq = requests.post(url, json=extra, headers=sign_)
+            rq = requests.request(method, url, json=extra, headers=sign_)
 
             response = rq.json()
 
@@ -184,7 +184,7 @@ class Bitfinex(BaseExchange):
             'price': price
         }
 
-        return self._private_api('/v1/order/new', params)
+        return self._private_api('POST', '/v1/order/new', params)
 
     def sell(self, market, quantity, price=None):
         debugger.debug('[{}]Parameters=[{}, {}, {}], function name=[sell]'.format(self.name, market, quantity, price))
@@ -200,7 +200,7 @@ class Bitfinex(BaseExchange):
             'price': price
         }
 
-        return self._private_api('/v1/order/new', params)
+        return self._private_api('POST', '/v1/order/new', params)
 
     def withdraw(self, coin, amount, to_address, payment_id=None):
         debugger.debug('[{}]Parameters=[{}, {}, {}, {}], function name=[sell]'.format(self.name, coin, amount,
@@ -224,7 +224,7 @@ class Bitfinex(BaseExchange):
         if payment_id:
             params['payment_id'] = payment_id
 
-        return self._private_api('/v1/withdraw', params)
+        return self._private_api('POST', '/v1/withdraw', params)
 
     def get_available_coin(self):
         result_object = self._currencies()
