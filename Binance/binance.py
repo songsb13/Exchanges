@@ -103,7 +103,7 @@ class Binance(BaseExchange):
         params, *_ = args
         if params is None:
             params = dict()
-        params.update({'timestamp': int(time.time() * 1000) - 5000})
+        params.update({'timestamp': int(time.time() * 1000)})
 
         sign = hmac.new(self._secret.encode('utf-8'),
                         urlencode(sorted(params.items())).encode('utf-8'),
