@@ -310,7 +310,7 @@ class DataStore(object):
         
     def _validate_connection(self, data):
         if self._websocket_object is None or not self._websocket_object.connected:
-            create_connection(self._websocket_url)
+            self._websocket_object = create_connection(self._websocket_url)
         
         self._websocket_object.send(data)
         return self._websocket_object.recv()
