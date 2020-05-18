@@ -23,11 +23,12 @@ class BaseExchange(object):
         """
         pass
 
-    def _private_api(self, path, extra=None):
+    def _private_api(self, method, path, extra=None):
         """
         For using private API
 
         :param path: URL path without Base URL, '/url/path/'
+        :param method: input required request type GET or POST
         :param extra: Parameter if required.
         :return:
         return 4 format
@@ -285,22 +286,8 @@ class ExchangeResult(object):
         wait_time: wait time for retry if success is False else 0
     """
     def __init__(self, success, data=None, message='', wait_time=0):
-        self._exchange_name = None
 
         self.success = success
         self.data = data
-        self.message = '{}::: {}'.format(self.set_exchange_name, message)
+        self.message = message
         self.wait_time = wait_time
-
-    @property
-    def set_exchange_name(self):
-        """
-        Property for containing exchange name into message
-        Must be defined before encapsulation.
-        :return: Binance, Bithumb...
-        """
-        return self._exchange_name
-
-    @set_exchange_name.setter
-    def set_exchange_name(self, name):
-        self._exchange_name = name
