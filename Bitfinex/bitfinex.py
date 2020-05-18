@@ -22,10 +22,7 @@ class Bitfinex(BaseExchange):
         self._base_url = 'https://api.bitfinex.com'
         self._public_base_url = 'https://api-pub.bitfinex.com'
         
-        self._websocket_url = 'wss://api.bitfinex.com/ws/2'
-        self._public_websocket_url = 'wss://api-pub.bitfinex.com/ws/2'
-        
-        self._websocket_object = DataStore(websocket_url='wss://api.bitfinex.com/ws/2')
+        self._private_websocket_object = DataStore(websocket_url='wss://api.bitfinex.com/ws/2')
         self._public_websocket_object = DataStore(websocket_url='wss://api-pub.bitfinex.com/ws/2')
 
         self.name = 'bitfinex'
@@ -261,8 +258,9 @@ class Bitfinex(BaseExchange):
         return self.sell(symbol.lower(), alt_amount)
     
     def _subscribe_orderbook(self, symbol):
-        self._websocket_object.send('{"event": "subscribe", "channel": "book", "symbol": "t{}"}'.format(symbol))
-        return self._websocket_object.get_receive_data()
+        self._private_websocket_object.set_orderbook_data('{"event": "subscribe", "channel": "book", "symbol": "t{}"}'.format(symbol))
+        
+        return self._private_websocket_object.balance_raw_data
         
     async def _async_public_api(self, path, extra=None):
         debugger.debug('[{}]Parameters=[{}, {}], function name=[_async_public_api]'.format(self.name, path, extra))
