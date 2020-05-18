@@ -1,3 +1,5 @@
+from websocket import create_connection
+from websocket import WebSocketConnectionClosedException
 
 
 class BaseExchange(object):
@@ -291,3 +293,29 @@ class ExchangeResult(object):
         self.data = data
         self.message = message
         self.wait_time = wait_time
+
+
+# todo BaseExchange 와 다른 파일에 분리해야 할지 생각
+class DataStore(object):
+    """
+    
+    """
+    def __init__(self, websocket_url):
+        self._orderbook_dic = dict()
+        self._candle_dic = dict()
+        self._balance_dic = dict()
+        self._websocket_url = websocket_url
+
+        self.ws = create_connection(self._websocket_url)
+
+    def send_data(self, data):
+        self.ws.send(data)
+
+    def get_result_data(self):
+        return self.ws.recv()
+
+    def send_ping(self):
+        self.ws.ping(self._websocket_url)
+
+    def receive_pong(self):
+        self.ws.pong(self._websocket_url)
