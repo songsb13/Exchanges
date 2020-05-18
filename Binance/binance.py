@@ -93,7 +93,7 @@ class Binance(BaseExchange):
         return get_actual_symbol if get_actual_symbol else symbol
 
     def _sai_symbol_converter(self, symbol):
-        # BTC_XRP -> xrpbtc
+        # BTC_XRP -> XRPBTC
         return ''.join(symbol.split('_')[::-1])
 
     def _get_server_time(self):
@@ -264,7 +264,7 @@ class Binance(BaseExchange):
         symbol = self._sai_symbol_converter(coin)
 
         if unit >= 60:
-            interval = '{}h'.format(unit/60)
+            interval = '{}h'.format(unit // 60)
 
         else:
             interval = '{}m'.format(unit)
