@@ -300,32 +300,7 @@ class DataStore(object):
     """
     
     """
-    def __init__(self, websocket_url):
+    def __init__(self):
         self.orderbook_raw_data = None
         self.balance_raw_data = None
         self.candle_raw_data = None
-        
-        self._websocket_url = websocket_url
-        self._websocket_object = None
-        
-    def _validate_connection(self, data):
-        if self._websocket_object is None or not self._websocket_object.connected:
-            self._websocket_object = create_connection(self._websocket_url)
-        
-        self._websocket_object.send(data)
-        return self._websocket_object.recv()
-        
-    def set_orderbook_data(self, data):
-        self.orderbook_raw_data = self._validate_connection(data)
-    
-    def set_balance_data(self, data):
-        self.balance_raw_data = self._validate_connection(data)
-    
-    def set_candle_data(self, data):
-        self.candle_raw_data = self._validate_connection(data)
-    
-    def send_ping(self):
-        self._websocket_object.ping(self._websocket_url)
-
-    def receive_pong(self):
-        self._websocket_object.pong(self._websocket_url)
