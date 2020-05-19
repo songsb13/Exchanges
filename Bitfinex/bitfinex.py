@@ -261,7 +261,13 @@ class Bitfinex(BaseExchange):
         self._private_websocket_object.set_orderbook_data('{"event": "subscribe", "channel": "book", "symbol": "t{}"}'.format(symbol))
         
         return self._private_websocket_object.balance_raw_data
-        
+    
+    async def _async_public_websocket(self):
+        pass
+    
+    async def _async_private_websocket(self):
+        pass
+    
     async def _async_public_api(self, path, extra=None):
         debugger.debug('[{}]Parameters=[{}, {}], function name=[_async_public_api]'.format(self.name, path, extra))
 
