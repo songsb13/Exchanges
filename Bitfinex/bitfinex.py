@@ -12,6 +12,9 @@ from decimal import Decimal, ROUND_DOWN
 from Exchanges.base_exchange import BaseExchange, ExchangeResult, DataStore
 from Util.pyinstaller_patch import *
 
+from websocket import WebSocketConnectionClosedException
+from websocket import create_connection
+
 
 class Bitfinex(BaseExchange):
     def __init__(self, *args, **kwargs):
@@ -22,8 +25,10 @@ class Bitfinex(BaseExchange):
         self._base_url = 'https://api.bitfinex.com'
         self._public_base_url = 'https://api-pub.bitfinex.com'
         
-        self._private_websocket_object = DataStore(websocket_url='wss://api.bitfinex.com/ws/2')
-        self._public_websocket_object = DataStore(websocket_url='wss://api-pub.bitfinex.com/ws/2')
+        self._private_websocket_url = 'wss://api.bitfinex.com/ws/2'
+        self._public_websocket_object = 'wss://api-pub.bitfinex.com/ws/2'
+        
+        # self.data_store = DataStore()
 
         self.name = 'bitfinex'
         
@@ -257,17 +262,49 @@ class Bitfinex(BaseExchange):
         symbol = coin + base_market
         return self.sell(symbol.lower(), alt_amount)
     
-    def _subscribe_orderbook(self, symbol):
-        self._private_websocket_object.set_orderbook_data('{"event": "subscribe", "channel": "book", "symbol": "t{}"}'.format(symbol))
-        
-        return self._private_websocket_object.balance_raw_data
+    async def set_orderbook_websocket(self, symbol_set):
+        socket = create_connection(self._private_websocket_url)
+        while True:
+            for symbol in symbol_set:
+                symbol = self._sai_symbol_converter(symbol)
+                data = {"freq": "F1", "len": "100", "event": "subscribe", "channel": "book", "symbol": 't' + symbol}
+                data = json.dumps(data)
+                socket.send(data)
     
+                try:
+                    message = socket.recv()
+                    print(message)
+                    # self.data_store.orderbook_raw_data[symbol] = message
+                    
+                except WebSocketConnectionClosedException:
+                    debugger.debug('Disconnected Orderbook Websocket.')
+                    debugger.debug('Try to reconnect websocket..')
+                    
+                    socket = create_connection(self._private_websocket_url)
+                
+            time.sleep(1)
+            
     async def _async_public_websocket(self):
-        pass
-    
+        while True:
+            try:
+                message = await self._public_websocket_object.recv()
+            except WebSocketConnectionClosedException:
+                debugger.debug('Disconnected Public Websocket.')
+                debugger.debug('Try to reconnect websocket..')
+                self._public_websocket_object = create_connection('wss://api-pub.bitfinex.com/ws/2')
+            
+            time.sleep(0.1)
+            
     async def _async_private_websocket(self):
-        pass
-    
+        while True:
+            try:
+                message = await self._private_websocket_object.recv()
+            except WebSocketConnectionClosedException:
+                debugger.debug('Disconnected Private Websocket.')
+                debugger.debug('Try to reconnect websocket..')
+                self._private_websocket_object = create_connection('wss://api.bitfinex.com/ws/2')
+            time.sleep(0.1)
+
     async def _async_public_api(self, path, extra=None):
         debugger.debug('[{}]Parameters=[{}, {}], function name=[_async_public_api]'.format(self.name, path, extra))
 
