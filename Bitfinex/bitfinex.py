@@ -7,13 +7,16 @@ import time
 import aiohttp
 import asyncio
 
-from decimal import Decimal, ROUND_DOWN
 
 from Exchanges.base_exchange import BaseExchange, ExchangeResult, DataStore
 from Util.pyinstaller_patch import *
 
 from websocket import WebSocketConnectionClosedException
 from websocket import create_connection
+
+import decimal
+from decimal import Decimal, ROUND_DOWN
+decimal.getcontext().prec = 8
 
 
 class Bitfinex(BaseExchange):
@@ -251,7 +254,7 @@ class Bitfinex(BaseExchange):
             alt = alt_amount
             alt *= ((1 - Decimal(td_fee)) ** 1)
             alt -= Decimal(tx_fee[coin])
-            alt = alt.quantize(Decimal(10) ** -4, rounding=ROUND_DOWN)
+            alt = alt.quantize(Decimal(10) ** -8, rounding=ROUND_DOWN)
 
             result_object.data = alt
 
@@ -573,23 +576,3 @@ class Bitfinex(BaseExchange):
                 await asyncio.sleep(max(bitfinex_object.wait_time, other_object.wait_time))
         else:
             return bitfinex_object if bitfinex_object.success is False else other_object
-
-
-if __name__ == '__main__':
-    k = 'MK4XDRHmZJmpP3uD1Uheta6pUcdWW0ShNd3zEhLYVIL'
-    s = 'g0hxYy2BComZddkmPUXs5QI5krSbf9pGG4z7GIR5aNB'
-    b = BaseBitfinex(key=k, secret=s)
-
-    loop = asyncio.get_event_loop()
-    _, available_coin, *_ = b.get_available_coin()
-    s, d, m, t = loop.run_until_complete(b.get_deposit_addrs())
-    print(d)
-
-    # s, d, m, t = loop.run_until_complete(b.get_balance())
-    # s, d, m, t = b.get_available_coin()
-    # s, d, m, t = b.sell('xrpbtc', 1)
-    # s, d, m, t = b.buy('xrpbtc', 1)
-    # s, d, m, t = loop.run_until_complete(b.get_trading_fee())
-    # s, d, m, t = loop.run_until_complete(b.get_curr_avg_orderbook(available_coin))
-    # s, d, m, t = loop.run_until_complete(b.get_transaction_fee())
-    # s, d, m, t = loop.run_until_complete(b.get_deposit_addrs())
