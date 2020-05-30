@@ -1,9 +1,3 @@
-class DataStore(object):
-    def __init__(self):
-        self.orderbook_raw_data = None
-        self.balance_raw_data = None
-        self.candle_raw_data = None
-
 
 class ExchangeResult(object):
     """
@@ -21,3 +15,10 @@ class ExchangeResult(object):
         self.message = message
         self.wait_time = wait_time
 
+
+# todo BaseExchange 와 다른 파일에 분리해야 할지 생각
+class DataStore(object):
+    def __init__(self):
+        self.orderbook_raw_data = None
+        self.balance_raw_data = None
+        self.candle_raw_data = None

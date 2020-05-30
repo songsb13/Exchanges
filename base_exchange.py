@@ -277,3 +277,7 @@ class BaseExchange(object):
         """
         pass
 
+<<<<<<< HEAD
+=======
+
+>>>>>>> BaseDataStore
