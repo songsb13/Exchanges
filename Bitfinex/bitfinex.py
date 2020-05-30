@@ -6,14 +6,11 @@ import requests
 import time
 import aiohttp
 import asyncio
-import websockets
 
 from Exchanges.base_exchange import BaseExchange
-from Exchanges.custom_objects import ExchangeResult, DataStore
+from Exchanges.custom_objects import ExchangeResult
 from Util.pyinstaller_patch import *
 
-from websocket import WebSocketConnectionClosedException
-from websocket import create_connection
 
 import decimal
 from decimal import Decimal, ROUND_DOWN
@@ -31,8 +28,6 @@ class Bitfinex(BaseExchange):
         
         self._private_websocket_url = 'wss://api.bitfinex.com/ws/2'
         self._public_websocket_object = 'wss://api-pub.bitfinex.com/ws/2'
-        
-        self.data_store = DataStore()
 
         self.name = 'bitfinex'
         
@@ -266,53 +261,6 @@ class Bitfinex(BaseExchange):
         symbol = coin + base_market
         return self.sell(symbol.lower(), alt_amount)
     
-    async def set_orderbook_websocket(self, symbol_set):
-        async_ws = create_connection(self._private_websocket_url)
-        for symbol in symbol_set:
-            symbol = self._sai_symbol_converter(symbol)
-            data = {"freq": "F1", "len": "100", "event": "subscribe", "channel": "book", "symbol": 't' + symbol}
-            data = json.dumps(data)
-            async_ws.send(data)
-
-        while True:
-            try:
-                message = async_ws.recv()
-                print(message)
-                
-                if 'event' in message:
-                    if 'pair' in message:
-                        message = json.loads(message)
-                        pair = message['pair']
-                        channel_id = message['chanId']
-                        
-                        self.data_store.channel_id_set.update({channel_id: pair})
-                
-                self.data_store.orderbook_raw_data[pair] = message
-            except ExchangeResult as ex:
-                print(ex)
-                debugger.debug('Disconnected Orderbook Websocket.')
-        
-    async def _async_public_websocket(self):
-        while True:
-            try:
-                message = await self._public_websocket_object.recv()
-            except WebSocketConnectionClosedException:
-                debugger.debug('Disconnected Public Websocket.')
-                debugger.debug('Try to reconnect websocket..')
-                self._public_websocket_object = create_connection('wss://api-pub.bitfinex.com/ws/2')
-            
-            time.sleep(0.1)
-            
-    async def _async_private_websocket(self):
-        while True:
-            try:
-                message = await self._private_websocket_object.recv()
-            except WebSocketConnectionClosedException:
-                debugger.debug('Disconnected Private Websocket.')
-                debugger.debug('Try to reconnect websocket..')
-                self._private_websocket_object = create_connection('wss://api.bitfinex.com/ws/2')
-            time.sleep(0.1)
-
     async def _async_public_api(self, path, extra=None):
         debugger.debug('[{}]Parameters=[{}, {}], function name=[_async_public_api]'.format(self.name, path, extra))
 
