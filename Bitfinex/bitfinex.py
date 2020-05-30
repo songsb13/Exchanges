@@ -6,9 +6,10 @@ import requests
 import time
 import aiohttp
 import asyncio
+import websockets
 
-
-from Exchanges.base_exchange import BaseExchange, ExchangeResult, DataStore
+from Exchanges.base_exchange import BaseExchange
+from Exchanges.custom_objects import ExchangeResult, DataStore
 from Util.pyinstaller_patch import *
 
 from websocket import WebSocketConnectionClosedException
@@ -31,7 +32,7 @@ class Bitfinex(BaseExchange):
         self._private_websocket_url = 'wss://api.bitfinex.com/ws/2'
         self._public_websocket_object = 'wss://api-pub.bitfinex.com/ws/2'
         
-        # self.data_store = DataStore()
+        self.data_store = DataStore()
 
         self.name = 'bitfinex'
         
@@ -266,27 +267,31 @@ class Bitfinex(BaseExchange):
         return self.sell(symbol.lower(), alt_amount)
     
     async def set_orderbook_websocket(self, symbol_set):
-        socket = create_connection(self._private_websocket_url)
+        async_ws = create_connection(self._private_websocket_url)
+        for symbol in symbol_set:
+            symbol = self._sai_symbol_converter(symbol)
+            data = {"freq": "F1", "len": "100", "event": "subscribe", "channel": "book", "symbol": 't' + symbol}
+            data = json.dumps(data)
+            async_ws.send(data)
+
         while True:
-            for symbol in symbol_set:
-                symbol = self._sai_symbol_converter(symbol)
-                data = {"freq": "F1", "len": "100", "event": "subscribe", "channel": "book", "symbol": 't' + symbol}
-                data = json.dumps(data)
-                socket.send(data)
-    
-                try:
-                    message = socket.recv()
-                    print(message)
-                    # self.data_store.orderbook_raw_data[symbol] = message
-                    
-                except WebSocketConnectionClosedException:
-                    debugger.debug('Disconnected Orderbook Websocket.')
-                    debugger.debug('Try to reconnect websocket..')
-                    
-                    socket = create_connection(self._private_websocket_url)
+            try:
+                message = async_ws.recv()
+                print(message)
                 
-            time.sleep(1)
-            
+                if 'event' in message:
+                    if 'pair' in message:
+                        message = json.loads(message)
+                        pair = message['pair']
+                        channel_id = message['chanId']
+                        
+                        self.data_store.channel_id_set.update({channel_id: pair})
+                
+                self.data_store.orderbook_raw_data[pair] = message
+            except ExchangeResult as ex:
+                print(ex)
+                debugger.debug('Disconnected Orderbook Websocket.')
+        
     async def _async_public_websocket(self):
         while True:
             try:
@@ -379,17 +384,17 @@ class Bitfinex(BaseExchange):
 
         return result_object
 
-    async def _get_orderbook(self, coin):
-        # 30 req/min
-        for _ in range(3):
-            # For Trading: if AMOUNT > 0 then bid else ask.
-            result_object = await self._async_public_api('/v2/book/t{}/P0'.format(coin))
-
-            if result_object.success:
-                break
-            time.sleep(result_object.wait_time)
-
-        return result_object
+    # async def _get_orderbook(self, coin):
+    #     # 30 req/min
+    #     for _ in range(3):
+    #         # For Trading: if AMOUNT > 0 then bid else ask.
+    #         result_object = await self._async_public_api('/v2/book/t{}/P0'.format(coin))
+    #
+    #         if result_object.success:
+    #             break
+    #         time.sleep(result_object.wait_time)
+    #
+    #     return result_object
 
     async def _get_deposit_addrs(self, currency):
         if currency == 'ethereum classic':

@@ -19,6 +19,7 @@ class ExchangeResult(object):
 # todo BaseExchange 와 다른 파일에 분리해야 할지 생각
 class DataStore(object):
     def __init__(self):
-        self.orderbook_raw_data = None
+        self.channel_id_set = dict()
+        self.orderbook_raw_data = dict()
         self.balance_raw_data = None
         self.candle_raw_data = None
