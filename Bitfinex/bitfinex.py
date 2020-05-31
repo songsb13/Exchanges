@@ -8,7 +8,8 @@ import aiohttp
 import asyncio
 
 from Exchanges.base_exchange import BaseExchange
-from Exchanges.custom_objects import ExchangeResult
+from Exchanges.custom_objects import ExchangeResult, DataStore
+from Exchanges.Bitfinex.subscriber import BitfinexSubscriber
 from Util.pyinstaller_patch import *
 
 
@@ -31,6 +32,8 @@ class Bitfinex(BaseExchange):
 
         self.name = 'bitfinex'
         
+        self.data_store = DataStore()
+        self.bitfinex_subscriber = BitfinexSubscriber(self.data_store)
         if kwargs:
             self._key = kwargs['key']
             self._secret = kwargs['secret']
@@ -332,17 +335,17 @@ class Bitfinex(BaseExchange):
 
         return result_object
 
-    # async def _get_orderbook(self, coin):
-    #     # 30 req/min
-    #     for _ in range(3):
-    #         # For Trading: if AMOUNT > 0 then bid else ask.
-    #         result_object = await self._async_public_api('/v2/book/t{}/P0'.format(coin))
-    #
-    #         if result_object.success:
-    #             break
-    #         time.sleep(result_object.wait_time)
-    #
-    #     return result_object
+    async def _get_orderbook(self, coin):
+        # 30 req/min
+        for _ in range(3):
+            # For Trading: if AMOUNT > 0 then bid else ask.
+            result_object = await self._async_public_api('/v2/book/t{}/P0'.format(coin))
+
+            if result_object.success:
+                break
+            time.sleep(result_object.wait_time)
+
+        return result_object
 
     async def _get_deposit_addrs(self, currency):
         if currency == 'ethereum classic':
@@ -471,7 +474,7 @@ class Bitfinex(BaseExchange):
                 coin = self._symbol_localizing(coin)
 
             symbol = coin + base_market
-            orderbook_object = self._subscribe_orderbook(symbol)
+            orderbook_object = self.data_store
             if not orderbook_object.success:
                 return orderbook_object
             

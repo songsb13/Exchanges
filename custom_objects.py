@@ -20,6 +20,7 @@ class ExchangeResult(object):
 class DataStore(object):
     def __init__(self):
         self.channel_set = dict()
+        self.activated_channels = list()
         self.orderbook_queue = queue.Queue()
         self.balance_queue = queue.Queue()
         self.candle_queue = queue.Queue()
