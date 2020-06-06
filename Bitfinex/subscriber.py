@@ -40,38 +40,7 @@ class BitfinexSubscriber(object):
         """
             orderbook,
         """
-        while True:
-            try:
-                message = self._private_ws.recv()
-                if 'event' in message:
-                    if 'channel' in message:
-                        message = json.loads(message)
-                        pair = message['pair']
-                        channel_id = message['chanId']
-                        channel = message['channel']
-                        
-                        if channel == 'orderbook':
-                            queue_ = self.data_store.orderbook_queue
-                        else:
-                            'other queue..'
-                            pass
-                        
-                        self.data_store.channel_set.update({{channel_id: [queue_, pair]}})
-                        self.data_store.activated_channels.append(channel)
-
-                else:
-                    chan_id = message[0]
-                    q, pair = self.data_store.channel_set[chan_id]
-                    q[pair].put(message[1])
-                print(self.data_store.channel_set)
-            except Exception as ex:
-                print(ex)
-                debugger.debug('Disconnected Websocket.')
-
-    def public_receiver(self):
-        """
-            orderbook,
-        """
+        temp_orderbook_store = dict()
         while True:
             try:
                 message = self._private_ws.recv()
@@ -81,20 +50,25 @@ class BitfinexSubscriber(object):
                         pair = message['pair']
                         channel_id = message['chanId']
                         channel = message['channel']
-                    
+                        
                         if 'book' in channel:
-                            queue_ = self.data_store.orderbook_queue
-                        self.data_store.channel_set.update({channel_id: [queue_, pair]})
+                            point = self.data_store.orderbook_queue
+                            temp_orderbook_store.update({pair: list()})
+                        self.data_store.channel_set.update({channel_id: [point, pair]})
                 else:
                     chan_id = message[0]
-                    q, pair = self.data_store.channel_set[chan_id]
-                    q.put(message[1])
-            
-                print(self.data_store.channel_set)
+                    point, pair = self.data_store.channel_set[chan_id]
+                    temp_orderbook_store[pair].append(message[1])
+                    
+                    if len(temp_orderbook_store[pair]) >= 20:
+                        point.update({int(time.time()): temp_orderbook_store[pair]})
+                        temp_orderbook_store[pair] = list()
+
             except Exception as ex:
                 print(ex)
                 debugger.debug('Disconnected Orderbook Websocket.')
                 
+
 if __name__ == '__main__':
     ds = DataStore()
     
