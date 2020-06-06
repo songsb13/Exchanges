@@ -1,6 +1,7 @@
 import json
 
 from websocket import create_connection
+from Exchanges.custom_objects import DataStore
 from Util.pyinstaller_patch import *
 
 
@@ -11,7 +12,7 @@ class BitfinexSubscriber(object):
         self.name = 'bitfinex_subscriber'
 
         self._private_ws = create_connection('wss://api.bitfinex.com/ws/2')
-        self._public_ws = create_connection('wss://api.bitfinex.com/ws/2')
+        self._public_ws = create_connection('wss://api-pub.bitfinex.com/ws/2')
     
     def unsubscribe_orderbook(self, symbol_set):
         """
@@ -42,8 +43,6 @@ class BitfinexSubscriber(object):
         while True:
             try:
                 message = self._private_ws.recv()
-                print(message)
-            
                 if 'event' in message:
                     if 'channel' in message:
                         message = json.loads(message)
@@ -64,7 +63,7 @@ class BitfinexSubscriber(object):
                     chan_id = message[0]
                     q, pair = self.data_store.channel_set[chan_id]
                     q[pair].put(message[1])
-        
+                print(self.data_store.channel_set)
             except Exception as ex:
                 print(ex)
                 debugger.debug('Disconnected Websocket.')
@@ -76,24 +75,31 @@ class BitfinexSubscriber(object):
         while True:
             try:
                 message = self._private_ws.recv()
-                print(message)
-            
+                message = json.loads(message)
                 if 'event' in message:
                     if 'channel' in message:
-                        message = json.loads(message)
                         pair = message['pair']
                         channel_id = message['chanId']
                         channel = message['channel']
                     
-                        if channel == 'orderbook':
+                        if 'book' in channel:
                             queue_ = self.data_store.orderbook_queue
-                        self.data_store.channel_set.update({{channel_id: [queue_, pair]}})
+                        self.data_store.channel_set.update({channel_id: [queue_, pair]})
                 else:
                     chan_id = message[0]
                     q, pair = self.data_store.channel_set[chan_id]
-                    q[pair].put(message[1])
-        
+                    q.put(message[1])
+            
+                print(self.data_store.channel_set)
             except Exception as ex:
                 print(ex)
                 debugger.debug('Disconnected Orderbook Websocket.')
-
+                
+if __name__ == '__main__':
+    ds = DataStore()
+    
+    ss = BitfinexSubscriber(ds)
+    
+    ss.subscribe_orderbook(['XRPBTC', "ETHBTC"])
+    
+    ss.public_receiver()
