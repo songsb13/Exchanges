@@ -69,7 +69,7 @@ class Bitfinex(BaseExchange):
             IOTA='IOT',
             DASH='DSH'
         )
-        return actual_symbol.get(symbol)
+        return actual_symbol.get(symbol, symbol)
 
     def _get_symbol_full_name(self):
         for _ in range(3):
@@ -464,9 +464,15 @@ class Bitfinex(BaseExchange):
                 dic_[processing_key] = float(result_object.data[key_])
 
         return result_object
-
+    
     async def get_curr_avg_orderbook(self, coin_list, btc_sum=1):
         avg_orderbook = dict()
+        
+        # todo fix that.
+        pairs = [pair.split('_')[0] + self._symbol_localizing(pair.split('_')[1]) for pair in coin_list]
+        
+        setattr(self.bitfinex_subscriber, 'symbol_set', pairs)
+        
         for pair in coin_list:
             base_market, coin = pair.split('_')
 
@@ -475,9 +481,6 @@ class Bitfinex(BaseExchange):
 
             symbol = coin + base_market
             orderbook_object = self.data_store
-            if not orderbook_object.success:
-                return orderbook_object
-            
             data_dict = dict(bids=list(),
                              asks=list())
             for data in orderbook_object.data:
