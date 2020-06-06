@@ -473,17 +473,11 @@ class Bitfinex(BaseExchange):
         
         setattr(self.bitfinex_subscriber, 'symbol_set', pairs)
         
-        for pair in coin_list:
-            base_market, coin = pair.split('_')
-
-            if coin in ['QTUM', 'DASH', 'IOTA']:
-                coin = self._symbol_localizing(coin)
-
-            symbol = coin + base_market
-            orderbook_object = self.data_store
+        for pair in pairs:
+            orderbook_list = self.data_store.orderbook_queue
             data_dict = dict(bids=list(),
                              asks=list())
-            for data in orderbook_object.data:
+            for data in orderbook_list:
                 price, count, amount = data
                 
                 type_ = 'bids' if amount > 0 else 'asks'
@@ -501,10 +495,8 @@ class Bitfinex(BaseExchange):
                     if sum_ > btc_sum:
                         break
                 avg_orderbook[pair][order_type] = (sum_/total_coin_num).quantize(Decimal(10) ** -8)
-
-        orderbook_object.data = avg_orderbook
-
-        return orderbook_object
+        
+        return ExchangeResult(True, avg_orderbook)
 
     async def compare_orderbook(self, other, currency_pairs=None, default_btc=1):
         if currency_pairs is None:
