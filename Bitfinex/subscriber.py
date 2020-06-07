@@ -19,26 +19,24 @@ class BitfinexPublicSubscriber(threading.Thread):
         
         self.symbol_set = list()
         self._temp_candle_store = dict()
-        
-    def unsubscribe_orderbook(self):
+    
+    def unsubscribe_candle(self):
         """
             symbol_set: converted set BTC_XXX -> XXXBTC
         """
         for symbol in self.symbol_set:
-            data = {"freq": "F1", "len": "100", "event": "unsubscribe", "channel": "book",
-                    "symbol": 't' + symbol}
+            data = {"event": "unsubscribe", "channel": "candle", "key": 't' + symbol}
             data = json.dumps(data)
         
             debugger.debug('send parameter [{}]'.format(data))
             self._public_ws.send(data)
 
-    def subscribe_orderbook(self):
+    def subscribe_candle(self):
         """
             symbol_set: converted set BTC_XXX -> XXXBTC
         """
         for symbol in self.symbol_set:
-            data = {"freq": "F1", "len": "100", "event": "subscribe", "channel": "book",
-                    "symbol": 't' + symbol}
+            data = {"event": "subscribe", "channel": "candle", "key": 't' + symbol}
             data = json.dumps(data)
         
             debugger.debug('send parameter [{}]'.format(data))
@@ -50,16 +48,41 @@ class BitfinexPublicSubscriber(threading.Thread):
                 self.public_receiver()
     
     def public_receiver(self):
-        message = self._public_ws.recv()
-        message = json.loads(message)
-        if 'event' in message:
-            if 'channel' in message:
-                pair = message['pair']
-                channel_id = message['chanId']
-                channel = message['channel']
+        try:
+            message = self._public_ws.recv()
+            message = json.loads(message)
+            if 'event' in message:
+                if 'channel' in message:
+                    pair = message['pair']
+                    channel_id = message['chanId']
+                    channel = message['channel']
+                    if channel == 'candles':
+                        point = self.data_store.candle_queue
+                        self._temp_candle_store.update({pair: list()})
+                    self.data_store.channel_set.update({channel_id: [channel, point, pair]})
+            else:
+                chan_id = message[0]
+                channel, point, pair = self.data_store.channel_set[chan_id]
+                
                 if channel == 'candles':
-                    point = self.data_store.candle_queue
-                    self._temp_candle_store.update({pair: list()})
+                    # todo orderbook 복사한 거라서 테스트 & 번경 필요할 수 있음.
+                    if isinstance(message[1][0], list):
+                        # 처음에 값이 올 때 20개 이상의 list가 한꺼번에 옴.
+                        self._temp_candle_store[pair] += message[1]
+                    else:
+                        self._temp_candle_store[pair].append(message[1])
+        
+                    if len(self._temp_candle_store[pair]) >= 200:
+                        point[pair] = list()
+                        point[pair] = self._temp_candle_store[pair]
+                        self._temp_candle_store[pair] = list()
+
+        except WebSocketConnectionClosedException:
+            debugger.debug('Disconnected orderbook websocket.')
+            raise WebSocketConnectionClosedException
+    
+        except Exception as ex:
+            debugger.exception('Unexpected error from Websocket thread.')
 
 
 class BitfinexPrivateSubscriber(threading.Thread):
@@ -82,28 +105,6 @@ class BitfinexPrivateSubscriber(threading.Thread):
         else:
             debugger.info('You have to set symbol that using subscribe_orderbook.')
         
-    def unsubscribe_orderbook(self):
-        """
-            symbol_set: converted set BTC_XXX -> XXXBTC
-        """
-        for symbol in self.symbol_set:
-            data = {"freq": "F1", "len": "100", "event": "unsubscribe", "channel": "book", "symbol": 't' + symbol}
-            data = json.dumps(data)
-        
-            debugger.debug('send parameter [{}]'.format(data))
-            self._private_ws.send(data)
-
-    def subscribe_orderbook(self):
-        """
-            symbol_set: converted set BTC_XXX -> XXXBTC
-        """
-        for symbol in self.symbol_set:
-            data = {"freq": "F1", "len": "100", "event": "subscribe", "channel": "book", "symbol": 't' + symbol}
-            data = json.dumps(data)
-            
-            debugger.debug('send parameter [{}]'.format(data))
-            self._private_ws.send(data)
-
     def private_receiver(self):
         try:
             message = self._private_ws.recv()
@@ -116,21 +117,25 @@ class BitfinexPrivateSubscriber(threading.Thread):
                     if 'book' in channel:
                         point = self.data_store.orderbook_queue
                         self._temp_orderbook_store.update({pair: list()})
-                    self.data_store.channel_set.update({channel_id: [point, pair]})
+                    elif 'other' in channel:
+                        point = self.data_store
+                        pass
+                    
+                    self.data_store.channel_set.update({channel_id: [channel, point, pair]})
             else:
                 chan_id = message[0]
-                point, pair = self.data_store.channel_set[chan_id]
-                
-                if isinstance(message[1][0], list):
-                    # 처음에 값이 올 때 20개 이상의 list가 한꺼번에 옴.
-                    self._temp_orderbook_store[pair] += message[1]
-                else:
-                    self._temp_orderbook_store[pair].append(message[1])
-                
-                if len(self._temp_orderbook_store[pair]) >= 200:
-                    point[pair] = list()
-                    point[pair] = self._temp_orderbook_store[pair]
-                    self._temp_orderbook_store[pair] = list()
+                channel, point, pair = self.data_store.channel_set[chan_id]
+                if channel == 'orderbook':
+                    if isinstance(message[1][0], list):
+                        # 처음에 값이 올 때 20개 이상의 list가 한꺼번에 옴.
+                        self._temp_orderbook_store[pair] += message[1]
+                    else:
+                        self._temp_orderbook_store[pair].append(message[1])
+                    
+                    if len(self._temp_orderbook_store[pair]) >= 200:
+                        point[pair] = list()
+                        point[pair] = self._temp_orderbook_store[pair]
+                        self._temp_orderbook_store[pair] = list()
 
         except WebSocketConnectionClosedException:
             debugger.debug('Disconnected orderbook websocket.')
