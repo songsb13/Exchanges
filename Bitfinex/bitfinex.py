@@ -162,12 +162,14 @@ class Bitfinex(BaseExchange):
     
     def get_candle(self, coin_list, time_):
         # trade:1m:tETHBTC
+        if not self._public_subscriber.candle_symbol_set:
+            setattr(self._public_subscriber, 'candle_symbol_set', coin_list)
+            
         if not self._public_subscriber.isAlive():
             self._public_subscriber.start()
-            self._public_subscriber.subscribe_candle(time_, coin_list)
+            self._public_subscriber.subscribe_candle(time_)
         
-        if not self._public_subscriber.candle_symbol_set:
-            setattr(self._public_subscriber, 'candle_symbol_set', pairs)
+        # todo on working..
         
     def get_ticker(self, market):
         # 30 req/min
@@ -479,12 +481,12 @@ class Bitfinex(BaseExchange):
         # todo fix that.
         pairs = [self._symbol_localizing(pair.split('_')[1]) + pair.split('_')[0] for pair in coin_list]
         
+        if not self._public_subscriber.orderbook_symbol_set:
+            setattr(self._public_subscriber, 'orderbook_symbol_set', pairs)
+
         if not self._public_subscriber.isAlive():
             self._public_subscriber.start()
             self._public_subscriber.subscribe_orderbook()
-        
-        if not self._public_subscriber.orderbook_symbol_set:
-            setattr(self._public_subscriber, 'orderbook_symbol_set', pairs)
         
         avg_orderbook = dict()
         for pair in pairs:
