@@ -29,7 +29,7 @@ class TestNotification(unittest.TestCase):
     def test_get_curr_avg_orderbook(self):
         # todo orderbook 같이 빈번히 Call 되는데 min당 req 제한이 있는경우 Websocket으로 처리
         loop = asyncio.get_event_loop()
-        result = loop.run_until_complete(self.exchange.set_orderbook_websocket(self.symbol_set))
+        result = loop.run_until_complete(self.exchange.get_curr_avg_orderbook(self.symbol_set))
         self.assertTrue(result.success)
         print(result.data)
 

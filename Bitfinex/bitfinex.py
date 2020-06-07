@@ -466,15 +466,21 @@ class Bitfinex(BaseExchange):
         return result_object
     
     async def get_curr_avg_orderbook(self, coin_list, btc_sum=1):
-        avg_orderbook = dict()
         
         # todo fix that.
-        pairs = [pair.split('_')[0] + self._symbol_localizing(pair.split('_')[1]) for pair in coin_list]
+        pairs = [self._symbol_localizing(pair.split('_')[1]) + pair.split('_')[0] for pair in coin_list]
         
-        setattr(self.bitfinex_subscriber, 'symbol_set', pairs)
-        
+        if not self.bitfinex_subscriber.isAlive():
+            # return ExchangeResult(False, '', 'Thread was not found. You have to set subscriber thread.', 1)
+            setattr(self.bitfinex_subscriber, 'symbol_set', pairs)
+            self.bitfinex_subscriber.start()
+            self.bitfinex_subscriber.subscribe_orderbook()
+            
+        avg_orderbook = dict()
         for pair in pairs:
-            orderbook_list = self.data_store.orderbook_queue
+            orderbook_list = self.data_store.orderbook_queue.get(pair, None)
+            if orderbook_list is None:
+                continue
             data_dict = dict(bids=list(),
                              asks=list())
             for data in orderbook_list:
@@ -482,7 +488,7 @@ class Bitfinex(BaseExchange):
                 
                 type_ = 'bids' if amount > 0 else 'asks'
                 data_dict[type_].append(dict(price=price, amount=abs(amount)))
-                
+            
             avg_orderbook[pair] = dict()
             for order_type in ['asks', 'bids']:
                 sum_ = Decimal(0.0)

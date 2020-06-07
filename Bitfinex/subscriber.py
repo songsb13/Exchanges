@@ -26,7 +26,7 @@ class BitfinexSubscriber(threading.Thread):
             while True:
                 self.public_receiver()
         else:
-            debugger.info('You have to set symbol that using specific function.')
+            debugger.info('You have to set symbol that using subscribe_orderbook.')
         
     def unsubscribe_orderbook(self):
         """
@@ -51,9 +51,6 @@ class BitfinexSubscriber(threading.Thread):
             self._private_ws.send(data)
             
     def public_receiver(self):
-        """
-            orderbook,
-        """
         try:
             message = self._private_ws.recv()
             message = json.loads(message)
@@ -70,10 +67,16 @@ class BitfinexSubscriber(threading.Thread):
             else:
                 chan_id = message[0]
                 point, pair = self.data_store.channel_set[chan_id]
-                self.temp_orderbook_store[pair].append(message[1])
                 
-                if len(self.temp_orderbook_store[pair]) >= 20:
-                    point.update({int(time.time()): self.temp_orderbook_store[pair]})
+                if isinstance(message[1][0], list):
+                    # 처음에 값이 올 때 20개 이상의 list가 한꺼번에 옴.
+                    self.temp_orderbook_store[pair] += message[1]
+                else:
+                    self.temp_orderbook_store[pair].append(message[1])
+                
+                if len(self.temp_orderbook_store[pair]) >= 200:
+                    point[pair] = list()
+                    point[pair] = self.temp_orderbook_store[pair]
                     self.temp_orderbook_store[pair] = list()
 
         except WebSocketConnectionClosedException:
