@@ -159,7 +159,12 @@ class Bitfinex(BaseExchange):
     
     def get_precision(self, pair=None):
         return ExchangeResult(True, (-8, -8), '', 0)
-
+    
+    def get_candle(self, coin, unit, count):
+        # trade:1m:tETHBTC
+        pass
+    
+    
     def get_ticker(self, market):
         # 30 req/min
         for _ in range(3):
@@ -229,7 +234,7 @@ class Bitfinex(BaseExchange):
             params['payment_id'] = payment_id
 
         return self._private_api('POST', '/v1/withdraw', params)
-
+    
     def get_available_coin(self):
         result_object = self._currencies()
 
@@ -471,7 +476,6 @@ class Bitfinex(BaseExchange):
         pairs = [self._symbol_localizing(pair.split('_')[1]) + pair.split('_')[0] for pair in coin_list]
         
         if not self.bitfinex_subscriber.isAlive():
-            # return ExchangeResult(False, '', 'Thread was not found. You have to set subscriber thread.', 1)
             setattr(self.bitfinex_subscriber, 'symbol_set', pairs)
             self.bitfinex_subscriber.start()
             self.bitfinex_subscriber.subscribe_orderbook()
