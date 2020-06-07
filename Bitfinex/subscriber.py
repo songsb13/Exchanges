@@ -105,11 +105,14 @@ class BitfinexPublicSubscriber(threading.Thread):
 
         except WebSocketConnectionClosedException:
             debugger.debug('Disconnected orderbook websocket.')
+            self.public_stop_flag = True
             raise WebSocketConnectionClosedException
     
         except Exception as ex:
             debugger.exception('Unexpected error from Websocket thread.')
-
+            self.public_stop_flag = True
+            raise ex
+        
 
 class BitfinexPrivateSubscriber(threading.Thread):
     def __init__(self, data_store):
