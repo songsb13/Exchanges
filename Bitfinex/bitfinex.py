@@ -9,7 +9,7 @@ import asyncio
 
 from Exchanges.base_exchange import BaseExchange
 from Exchanges.custom_objects import ExchangeResult, DataStore
-from Exchanges.Bitfinex.subscriber import BitfinexSubscriber
+from Exchanges.Bitfinex.subscriber import BitfinexPublicSubscriber, BitfinexPrivateSubscriber
 from Util.pyinstaller_patch import *
 
 
@@ -27,13 +27,13 @@ class Bitfinex(BaseExchange):
         self._base_url = 'https://api.bitfinex.com'
         self._public_base_url = 'https://api-pub.bitfinex.com'
         
-        self._private_websocket_url = 'wss://api.bitfinex.com/ws/2'
-        self._public_websocket_object = 'wss://api-pub.bitfinex.com/ws/2'
+        self._public_subscriber = BitfinexPublicSubscriber(self.data_store)
+        self._private_subscriber = BitfinexPublicSubscriber(self.data_store)
 
         self.name = 'bitfinex'
         
         self.data_store = DataStore()
-        self.bitfinex_subscriber = BitfinexSubscriber(self.data_store)
+        
         if kwargs:
             self._key = kwargs['key']
             self._secret = kwargs['secret']
@@ -160,11 +160,15 @@ class Bitfinex(BaseExchange):
     def get_precision(self, pair=None):
         return ExchangeResult(True, (-8, -8), '', 0)
     
-    def get_candle(self, coin, unit, count):
+    def get_candle(self, coin_list, time_):
         # trade:1m:tETHBTC
-        pass
-    
-    
+        if not self._public_subscriber.isAlive():
+            self._public_subscriber.start()
+            self._public_subscriber.subscribe_candle(time_, coin_list)
+        
+        if not self._public_subscriber.candle_symbol_set:
+            setattr(self._public_subscriber, 'candle_symbol_set', pairs)
+        
     def get_ticker(self, market):
         # 30 req/min
         for _ in range(3):
@@ -475,11 +479,13 @@ class Bitfinex(BaseExchange):
         # todo fix that.
         pairs = [self._symbol_localizing(pair.split('_')[1]) + pair.split('_')[0] for pair in coin_list]
         
-        if not self.bitfinex_subscriber.isAlive():
-            setattr(self.bitfinex_subscriber, 'symbol_set', pairs)
-            self.bitfinex_subscriber.start()
-            self.bitfinex_subscriber.subscribe_orderbook()
-            
+        if not self._public_subscriber.isAlive():
+            self._public_subscriber.start()
+            self._public_subscriber.subscribe_orderbook()
+        
+        if not self._public_subscriber.orderbook_symbol_set:
+            setattr(self._public_subscriber, 'orderbook_symbol_set', pairs)
+        
         avg_orderbook = dict()
         for pair in pairs:
             orderbook_list = self.data_store.orderbook_queue.get(pair, None)

@@ -16,17 +16,18 @@ class BitfinexPublicSubscriber(threading.Thread):
         self.public_stop_flag = False
         
         self._public_ws = create_connection('wss://api-pub.bitfinex.com/ws/2')
-        
-        self.symbol_set = list()
-        
         self._temp_candle_store = dict()
+        
         self._temp_orderbook_store = dict()
+        
+        self.orderbook_symbol_set = list()
+        self.candle_symbol_set = list()
 
-    def _send_with_symbol_set(self, data):
+    def _send_with_symbol_set(self, data, symbol_set):
         """
             symbol_set: converted set BTC_XXX -> XXXBTC
         """
-        for symbol in self.symbol_set:
+        for symbol in symbol_set:
             data = json.dumps(data.format(symbol))
             debugger.debug('send parameter [{}]'.format(data))
 
@@ -36,26 +37,28 @@ class BitfinexPublicSubscriber(threading.Thread):
         data = {"freq": "F1", "len": "100", "event": "subscribe", "channel": "book",
                 "symbol": 't{}'}
         
-        self._send_with_symbol_set(data)
+        self._send_with_symbol_set(data, self.orderbook_symbol_set)
         
     def unsubscribe_orderbook(self):
         data = {"freq": "F1", "len": "100", "event": "unsubscribe", "channel": "book",
                 "symbol": 't{}'}
 
-        self._send_with_symbol_set(data)
+        self._send_with_symbol_set(data, self.orderbook_symbol_set)
 
-    def subscribe_candle(self):
-        data = {"event": "subscribe", "channel": "candle", "key": 't{}'}
-        self._send_with_symbol_set(data)
+    def subscribe_candle(self, time_):
+        base_key = 'trade:{}'.format(time_)
+        data = {"event": "subscribe", "channel": "candle", "key": base_key + 't{}'}
+        self._send_with_symbol_set(data, self.candle_symbol_set)
 
-    def unsubscribe_candle(self):
-        data = {"event": "unsubscribe", "channel": "candle", "key": 't{}'}
-        self._send_with_symbol_set(data)
+    def unsubscribe_candle(self, time_):
+        base_key = 'trade:{}'.format(time_)
+
+        data = {"event": "unsubscribe", "channel": "candle", "key": base_key + 't{}'}
+        self._send_with_symbol_set(data, self.candle_symbol_set)
 
     def run(self):
         while not self.public_stop_flag:
-            if self.symbol_set:
-                self.public_receiver()
+            self.public_receiver()
     
     def public_receiver(self):
         try:
