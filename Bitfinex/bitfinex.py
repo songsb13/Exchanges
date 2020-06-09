@@ -6,6 +6,7 @@ import requests
 import time
 import aiohttp
 import asyncio
+from copy import deepcopy
 
 from Exchanges.base_exchange import BaseExchange
 from Exchanges.custom_objects import ExchangeResult, DataStore
@@ -27,13 +28,12 @@ class Bitfinex(BaseExchange):
         self._base_url = 'https://api.bitfinex.com'
         self._public_base_url = 'https://api-pub.bitfinex.com'
         
+        self.name = 'bitfinex'
+        self.data_store = DataStore()
+        
         self._public_subscriber = BitfinexPublicSubscriber(self.data_store)
         self._private_subscriber = BitfinexPublicSubscriber(self.data_store)
 
-        self.name = 'bitfinex'
-        
-        self.data_store = DataStore()
-        
         if kwargs:
             self._key = kwargs['key']
             self._secret = kwargs['secret']
@@ -163,13 +163,28 @@ class Bitfinex(BaseExchange):
     def get_candle(self, coin_list, time_):
         # trade:1m:tETHBTC
         if not self._public_subscriber.candle_symbol_set:
-            setattr(self._public_subscriber, 'candle_symbol_set', coin_list)
+            pairs = [self._symbol_localizing(pair.split('_')[1]) + pair.split('_')[0] for pair in coin_list]
+            setattr(self._public_subscriber, 'candle_symbol_set', pairs)
             
         if not self._public_subscriber.isAlive():
             self._public_subscriber.start()
-            self._public_subscriber.subscribe_candle(time_)
+            time_str = '{}m'.format(time_) if time_ < 60 else '{}h'.format(time_ // 60)
+
+            self._public_subscriber.subscribe_candle(time_str)
         
-        # todo on working..
+        candle_dict = deepcopy(self.data_store.candle_queue)
+        
+        rows = ['timestamp', 'open', 'close', 'high', 'low', 'volume']
+        
+        result_dict = dict()
+        for symbol, candle_list in candle_dict.items():
+            history = {key_: list() for key_ in rows}
+            for candle in candle_list:
+                for n, key in enumerate(rows):
+                    history[key].append(candle[n])
+            result_dict[symbol] = history
+        
+        return ExchangeResult(True, result_dict)
         
     def get_ticker(self, market):
         # 30 req/min
