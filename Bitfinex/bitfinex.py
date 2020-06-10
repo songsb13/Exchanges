@@ -174,6 +174,9 @@ class Bitfinex(BaseExchange):
         
         candle_dict = deepcopy(self.data_store.candle_queue)
         
+        if not candle_dict:
+            return ExchangeResult(False, '', 'candle data is not yet stored', 1)
+        
         rows = ['timestamp', 'open', 'close', 'high', 'low', 'volume']
         
         result_dict = dict()
@@ -503,9 +506,12 @@ class Bitfinex(BaseExchange):
             self._public_subscriber.start()
             self._public_subscriber.subscribe_orderbook()
         
+        if not self.data_store.orderbook_queue:
+            return ExchangeResult(False, '', 'orderbook data is not yet stored', 1)
+        
         avg_orderbook = dict()
         for pair in pairs:
-            orderbook_list = self.data_store.orderbook_queue.get(pair, None)
+            orderbook_list = deepcopy(self.data_store.orderbook_queue.get(pair, None))
             if orderbook_list is None:
                 continue
             data_dict = dict(bids=list(),
