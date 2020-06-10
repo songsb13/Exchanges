@@ -83,9 +83,7 @@ class BitfinexPublicSubscriber(threading.Thread):
                 channel, point, delimiter = self.data_store.channel_set[chan_id]
                 if isinstance(message[1], list):
                     if 'candle' in channel:
-                        # todo orderbook 복사한 거라서 테스트 & 번경 필요할 수 있음.
                         if isinstance(message[1][0], list):
-                            # 처음에 값이 올 때 20개 이상의 list가 한꺼번에 옴.
                             self._temp_candle_store[delimiter] += message[1]
                         else:
                             self._temp_candle_store[delimiter].append(message[1])
@@ -172,15 +170,3 @@ class BitfinexPrivateSubscriber(threading.Thread):
         #     raise WebSocketConnectionClosedException
         # except Exception as ex:
         #     debugger.exception('Unexpected error from Websocket thread.')
-
-
-if __name__ == '__main__':
-    ds = DataStore()
-    
-    ss = BitfinexPublicSubscriber(ds)
-    
-    setattr(ss, 'symbol_set', ['XRPBTC', 'ETHBTC'])
-    
-    ss.subscribe_orderbook()
-    
-    ss.public_receiver()
