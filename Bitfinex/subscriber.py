@@ -22,6 +22,11 @@ class BitfinexPublicSubscriber(threading.Thread):
         
         self.orderbook_symbol_set = list()
         self.candle_symbol_set = list()
+    
+    def unsubscribe(self, chan_id):
+        data = {"event": "unsubscribe", "chanId": chan_id}
+    
+        self._send_with_symbol_set(data, self.orderbook_symbol_set)
 
     def _send_with_symbol_set(self, data, symbol_set):
         """
@@ -39,21 +44,9 @@ class BitfinexPublicSubscriber(threading.Thread):
         
         self._send_with_symbol_set(data, self.orderbook_symbol_set)
         
-    def unsubscribe_orderbook(self):
-        data = {"freq": "F1", "len": "100", "event": "unsubscribe", "channel": "book",
-                "symbol": 't%s'}
-
-        self._send_with_symbol_set(data, self.orderbook_symbol_set)
-
     def subscribe_candle(self, time_):
         base_key = 'trade:{}'.format(time_)
         data = {"event": "subscribe", "channel": "candles", "key": base_key + ':t%s'}
-        self._send_with_symbol_set(data, self.candle_symbol_set)
-
-    def unsubscribe_candle(self, time_):
-        base_key = 'trade:{}'.format(time_)
-
-        data = {"event": "unsubscribe", "channel": "candles", "key": base_key + ':t%s'}
         self._send_with_symbol_set(data, self.candle_symbol_set)
 
     def run(self):
