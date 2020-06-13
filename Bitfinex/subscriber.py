@@ -23,11 +23,17 @@ class BitfinexPublicSubscriber(threading.Thread):
         self.orderbook_symbol_set = list()
         self.candle_symbol_set = list()
     
-    def unsubscribe(self, chan_id):
+    def _unsubscribe(self, chan_id, symbol_set):
         data = {"event": "unsubscribe", "chanId": chan_id}
     
-        self._send_with_symbol_set(data, self.orderbook_symbol_set)
-
+        self._send_with_symbol_set(data, symbol_set)
+    
+    def unsubscribe_orderbook(self, chan_id):
+        self._unsubscribe(chan_id, self.orderbook_symbol_set)
+    
+    def unsubscribe_candle(self, chan_id):
+        self._unsubscribe(chan_id, self.candle_symbol_set)
+    
     def _send_with_symbol_set(self, data, symbol_set):
         """
             symbol_set: converted set BTC_XXX -> XXXBTC
@@ -45,6 +51,9 @@ class BitfinexPublicSubscriber(threading.Thread):
         self._send_with_symbol_set(data, self.orderbook_symbol_set)
         
     def subscribe_candle(self, time_):
+        """
+        time_: 1m, 5m, 15m, 30m, 1h, 3h, 6h, 12h, 1D, 7D, 14D, 1M
+        """
         base_key = 'trade:{}'.format(time_)
         data = {"event": "subscribe", "channel": "candles", "key": base_key + ':t%s'}
         self._send_with_symbol_set(data, self.candle_symbol_set)
@@ -72,6 +81,7 @@ class BitfinexPublicSubscriber(threading.Thread):
 
                     self.data_store.channel_set.update({channel_id: [channel, point, delimiter]})
             else:
+                # [chan_id(int), [data1, data2, ...]]
                 chan_id = message[0]
                 channel, point, delimiter = self.data_store.channel_set[chan_id]
                 if isinstance(message[1], list):
