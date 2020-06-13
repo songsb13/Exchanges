@@ -259,40 +259,43 @@ class Binance(BaseExchange):
             params.update(tag_dic)
 
         return self._private_api('POST', '/wapi/v3/withdraw.html', params)
-
-    def get_candle(self, coin, unit, count):
-        symbol = self._sai_symbol_converter(coin)
-
-        if unit >= 60:
-            interval = '{}h'.format(unit // 60)
-
-        else:
-            interval = '{}m'.format(unit)
-
-        params = {
-                    'symbol': symbol,
-                    'interval': interval,
-                    'limit': count,
-        }
-        # 1m, 3m, 5m, 15m, 30m, 1h, 2h, 4h, 6h, 8h, 12h, 1d, 3d, 1w, 1M
-        result_object = self._public_api('/api/v3/klines', params)
-        if result_object.success:
-            rows = ['open', 'high', 'low', 'close', 'volume', 'timestamp']
-            history = {key_: list() for key_ in rows}
-            try:
-                for candle_row in result_object.data:
-                    # open, high, low, close, volume, timestamp
-                    certain_row = list(map(float, candle_row[1:7]))
-
-                    for num, key_ in enumerate(rows):
-                        history[key_].append(certain_row[num])
-
-                result_object.data = history
-
-            except Exception as ex:
-                result_object.message = 'history를 가져오는 과정에서 에러가 발생했습니다. =[{}]'.format(ex)
-
-        return result_object
+    
+    def get_candle(self):
+    
+    
+    # def get_candle(self, coin, unit, count):
+    #     symbol = self._sai_symbol_converter(coin)
+    #
+    #     if unit >= 60:
+    #         interval = '{}h'.format(unit // 60)
+    #
+    #     else:
+    #         interval = '{}m'.format(unit)
+    #
+    #     params = {
+    #                 'symbol': symbol,
+    #                 'interval': interval,
+    #                 'limit': count,
+    #     }
+    #     # 1m, 3m, 5m, 15m, 30m, 1h, 2h, 4h, 6h, 8h, 12h, 1d, 3d, 1w, 1M
+    #     result_object = self._public_api('/api/v3/klines', params)
+    #     if result_object.success:
+    #         rows = ['open', 'high', 'low', 'close', 'volume', 'timestamp']
+    #         history = {key_: list() for key_ in rows}
+    #         try:
+    #             for candle_row in result_object.data:
+    #                 # open, high, low, close, volume, timestamp
+    #                 certain_row = list(map(float, candle_row[1:7]))
+    #
+    #                 for num, key_ in enumerate(rows):
+    #                     history[key_].append(certain_row[num])
+    #
+    #             result_object.data = history
+    #
+    #         except Exception as ex:
+    #             result_object.message = 'history를 가져오는 과정에서 에러가 발생했습니다. =[{}]'.format(ex)
+    #
+    #     return result_object
 
     async def _async_private_api(self, method, path, extra=None):
         debugger.debug('{}::: Parameters=[{}, {}, {}], function name=[_async_private_api]'.format(self.name, method, path, extra))
