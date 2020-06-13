@@ -1,5 +1,3 @@
-from websocket import create_connection
-from websocket import WebSocketConnectionClosedException
 
 
 class BaseExchange(object):
