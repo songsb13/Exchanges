@@ -3,7 +3,8 @@ try:
     import thread
 except ImportError:
     import _thread as thread
-import time
+
+from enum import Enum
 
 import json
 
@@ -14,18 +15,31 @@ from Exchanges.custom_objects import DataStore
 from Util.pyinstaller_patch import *
 
 
+class ChannelIdSet(Enum):
+    """
+        Binance의 경우에는 channel Id를 정하는 형식이므로 임의로 정해서 보관한다.
+        Public => 1~1000
+        Private => 1001~ 2000
+    """
+    
+    ORDERBOOK = 10
+    CANDLE = 20
+
+
 class BinanceSubscriber(threading.Thread):
     def __int__(self, data_store):
         super(BinanceSubscriber, self).__init__()
         self.data_store = data_store
         self.name = 'binance_subscriber'
         self.stop_flag = False
+        self.orderbook_symbol_set = list()
+        self.candle_symbol_set = list()
 
         self.websocket_app = websocket.WebSocketApp('wss://stream.binance.com:9443',
-                                                    on_message=on_message,
-                                                    on_error=on_error,
-                                                    on_close=on_close,
-                                                    on_open=on_open)
+                                                    on_message=self.on_message,
+                                                    on_error=self.on_error,
+                                                    on_close=self.on_close,
+                                                    on_open=self.on_open)
         
         # self.websocket_app.run_forever()
 
@@ -39,142 +53,56 @@ class BinanceSubscriber(threading.Thread):
         print("### closed ###")
     
     def on_open(self):
-        def run(*args):
-            class_obj, _ = args
-            while not class_obj.stop_flag:
-                class_obj.receiver()
+        while not self.stop_flag:
+            self.receiver()
+        
+        # def run(*args):
+        #     class_obj, _ = args
+        #     while not class_obj.stop_flag:
+        #         class_obj.receiver()
+        #
+        # thread.start_new_thread(run, (self,))
 
-        thread.start_new_thread(run, (self,))
+    def _send_data(self, data):
+        """
+            symbol_set: converted set BTC_XXX -> btcxxx
+        """
+        data = json.dumps(data)
+        debugger.debug('send parameter [{}]'.format(data))
+        self.websocket_app.send(data)
+    
+    def _unsubscribe(self, params, id_):
+        data = {"method": "UNSUBSCRIBE", "params": params, 'id': id_}
+        self._send_data(data)
+    
+    def unsubscribe_orderbook(self):
+        params = ['{}@bookTicker'.format(symbol) for symbol in self.orderbook_symbol_set] \
+            if self.orderbook_symbol_set else ['!bookTicker']
+
+        self._unsubscribe(params, ChannelIdSet.ORDERBOOK.value)
+        
+    def unsubscribe_candle(self, time_):
+        self._unsubscribe(['{}@kline_{}'.format(symbol, time_) for symbol in self.candle_symbol_set],
+                          ChannelIdSet.CANDLE.value)
+    
+    def subscribe_orderbook(self):
+        if self.orderbook_symbol_set:
+            params = ['{}@bookTicker'.format(symbol) for symbol in self.orderbook_symbol_set]
+        else:
+            # 전체 orderbook 가져옴.
+            params = ['!bookTicker']
+        data = {"method": "SUBSCRIBE", "params": params}
+        
+        self._send_data(data)
+
+    def subscribe_candle(self, time_):
+        """
+            time_: 1m, 3m, 5m, 15m, 30mm 1h, 2h, 4h, 6h, 8h, 12h, 1d, 3d, 1w, 1m
+        """
+        params = ['{}@kline_{}'.format(symbol, time_) for symbol in self.candle_symbol_set]
+        data = {"method": "SUBSCRIBE", "params": params}
+    
+        self._send_data(data)
 
     def receiver(self):
         pass
-    
-
-class BitfinexPublicSubscriber(threading.Thread):
-    def __init__(self, data_store):
-        super(BitfinexPublicSubscriber, self).__init__()
-        self.data_store = data_store
-        self.name = 'bitfinex_private_subscriber'
-        self.public_stop_flag = False
-        
-        self._public_ws = create_connection('wss://api-pub.bitfinex.com/ws/2')
-        self._temp_candle_store = dict()
-        
-        self._temp_orderbook_store = dict()
-        
-        self.orderbook_symbol_set = list()
-        self.candle_symbol_set = list()
-    
-    def unsubscribe(self, chan_id):
-        data = {"event": "unsubscribe", "chanId": chan_id}
-        
-        self._send_with_symbol_set(data, self.orderbook_symbol_set)
-    
-    def _send_with_symbol_set(self, data, symbol_set):
-        """
-            symbol_set: converted set BTC_XXX -> XXXBTC
-        """
-        for symbol in symbol_set:
-            data = json.dumps(data) % symbol
-            debugger.debug('send parameter [{}]'.format(data))
-            
-            self._public_ws.send(data)
-    
-    def subscribe_orderbook(self):
-        data = {"freq": "F1", "len": "100", "event": "subscribe", "channel": "book",
-                "symbol": 't%s'}
-        
-        self._send_with_symbol_set(data, self.orderbook_symbol_set)
-    
-    def subscribe_candle(self, time_):
-        base_key = 'trade:{}'.format(time_)
-        data = {"event": "subscribe", "channel": "candles", "key": base_key + ':t%s'}
-        self._send_with_symbol_set(data, self.candle_symbol_set)
-    
-    def run(self):
-        while not self.public_stop_flag:
-            self.public_receiver()
-    
-    def public_receiver(self):
-        try:
-            message = self._public_ws.recv()
-            message = json.loads(message)
-            if 'event' in message:
-                if 'channel' in message:
-                    channel_id = message['chanId']
-                    channel = message['channel']
-                    if 'candle' in channel:
-                        delimiter = message['key'].split(':t')[1]
-                        point = self.data_store.candle_queue
-                        self._temp_candle_store.update({delimiter: list()})
-                    elif 'book' in channel:
-                        delimiter = message['pair']
-                        point = self.data_store.orderbook_queue
-                        self._temp_orderbook_store.update({delimiter: list()})
-                    
-                    self.data_store.channel_set.update({channel_id: [channel, point, delimiter]})
-            else:
-                chan_id = message[0]
-                channel, point, delimiter = self.data_store.channel_set[chan_id]
-                if isinstance(message[1], list):
-                    if 'candle' in channel:
-                        if isinstance(message[1][0], list):
-                            self._temp_candle_store[delimiter] += message[1]
-                        else:
-                            self._temp_candle_store[delimiter].append(message[1])
-                        
-                        if len(self._temp_candle_store[delimiter]) >= 200:
-                            point[delimiter] = list()
-                            point[delimiter] = self._temp_candle_store[delimiter]
-                            self._temp_candle_store[delimiter] = list()
-                    
-                    elif 'book' in channel:
-                        if isinstance(message[1][0], list):
-                            # 처음에 값이 올 때 20개 이상의 list가 한꺼번에 옴.
-                            self._temp_orderbook_store[delimiter] += message[1]
-                        else:
-                            self._temp_orderbook_store[delimiter].append(message[1])
-                        
-                        if len(self._temp_orderbook_store[delimiter]) >= 200:
-                            point[delimiter] = list()
-                            point[delimiter] = self._temp_orderbook_store[delimiter]
-                            self._temp_orderbook_store[delimiter] = list()
-        
-        except WebSocketConnectionClosedException:
-            debugger.debug('Disconnected orderbook websocket.')
-            self.public_stop_flag = True
-            raise WebSocketConnectionClosedException
-        
-        except Exception as ex:
-            debugger.exception('Unexpected error from Websocket thread.')
-            self.public_stop_flag = True
-            raise ex
-
-
-def on_message(ws, message):
-    print(message)
-
-def on_error(ws, error):
-    print(error)
-
-def on_close(ws):
-    print("### closed ###")
-
-def on_open(ws):
-    def run(*args):
-        for i in range(3):
-            time.sleep(1)
-            ws.send("Hello %d" % i)
-        time.sleep(1)
-        print("thread terminating...")
-    thread.start_new_thread(run, ())
-
-
-if __name__ == "__main__":
-    websocket.enableTrace(True)
-    ws = websocket.WebSocketApp("ws://echo.websocket.org/",
-                              on_message = on_message,
-                              on_error = on_error,
-                              on_close = on_close)
-    ws.on_open = on_open
-    ws.run_forever()
