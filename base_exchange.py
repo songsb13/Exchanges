@@ -1,7 +1,3 @@
-from websocket import create_connection
-from websocket import WebSocketConnectionClosedException
-
-
 class BaseExchange(object):
     """
     all exchanges module should be followed BaseExchange format.
@@ -293,3 +289,12 @@ class ExchangeResult(object):
         self.data = data
         self.message = message
         self.wait_time = wait_time
+
+
+class DataStore(object):
+    def __init__(self):
+        self.channel_set = dict()
+        self.activated_channels = list()
+        self.orderbook_queue = dict()
+        self.balance_queue = dict()
+        self.candle_queue = dict()
