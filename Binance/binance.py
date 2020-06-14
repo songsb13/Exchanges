@@ -10,11 +10,13 @@ import numpy as np
 import logging
 import datetime
 
-from urllib.parse import urlencode
-from decimal import Decimal, ROUND_DOWN
-from enum import Enum
 
-from Exchanges.base_exchange import BaseExchange, ExchangeResult
+from urllib.parse import urlencode
+from copy import deepcopy
+from decimal import Decimal, ROUND_DOWN
+
+from Exchanges.base_exchange import BaseExchange, ExchangeResult, DataStore
+from Exchanges.Binance.subscriber import BinanceSubscriber
 from Util.pyinstaller_patch import *
 
 
@@ -26,6 +28,10 @@ class Binance(BaseExchange):
         self._secret = secret
         self.exchange_info = None
         self._get_exchange_info()
+        
+        self.data_store = DataStore()
+        
+        self._subscriber = BinanceSubscriber(self.data_store)
 
     def _public_api(self, path, extra=None):
         debugger.debug('{}::: Parameters=[{}, {}], function name=[_public_api]'.format(self.name, path, extra))
@@ -81,16 +87,14 @@ class Binance(BaseExchange):
         actual_symbol = dict(
             BCH='BCC'
         )
-        get_actual_symbol = actual_symbol.get(symbol)
-        return get_actual_symbol if get_actual_symbol else symbol
+        return actual_symbol.get(symbol, symbol)
 
     def _symbol_customizing(self, symbol):
         actual_symbol = dict(
             BCC='BCH'
         )
 
-        get_actual_symbol = actual_symbol.get(symbol)
-        return get_actual_symbol if get_actual_symbol else symbol
+        return actual_symbol.get(symbol, symbol)
 
     def _sai_symbol_converter(self, symbol):
         # BTC_XRP -> XRPBTC
@@ -259,10 +263,36 @@ class Binance(BaseExchange):
             params.update(tag_dic)
 
         return self._private_api('POST', '/wapi/v3/withdraw.html', params)
+
+    # todo getcandle
+    def get_candle(self, coin_list, time_):
+        if not self._subscriber.candle_symbol_set:
+            pairs = [(pair.split('_')[0] + self._symbol_localizing(pair.split('_')[1])).lower() for pair in coin_list]
+            setattr(self._subscriber, 'candle_symbol_set', pairs)
     
-    def get_candle(self):
+        # if not self._subscriber.isAlive():
+        #     self._subscriber.start()
+        time_str = '{}m'.format(time_) if time_ < 60 else '{}h'.format(time_ // 60)
     
+        self._subscriber.subscribe_candle(time_str)
     
+        candle_dict = deepcopy(self.data_store.candle_queue)
+    
+        if not candle_dict:
+            return ExchangeResult(False, '', 'candle data is not yet stored', 1)
+    
+        rows = ['timestamp', 'open', 'close', 'high', 'low', 'volume']
+    
+        result_dict = dict()
+        for symbol, candle_list in candle_dict.items():
+            history = {key_: list() for key_ in rows}
+            for candle in candle_list:
+                for n, key in enumerate(rows):
+                    history[key].append(candle[n])
+            result_dict[symbol] = history
+    
+        return ExchangeResult(True, result_dict)
+
     # def get_candle(self, coin, unit, count):
     #     symbol = self._sai_symbol_converter(coin)
     #
@@ -515,34 +545,51 @@ class Binance(BaseExchange):
             result_object.data = balance
 
         return result_object
-
+    
     async def get_curr_avg_orderbook(self, coin_list, btc_sum=1):
         try:
+            pairs = [(pair.split('_')[0] + self._symbol_localizing(pair.split('_')[1])).lower() for pair in coin_list]
+        
+            if not self._subscriber.orderbook_symbol_set:
+                setattr(self._subscriber, 'orderbook_symbol_set', pairs)
+        
+            if not self._subscriber.isAlive():
+                self._subscriber.start()
+                self._subscriber.subscribe_orderbook()
+        
+            if not self.data_store.orderbook_queue:
+                return ExchangeResult(False, '', 'orderbook data is not yet stored', 1)
+            
             avg_order_book = dict()
             failed_coin_log = str()
-            for currency_pair in coin_list:
-                if currency_pair == 'BTC_BTC':
+            for pair in pairs:
+                if pair == 'btcbtc':
                     continue
-
-                market, coin = currency_pair.split('_')
-                orderbook_result_object = await self._get_orderbook(coin + market)
-
-                if orderbook_result_object.success:
-                    avg_order_book[currency_pair] = dict()
-                    for type_ in ['asks', 'bids']:
-                        order_amount, order_sum = (int() for _ in range(2))
-
-                        for data in orderbook_result_object.data[type_]:
-                            price, qty, *_ = data
-                            order_amount += Decimal(qty)  # 0 - price 1 - qty
-                            order_sum += (Decimal(price) * Decimal(qty)).quantize(Decimal(10) ** -8)
-                            if order_sum >= Decimal(btc_sum):
-                                _v = ((order_sum / order_amount).quantize(Decimal(10) ** -8))
-                                avg_order_book[currency_pair][type_] = _v
-                                break
-                else:
-                    failed_coin_log += orderbook_result_object.message + '\n'
-            return ExchangeResult(True, avg_order_book, failed_coin_log, 0)
+                
+                orderbook_list = deepcopy(self.data_store.orderbook_queue.get(pair, None))
+                
+                if orderbook_list is None:
+                    continue
+                
+            #     market, coin = currency_pair.split('_')
+            #     orderbook_result_object = await self._get_orderbook(coin + market)
+            #
+            #     if orderbook_result_object.success:
+            #         avg_order_book[currency_pair] = dict()
+            #         for type_ in ['asks', 'bids']:
+            #             order_amount, order_sum = (int() for _ in range(2))
+            #
+            #             for data in orderbook_result_object.data[type_]:
+            #                 price, qty, *_ = data
+            #                 order_amount += Decimal(qty)  # 0 - price 1 - qty
+            #                 order_sum += (Decimal(price) * Decimal(qty)).quantize(Decimal(10) ** -8)
+            #                 if order_sum >= Decimal(btc_sum):
+            #                     _v = ((order_sum / order_amount).quantize(Decimal(10) ** -8))
+            #                     avg_order_book[currency_pair][type_] = _v
+            #                     break
+            #     else:
+            #         failed_coin_log += orderbook_result_object.message + '\n'
+            # return ExchangeResult(True, avg_order_book, failed_coin_log, 0)
         except Exception as ex:
             return ExchangeResult(False, '', '{}::: ERROR_BODY=[{}], URL=[get_curr_avg_orderbook]'.format(self.name, ex), 1)
 

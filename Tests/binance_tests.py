@@ -30,7 +30,7 @@ class TestNotification(unittest.TestCase):
         print(result.data)
     
     def test_get_candle(self):
-        result = self.exchange.get_candle("BTC_XRP", 1, 199)
+        result = self.exchange.get_candle(self.symbol_set, 1)
         self.assertTrue(result.success)
         print(result.data)
         self.assertEqual(len(result.data['timestamp']), 199)
