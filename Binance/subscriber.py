@@ -29,53 +29,59 @@ class Receiver(threading.Thread):
         super(Receiver, self).__init__()
         self.data_store = data_store
         self._params = params
-        self._url = 'wss://stream.binance.com:9443/ws/' + '/'.join(self._params)
+        self._url = 'wss://stream.binance.com:9443'
+
+        if len(params) == 1:
+            self._url += '/ws' + '/'.join(params)
+        elif len(params) >= 2:
+            self._url += '/stream?streams=' + '/'.join(params)
+            
         self._id = _id
 
-        self._data = None
         self.stop_flag = False
 
         self._symbol_set = list()
 
-        self.websocket_app = self.set_websocket_app()
-        
+        self.websocket_app = create_connection(self._url)
+    
     def subscribe(self):
-        self._data = {"method": "SUBSCRIBE", "params": self._params}
+        json_ = json.dumps({"method": "SUBSCRIBE", "params": self._params, 'id': self._id})
+        
+        self.websocket_app.send(json_)
     
     def unsubscribe(self, params=None):
         if params is None:
             # 차후 별개의 값들이 unsubscribe되어야 할 때
-            self._data = {"method": "UNSUBSCRIBE", "params": self._params, 'id': self._id}
-    
-    def set_websocket_app(self):
-        return websocket.WebSocketApp(
-            url=self._url,
-            on_message=self.on_message,
-            on_error=self.on_error,
-            on_close=self.on_close,
-            on_open=self.on_open
-        )
+            json_ = {"method": "UNSUBSCRIBE", "params": self._params, 'id': self._id}
+            self.websocket_app.send(json_)
 
-    def on_message(self, message):
-        print(message)
-
-    def on_error(self, error):
-        print(error)
-
-    def on_close(self):
-        print("### closed ###")
-
-    def on_open(self):
+    # def set_websocket_app(self):
+    #     return websocket.WebSocketApp(
+    #         url=self._url,
+    #         on_message=self.on_message,
+    #         on_error=self.on_error,
+    #         on_close=self.on_close,
+    #     )
+    def run(self):
         while not self.stop_flag:
             self.receiver()
-    
+        
     def stop(self):
         self.websocket_app.close()
         self.stop_flag = True
     
     def receiver(self):
         try:
-            pass
+            message = json.loads(self.websocket_app.recv())
+            
+            result = message.get('result', None)
+            
+            if result is not None:
+                pass
+            else:
+                pass
+            
+            
         except WebSocketConnectionClosedException:
             debugger.debug('Disconnected orderbook websocket.')
             self.stop()
@@ -133,4 +139,5 @@ class BinanceSubscriber(object):
             params,
             ChannelIdSet.CANDLE.value
         )
+        self.candle_receiver.subscribe()
         self.candle_receiver.start()

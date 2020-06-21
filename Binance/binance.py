@@ -266,15 +266,14 @@ class Binance(BaseExchange):
 
     # todo getcandle
     def get_candle(self, coin_list, time_):
-        if not self._subscriber.candle_symbol_set:
-            pairs = [(pair.split('_')[0] + self._symbol_localizing(pair.split('_')[1])).lower() for pair in coin_list]
-            setattr(self._subscriber, 'candle_symbol_set', pairs)
-    
-        # if not self._subscriber.isAlive():
-        #     self._subscriber.start()
         time_str = '{}m'.format(time_) if time_ < 60 else '{}h'.format(time_ // 60)
-    
-        self._subscriber.subscribe_candle(time_str)
+        
+        if not self._subscriber.candle_symbol_set:
+            pairs = [(self._symbol_localizing(pair.split('_')[1]) + pair.split('_')[0]).lower() for pair in coin_list]
+            setattr(self._subscriber, 'candle_symbol_set', pairs)
+
+        if self._subscriber.candle_receiver is None or not self._subscriber.candle_receiver.isAlive():
+            self._subscriber.subscribe_candle(time_str)
     
         candle_dict = deepcopy(self.data_store.candle_queue)
     
