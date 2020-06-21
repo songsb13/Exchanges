@@ -90,7 +90,6 @@ class Receiver(threading.Thread):
         message = json.loads(self.websocket_app.recv())
         if 'result' not in message:
             data = message.get('data', None)
-            print(data)
             symbol = data['s']
             
             self._temp_queue[symbol].append(dict(
@@ -106,7 +105,6 @@ class Receiver(threading.Thread):
         message = json.loads(self.websocket_app.recv())
         if 'result' not in message:
             data = message.get('data', None)
-            print(data)
             symbol = data['s']
             kline = data['k']
             self._temp_queue[symbol].append(dict(

@@ -264,7 +264,6 @@ class Binance(BaseExchange):
 
         return self._private_api('POST', '/wapi/v3/withdraw.html', params)
 
-    # todo getcandle
     def get_candle(self, coin_list, time_):
         time_str = '{}m'.format(time_) if time_ < 60 else '{}h'.format(time_ // 60)
         
@@ -291,40 +290,6 @@ class Binance(BaseExchange):
             result_dict[symbol] = history
     
         return ExchangeResult(True, result_dict)
-
-    # def get_candle(self, coin, unit, count):
-    #     symbol = self._sai_symbol_converter(coin)
-    #
-    #     if unit >= 60:
-    #         interval = '{}h'.format(unit // 60)
-    #
-    #     else:
-    #         interval = '{}m'.format(unit)
-    #
-    #     params = {
-    #                 'symbol': symbol,
-    #                 'interval': interval,
-    #                 'limit': count,
-    #     }
-    #     # 1m, 3m, 5m, 15m, 30m, 1h, 2h, 4h, 6h, 8h, 12h, 1d, 3d, 1w, 1M
-    #     result_object = self._public_api('/api/v3/klines', params)
-    #     if result_object.success:
-    #         rows = ['open', 'high', 'low', 'close', 'volume', 'timestamp']
-    #         history = {key_: list() for key_ in rows}
-    #         try:
-    #             for candle_row in result_object.data:
-    #                 # open, high, low, close, volume, timestamp
-    #                 certain_row = list(map(float, candle_row[1:7]))
-    #
-    #                 for num, key_ in enumerate(rows):
-    #                     history[key_].append(certain_row[num])
-    #
-    #             result_object.data = history
-    #
-    #         except Exception as ex:
-    #             result_object.message = 'history를 가져오는 과정에서 에러가 발생했습니다. =[{}]'.format(ex)
-    #
-    #     return result_object
 
     async def _async_private_api(self, method, path, extra=None):
         debugger.debug('{}::: Parameters=[{}, {}, {}], function name=[_async_private_api]'.format(self.name, method, path, extra))
@@ -475,7 +440,6 @@ class Binance(BaseExchange):
                     
                     trading_type = _data['side']
                     n_price = float(_data['price'])
-                    # todo 0.1을 곱한 뒤 빼는 이유?
                     price = Decimal(n_price - (n_price * 0.1)).quantize(Decimal(10) ** -8)
                     amount = Decimal(_data['origQty']).quantize(Decimal(10) ** -8)
                     if trading_type == 'BUY':
@@ -593,24 +557,6 @@ class Binance(BaseExchange):
 
             return ExchangeResult(True, avg_orderbook)
 
-            #     market, coin = currency_pair.split('_')
-            #     orderbook_result_object = await self._get_orderbook(coin + market)
-            #
-            #     if orderbook_result_object.success:
-            #         avg_order_book[currency_pair] = dict()
-            #         for type_ in ['asks', 'bids']:
-            #             order_amount, order_sum = (int() for _ in range(2))
-            #
-            #             for data in orderbook_result_object.data[type_]:
-            #                 price, qty, *_ = data
-            #                 order_amount += Decimal(qty)  # 0 - price 1 - qty
-            #                 order_sum += (Decimal(price) * Decimal(qty)).quantize(Decimal(10) ** -8)
-            #                 if order_sum >= Decimal(btc_sum):
-            #                     _v = ((order_sum / order_amount).quantize(Decimal(10) ** -8))
-            #                     avg_order_book[currency_pair][type_] = _v
-            #                     break
-            #     else:
-            #         failed_coin_log += orderbook_result_object.message + '\n'
         except Exception as ex:
             return ExchangeResult(False, '', '{}::: ERROR_BODY=[{}], URL=[get_curr_avg_orderbook]'.format(self.name, ex), 1)
 
