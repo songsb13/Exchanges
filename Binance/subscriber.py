@@ -24,20 +24,21 @@ class ChannelIdSet(Enum):
     CANDLE = 20
 
 
-class Receiver(object):
+class Receiver(threading.Thread):
     def __init__(self, data_store, params, _id):
         super(Receiver, self).__init__()
         self.data_store = data_store
-        self.websocket_app = self.set_websocket_app()
-        self._symbol_set = list()
-        
         self._params = params
-        self._id = _id
-        
         self._url = 'wss://stream.binance.com:9443/ws/' + '/'.join(self._params)
+        self._id = _id
+
         self._data = None
         self.stop_flag = False
-    
+
+        self._symbol_set = list()
+
+        self.websocket_app = self.set_websocket_app()
+        
     def subscribe(self):
         self._data = {"method": "SUBSCRIBE", "params": self._params}
     
@@ -45,7 +46,7 @@ class Receiver(object):
         if params is None:
             # 차후 별개의 값들이 unsubscribe되어야 할 때
             self._data = {"method": "UNSUBSCRIBE", "params": self._params, 'id': self._id}
-        
+    
     def set_websocket_app(self):
         return websocket.WebSocketApp(
             url=self._url,
@@ -54,7 +55,7 @@ class Receiver(object):
             on_close=self.on_close,
             on_open=self.on_open
         )
-    
+
     def on_message(self, message):
         print(message)
 
@@ -65,29 +66,28 @@ class Receiver(object):
         print("### closed ###")
 
     def on_open(self):
-        def run(*args):
-            class_obj, *_ = args
-            while not self.stop_flag:
-                class_obj.receiver()
+        while not self.stop_flag:
+            self.receiver()
     
-        if not self.stop_flag:
-            thread.start_new_thread(run, (self,))
+    def stop(self):
+        self.websocket_app.close()
+        self.stop_flag = True
     
     def receiver(self):
         try:
             pass
         except WebSocketConnectionClosedException:
             debugger.debug('Disconnected orderbook websocket.')
-            self.stop_flag = True
+            self.stop()
             raise WebSocketConnectionClosedException
 
         except Exception as ex:
             debugger.exception('Unexpected error from Websocket thread.')
-            self.stop_flag = True
+            self.stop()
             raise ex
 
 
-class BinanceSubscriber():
+class BinanceSubscriber(object):
     def __init__(self, data_store):
         super(BinanceSubscriber, self).__init__()
         self.data_store = data_store
@@ -95,18 +95,18 @@ class BinanceSubscriber():
         self.orderbook_symbol_set = list()
         self.candle_symbol_set = list()
         
-        self._orderbook_receiver = None
-        self._candle_receiver = None
+        self.orderbook_receiver = None
+        self.candle_receiver = None
 
     def unsubscribe_orderbook(self):
-        if self._orderbook_receiver:
-            self._orderbook_receiver.unsubscribe()
-            self._orderbook_receiver.websocket_app.close()
+        if self.orderbook_receiver:
+            self.orderbook_receiver.unsubscribe()
+            self.orderbook_receiver.stop()
 
     def unsubscribe_candle(self):
-        if self._orderbook_receiver:
-            self._orderbook_receiver.unsubscribe()
-            self._orderbook_receiver.websocket_app.close()
+        if self.candle_receiver:
+            self.candle_receiver.unsubscribe()
+            self.candle_receiver.stop()
     
     def subscribe_orderbook(self):
         if self.orderbook_symbol_set:
@@ -115,13 +115,12 @@ class BinanceSubscriber():
             # 전체 orderbook 가져옴.
             params = ['!bookTicker']
         
-        if self._orderbook_receiver is None:
-            self._orderbook_receiver = Receiver(
-                self.data_store,
-                params,
-                ChannelIdSet.ORDERBOOK.value
-            )
-            self._orderbook_receiver.websocket_app.run_forever()
+        self.orderbook_receiver = Receiver(
+            self.data_store,
+            params,
+            ChannelIdSet.ORDERBOOK.value
+        )
+        self.orderbook_receiver.start()
             
     def subscribe_candle(self, time_):
         """
@@ -129,11 +128,9 @@ class BinanceSubscriber():
         """
         params = ['{}@kline_{}'.format(symbol, time_) for symbol in self.candle_symbol_set]
 
-        if self._candle_receiver is None:
-            self._candle_receiver = Receiver(
-                self.data_store,
-                params,
-                ChannelIdSet.CANDLE.value
-            )
-            self._candle_receiver.websocket_app.run_forever()
-
+        self.candle_receiver = Receiver(
+            self.data_store,
+            params,
+            ChannelIdSet.CANDLE.value
+        )
+        self.candle_receiver.start()
