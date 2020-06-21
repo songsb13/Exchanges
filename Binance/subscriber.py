@@ -66,44 +66,61 @@ class Receiver(threading.Thread):
     #     )
     def run(self):
         while not self.stop_flag:
-            self.receiver()
-        
+            try:
+                if self._id == ChannelIdSet.ORDERBOOK.value:
+                    self.orderbook_receiver()
+                elif self._id == ChannelIdSet.CANDLE.value:
+                    self.candle_receiver()
+                    
+            except WebSocketConnectionClosedException:
+                debugger.debug('Disconnected orderbook websocket.')
+                self.stop()
+                raise WebSocketConnectionClosedException
+
+            except Exception as ex:
+                debugger.exception('Unexpected error from Websocket thread.')
+                self.stop()
+                raise ex
+
     def stop(self):
         self.websocket_app.close()
         self.stop_flag = True
     
-    def receiver(self):
-        try:
-            message = json.loads(self.websocket_app.recv())
-            if 'result' not in message:
-                data = message.get('data', None)
-                print(data)
-                symbol = data['s']
-                kline = data['k']
-                self._temp_queue[symbol].append(dict(
-                    high=kline['h'],
-                    low=kline['l'],
-                    close=kline['c'],
-                    open=kline['o'],
-                    timestamp=kline['t'],
-                    volume=kline['v']
-                ))
-                
-                if len(self._temp_queue[symbol]) >= 20:
-                    self.store_queue[symbol] = deepcopy(self._temp_queue[symbol])
-                    self._temp_queue[symbol] = list()
-                    
-                
+    def orderbook_receiver(self):
+        message = json.loads(self.websocket_app.recv())
+        if 'result' not in message:
+            data = message.get('data', None)
+            print(data)
+            symbol = data['s']
             
-        except WebSocketConnectionClosedException:
-            debugger.debug('Disconnected orderbook websocket.')
-            self.stop()
-            raise WebSocketConnectionClosedException
-
-        except Exception as ex:
-            debugger.exception('Unexpected error from Websocket thread.')
-            self.stop()
-            raise ex
+            self._temp_queue[symbol].append(dict(
+                bids=dict(price=data['b'], amount=data['B']),
+                asks=dict(price=data['a'], amount=data['A'])
+            ))
+            
+            if len(self._temp_queue[symbol]) >= 20:
+                self.store_queue[symbol] = deepcopy(self._temp_queue[symbol])
+                self._temp_queue[symbol] = list()
+                
+    def candle_receiver(self):
+        message = json.loads(self.websocket_app.recv())
+        if 'result' not in message:
+            data = message.get('data', None)
+            print(data)
+            symbol = data['s']
+            kline = data['k']
+            self._temp_queue[symbol].append(dict(
+                high=kline['h'],
+                low=kline['l'],
+                close=kline['c'],
+                open=kline['o'],
+                timestamp=kline['t'],
+                volume=kline['v']
+            ))
+        
+            if len(self._temp_queue[symbol]) >= 20:
+                self.store_queue[symbol] = deepcopy(self._temp_queue[symbol])
+                self._temp_queue[symbol] = list()
 
 
 class BinanceSubscriber(object):

@@ -547,22 +547,21 @@ class Binance(BaseExchange):
     
     async def get_curr_avg_orderbook(self, coin_list, btc_sum=1):
         try:
-            pairs = [(pair.split('_')[0] + self._symbol_localizing(pair.split('_')[1])).lower() for pair in coin_list]
-        
+            pairs = [(self._symbol_localizing(pair.split('_')[1]) + pair.split('_')[0]).lower()
+                     for pair in coin_list]
             if not self._subscriber.orderbook_symbol_set:
                 setattr(self._subscriber, 'orderbook_symbol_set', pairs)
-        
-            if not self._subscriber.isAlive():
-                self._subscriber.start()
+
+            if self._subscriber.orderbook_receiver is None or not self._subscriber.orderbook_receiver.isAlive():
                 self._subscriber.subscribe_orderbook()
-        
+                
             if not self.data_store.orderbook_queue:
                 return ExchangeResult(False, '', 'orderbook data is not yet stored', 1)
-            
-            avg_order_book = dict()
-            failed_coin_log = str()
+
+            avg_orderbook = dict()
             for pair in pairs:
-                if pair == 'btcbtc':
+                pair = pair.upper()
+                if pair == 'BTCBTC':
                     continue
                 
                 orderbook_list = deepcopy(self.data_store.orderbook_queue.get(pair, None))
@@ -570,6 +569,30 @@ class Binance(BaseExchange):
                 if orderbook_list is None:
                     continue
                 
+                data_dict = dict(bids=list(),
+                                 asks=list())
+                
+                for data in orderbook_list:
+                    data_dict['bids'].append(data['bids'])
+                    data_dict['asks'].append(data['asks'])
+
+                avg_orderbook[pair] = dict()
+                
+                for order_type in ['asks', 'bids']:
+                    sum_ = Decimal(0.0)
+                    total_coin_num = Decimal(0.0)
+                    for data in data_dict[order_type]:
+                        price = data['price']
+                        alt_coin_num = data['amount']
+                        sum_ += Decimal(price) * Decimal(alt_coin_num)
+                        total_coin_num += Decimal(alt_coin_num)
+                        if sum_ > btc_sum:
+                            break
+                    avg_orderbook[pair][order_type] = (sum_ / total_coin_num).quantize(
+                        Decimal(10) ** -8)
+
+            return ExchangeResult(True, avg_orderbook)
+
             #     market, coin = currency_pair.split('_')
             #     orderbook_result_object = await self._get_orderbook(coin + market)
             #
@@ -588,7 +611,6 @@ class Binance(BaseExchange):
             #                     break
             #     else:
             #         failed_coin_log += orderbook_result_object.message + '\n'
-            # return ExchangeResult(True, avg_order_book, failed_coin_log, 0)
         except Exception as ex:
             return ExchangeResult(False, '', '{}::: ERROR_BODY=[{}], URL=[get_curr_avg_orderbook]'.format(self.name, ex), 1)
 
