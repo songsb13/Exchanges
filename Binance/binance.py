@@ -286,8 +286,8 @@ class Binance(BaseExchange):
         for symbol, candle_list in candle_dict.items():
             history = {key_: list() for key_ in rows}
             for candle in candle_list:
-                for n, key in enumerate(rows):
-                    history[key].append(candle[n])
+                for key, item in candle.items():
+                    history[key].append(item)
             result_dict[symbol] = history
     
         return ExchangeResult(True, result_dict)

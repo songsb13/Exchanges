@@ -11,6 +11,7 @@ import json
 from Util.pyinstaller_patch import *
 from websocket import create_connection
 from websocket import WebSocketConnectionClosedException
+from copy import deepcopy
 
 
 class ChannelIdSet(Enum):
@@ -25,9 +26,10 @@ class ChannelIdSet(Enum):
 
 
 class Receiver(threading.Thread):
-    def __init__(self, data_store, params, _id):
+    def __init__(self, store_queue, params, _id, symbol_set):
         super(Receiver, self).__init__()
-        self.data_store = data_store
+        self.store_queue = store_queue
+        self._temp_queue = {symbol.upper(): list() for symbol in symbol_set}
         self._params = params
         self._url = 'wss://stream.binance.com:9443'
 
@@ -40,7 +42,7 @@ class Receiver(threading.Thread):
 
         self.stop_flag = False
 
-        self._symbol_set = list()
+        self._symbol_set = symbol_set
 
         self.websocket_app = create_connection(self._url)
     
@@ -73,14 +75,25 @@ class Receiver(threading.Thread):
     def receiver(self):
         try:
             message = json.loads(self.websocket_app.recv())
-            
-            result = message.get('result', None)
-            
-            if result is not None:
-                pass
-            else:
-                pass
-            
+            if 'result' not in message:
+                data = message.get('data', None)
+                print(data)
+                symbol = data['s']
+                kline = data['k']
+                self._temp_queue[symbol].append(dict(
+                    high=kline['h'],
+                    low=kline['l'],
+                    close=kline['c'],
+                    open=kline['o'],
+                    timestamp=kline['t'],
+                    volume=kline['v']
+                ))
+                
+                if len(self._temp_queue[symbol]) >= 20:
+                    self.store_queue[symbol] = deepcopy(self._temp_queue[symbol])
+                    self._temp_queue[symbol] = list()
+                    
+                
             
         except WebSocketConnectionClosedException:
             debugger.debug('Disconnected orderbook websocket.')
@@ -122,10 +135,12 @@ class BinanceSubscriber(object):
             params = ['!bookTicker']
         
         self.orderbook_receiver = Receiver(
-            self.data_store,
+            self.data_store.orderbook_queue,
             params,
-            ChannelIdSet.ORDERBOOK.value
+            ChannelIdSet.ORDERBOOK.value,
+            self.orderbook_symbol_set
         )
+        self.orderbook_receiver.subscribe()
         self.orderbook_receiver.start()
             
     def subscribe_candle(self, time_):
@@ -133,11 +148,11 @@ class BinanceSubscriber(object):
             time_: 1m, 3m, 5m, 15m, 30mm 1h, 2h, 4h, 6h, 8h, 12h, 1d, 3d, 1w, 1m
         """
         params = ['{}@kline_{}'.format(symbol, time_) for symbol in self.candle_symbol_set]
-
         self.candle_receiver = Receiver(
-            self.data_store,
+            self.data_store.candle_queue,
             params,
-            ChannelIdSet.CANDLE.value
+            ChannelIdSet.CANDLE.value,
+            self.candle_symbol_set
         )
         self.candle_receiver.subscribe()
         self.candle_receiver.start()
