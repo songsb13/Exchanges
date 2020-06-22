@@ -160,7 +160,7 @@ class BinanceSubscriber(object):
             
     def subscribe_candle(self, time_):
         """
-            time_: 1m, 3m, 5m, 15m, 30mm 1h, 2h, 4h, 6h, 8h, 12h, 1d, 3d, 1w, 1m
+            time_: 1m, 3m, 5m, 15m, 30m 1h, 2h, 4h, 6h, 8h, 12h, 1d, 3d, 1w, 1M
         """
         params = ['{}@kline_{}'.format(symbol, time_) for symbol in self.candle_symbol_set]
         self.candle_receiver = Receiver(
