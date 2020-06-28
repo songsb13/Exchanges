@@ -12,7 +12,6 @@ import datetime
 import threading
 
 from urllib.parse import urlencode
-from copy import deepcopy
 from decimal import Decimal, ROUND_DOWN
 
 from Exchanges.base_exchange import BaseExchange, ExchangeResult, DataStore
@@ -293,7 +292,7 @@ class Binance(BaseExchange):
 
     def get_candle(self):
         with self._lock_dic['candle']:
-            candle_dict = deepcopy(self.data_store.candle_queue)
+            candle_dict = self.data_store.candle_queue
         
             if not candle_dict:
                 return ExchangeResult(False, '', 'candle data is not yet stored', 1)
@@ -542,7 +541,7 @@ class Binance(BaseExchange):
                 if pair == 'BTCBTC':
                     continue
                 with self._lock_dic['orderbook']:
-                    orderbook_list = deepcopy(self.data_store.orderbook_queue.get(pair, None))
+                    orderbook_list = self.data_store.orderbook_queue.get(pair, None)
                     
                     if orderbook_list is None:
                         continue

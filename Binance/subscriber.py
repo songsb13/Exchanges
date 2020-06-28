@@ -11,7 +11,6 @@ import json
 from Util.pyinstaller_patch import *
 from websocket import create_connection
 from websocket import WebSocketConnectionClosedException
-from copy import deepcopy
 
 
 class ChannelIdSet(Enum):
@@ -100,7 +99,7 @@ class Receiver(threading.Thread):
             
             if len(self._temp_queue[symbol]) >= 20:
                 with self.lock():
-                    self.store_queue[symbol] = deepcopy(self._temp_queue[symbol])
+                    self.store_queue[symbol] = self._temp_queue[symbol]
                     self._temp_queue[symbol] = list()
                 
     def candle_receiver(self):
@@ -120,7 +119,7 @@ class Receiver(threading.Thread):
         
             if len(self._temp_queue[symbol]) >= 20:
                 with self.lock():
-                    self.store_queue[symbol] = deepcopy(self._temp_queue[symbol])
+                    self.store_queue[symbol] = self._temp_queue[symbol]
                     self._temp_queue[symbol] = list()
                     
 
