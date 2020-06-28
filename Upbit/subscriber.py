@@ -19,7 +19,7 @@ class Tickets(Enum):
 class UpbitSubscriber(threading.Thread):
     def __init__(self, data_store):
         super(UpbitSubscriber, self).__init__()
-        self.data_tore = data_store
+        self.data_store = data_store
         self.name = 'upbit_subscriber'
         self.stop_flag = False
         self._upbit_websocket = create_connection('wss://api.upbit.com/websocket/v1')
@@ -49,7 +49,16 @@ class UpbitSubscriber(threading.Thread):
             
             data = json.loads(message.decode())
             market = data['code']
-
+            ticket = market['ticket']
+            
+            if ticket == Tickets.ORDERBOOK:
+                self.data_store.orderbook_queue
+                
+            elif ticket == Tickets.CANDLE:
+                self.data_store.candle_queue
+            
+            else:
+                pass
         except WebSocketConnectionClosedException:
             debugger.debug('Disconnected orderbook websocket.')
             self.stop_flag = True

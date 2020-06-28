@@ -7,12 +7,16 @@ class BaseUpbit(BaseExchange):
     '''
 
     '''
-    def __init__(self, **kwargs):
+    def __init__(self, key, secret, coin_list):
         self._base_url = 'https://api.upbit.com/v1'
         if kwargs:
-            self._key = kwargs['key']
-            self._secret = kwargs['secret']
-
+            self._key = key
+            self._secret = secret
+        self._coin_list = coin_list
+        
+    def _set_orderbook_setting(self):
+        pass
+    
     def _public_api(self, method, path, extra=None, header=None):
         if header is None:
             header = {}
