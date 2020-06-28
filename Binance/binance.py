@@ -21,11 +21,15 @@ from Util.pyinstaller_patch import *
 
 
 class Binance(BaseExchange):
-    def __init__(self, key, secret):
+    def __init__(self, key, secret, coin_list, time_):
         self.name = 'Binance'
         self._base_url = 'https://api.binance.com'
         self._key = key
         self._secret = secret
+        
+        self._coin_list = coin_list
+        self._candle_time = time_
+        
         self.exchange_info = None
         self._get_exchange_info()
         self.data_store = DataStore()
@@ -33,6 +37,28 @@ class Binance(BaseExchange):
         self._lock_dic = dict(orderbook=threading.Lock(), candle=threading.Lock())
         
         self._subscriber = BinanceSubscriber(self.data_store, self._lock_dic)
+        
+        self._websocket_candle_settings()
+        self._websocket_orderbook_settings()
+    
+    def _websocket_candle_settings(self):
+        time_str = '{}m'.format(self._candle_time) if self._candle_time < 60 else '{}h'.format(self._candle_time // 60)
+        if not self._subscriber.candle_symbol_set:
+            pairs = [(self._symbol_localizing(pair.split('_')[1]) + pair.split('_')[0]).lower()
+                     for pair in self._coin_list]
+            setattr(self._subscriber, 'candle_symbol_set', pairs)
+
+        if self._subscriber.candle_receiver is None or not self._subscriber.candle_receiver.isAlive():
+            self._subscriber.subscribe_candle(time_str)
+    
+    def _websocket_orderbook_settings(self):
+        pairs = [(self._symbol_localizing(pair.split('_')[1]) + pair.split('_')[0]).lower()
+                 for pair in self._coin_list]
+        if not self._subscriber.orderbook_symbol_set:
+            setattr(self._subscriber, 'orderbook_symbol_set', pairs)
+    
+        if self._subscriber.orderbook_receiver is None or not self._subscriber.orderbook_receiver.isAlive():
+            self._subscriber.subscribe_orderbook()
 
     def _public_api(self, path, extra=None):
         debugger.debug('{}::: Parameters=[{}, {}], function name=[_public_api]'.format(self.name, path, extra))
@@ -265,31 +291,21 @@ class Binance(BaseExchange):
 
         return self._private_api('POST', '/wapi/v3/withdraw.html', params)
 
-    def get_candle(self, coin_list, time_):
-        time_str = '{}m'.format(time_) if time_ < 60 else '{}h'.format(time_ // 60)
-        
-        if not self._subscriber.candle_symbol_set:
-            pairs = [(self._symbol_localizing(pair.split('_')[1]) + pair.split('_')[0]).lower() for pair in coin_list]
-            setattr(self._subscriber, 'candle_symbol_set', pairs)
-
-        if self._subscriber.candle_receiver is None or not self._subscriber.candle_receiver.isAlive():
-            self._subscriber.subscribe_candle(time_str)
-        
-        with self._lock_dic['candle']:
-            candle_dict = deepcopy(self.data_store.candle_queue)
-        
-            if not candle_dict:
-                return ExchangeResult(False, '', 'candle data is not yet stored', 1)
-        
-            rows = ['timestamp', 'open', 'close', 'high', 'low', 'volume']
-        
-            result_dict = dict()
-            for symbol, candle_list in candle_dict.items():
-                history = {key_: list() for key_ in rows}
-                for candle in candle_list:
-                    for key, item in candle.items():
-                        history[key].append(item)
-                result_dict[symbol] = history
+    def get_candle(self):
+        candle_dict = deepcopy(self.data_store.candle_queue)
+    
+        if not candle_dict:
+            return ExchangeResult(False, '', 'candle data is not yet stored', 1)
+    
+        rows = ['timestamp', 'open', 'close', 'high', 'low', 'volume']
+    
+        result_dict = dict()
+        for symbol, candle_list in candle_dict.items():
+            history = {key_: list() for key_ in rows}
+            for candle in candle_list:
+                for key, item in candle.items():
+                    history[key].append(item)
+            result_dict[symbol] = history
     
         return ExchangeResult(True, result_dict)
 
@@ -511,15 +527,10 @@ class Binance(BaseExchange):
 
         return result_object
     
-    async def get_curr_avg_orderbook(self, coin_list, btc_sum=1):
+    async def get_curr_avg_orderbook(self, btc_sum=1):
         try:
             pairs = [(self._symbol_localizing(pair.split('_')[1]) + pair.split('_')[0]).lower()
-                     for pair in coin_list]
-            if not self._subscriber.orderbook_symbol_set:
-                setattr(self._subscriber, 'orderbook_symbol_set', pairs)
-
-            if self._subscriber.orderbook_receiver is None or not self._subscriber.orderbook_receiver.isAlive():
-                self._subscriber.subscribe_orderbook()
+                     for pair in self._coin_list]
                 
             if not self.data_store.orderbook_queue:
                 return ExchangeResult(False, '', 'orderbook data is not yet stored', 1)
