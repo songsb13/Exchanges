@@ -12,9 +12,8 @@ class Tickets(Enum):
         1~1000: public
         1001~2000: private
     """
-    orderbook_ticket = 10
-    candle_ticket = 20
-
+    ORDERBOOK = 10
+    CANDLE = 20
 
 
 class UpbitSubscriber(threading.Thread):
@@ -25,9 +24,17 @@ class UpbitSubscriber(threading.Thread):
         self.stop_flag = False
         self._upbit_websocket = create_connection('wss://api.upbit.com/websocket/v1')
     
-    def _subscribes(self):
-        data = [{"ticket": "gimo's_ticket"},
-                {"type": "ticker", "codes": market_listing, "isOnlyRealtime": True}]
+    def subscribe_orderbook(self, market_list):
+        data = [{"ticket": Tickets.ORDERBOOK},
+                {"type": 'orderbook', "codes": market_list, "isOnlyRealtime": True}]
+
+        self._upbit_websocket.send(data)
+        
+    def subscribe_candle(self, market_list):
+        data = [{"ticket": Tickets.CANDLE},
+                {"type": 'trade', "codes": market_list, "isOnlyRealtime": True}]
+        
+        self._upbit_websocket.send(data)
 
     def run(self):
         while not self.stop_flag:
@@ -38,7 +45,19 @@ class UpbitSubscriber(threading.Thread):
     
     def receiver(self):
         try:
-            message = self.
-        except
+            message = self._upbit_websocket.recv()
+            
+            data = json.loads(message.decode())
+            market = data['code']
+
+        except WebSocketConnectionClosedException:
+            debugger.debug('Disconnected orderbook websocket.')
+            self.stop_flag = True
+            raise WebSocketConnectionClosedException
+
+        except Exception as ex:
+            debugger.exception('Unexpected error from Websocket thread.')
+            self.stop_flag = True
+            raise ex
         
 
