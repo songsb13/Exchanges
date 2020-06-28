@@ -527,7 +527,7 @@ class Binance(BaseExchange):
 
         return result_object
     
-    async def get_curr_avg_orderbook(self, btc_sum=1):
+    async def get_curr_avg_orderbook(self, coin_list, btc_sum=1):
         try:
             pairs = [(self._symbol_localizing(pair.split('_')[1]) + pair.split('_')[0]).lower()
                      for pair in self._coin_list]
