@@ -26,12 +26,13 @@ class ChannelIdSet(Enum):
 
 
 class Receiver(threading.Thread):
-    def __init__(self, store_queue, params, _id, symbol_set):
+    def __init__(self, store_queue, params, _id, symbol_set, lock):
         super(Receiver, self).__init__()
         self.store_queue = store_queue
         self._temp_queue = {symbol.upper(): list() for symbol in symbol_set}
         self._params = params
         self._url = 'wss://stream.binance.com:9443'
+        self.lock = lock
 
         if len(params) == 1:
             self._url += '/ws' + '/'.join(params)
@@ -98,8 +99,9 @@ class Receiver(threading.Thread):
             ))
             
             if len(self._temp_queue[symbol]) >= 20:
-                self.store_queue[symbol] = deepcopy(self._temp_queue[symbol])
-                self._temp_queue[symbol] = list()
+                with self.lock():
+                    self.store_queue[symbol] = deepcopy(self._temp_queue[symbol])
+                    self._temp_queue[symbol] = list()
                 
     def candle_receiver(self):
         message = json.loads(self.websocket_app.recv())
@@ -117,17 +119,20 @@ class Receiver(threading.Thread):
             ))
         
             if len(self._temp_queue[symbol]) >= 20:
-                self.store_queue[symbol] = deepcopy(self._temp_queue[symbol])
-                self._temp_queue[symbol] = list()
-
+                with self.lock():
+                    self.store_queue[symbol] = deepcopy(self._temp_queue[symbol])
+                    self._temp_queue[symbol] = list()
+                    
 
 class BinanceSubscriber(object):
-    def __init__(self, data_store):
+    def __init__(self, data_store, lock):
         super(BinanceSubscriber, self).__init__()
         self.data_store = data_store
         self.name = 'binance_subscriber'
         self.orderbook_symbol_set = list()
         self.candle_symbol_set = list()
+        
+        self._lock_dic = lock
         
         self.orderbook_receiver = None
         self.candle_receiver = None
@@ -153,7 +158,8 @@ class BinanceSubscriber(object):
             self.data_store.orderbook_queue,
             params,
             ChannelIdSet.ORDERBOOK.value,
-            self.orderbook_symbol_set
+            self.orderbook_symbol_set,
+            self._lock_dic['orderbook']
         )
         self.orderbook_receiver.subscribe()
         self.orderbook_receiver.start()
@@ -167,7 +173,8 @@ class BinanceSubscriber(object):
             self.data_store.candle_queue,
             params,
             ChannelIdSet.CANDLE.value,
-            self.candle_symbol_set
+            self.candle_symbol_set,
+            self._lock_dic['candle']
         )
         self.candle_receiver.subscribe()
         self.candle_receiver.start()

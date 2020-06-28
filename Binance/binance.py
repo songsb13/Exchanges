@@ -9,7 +9,7 @@ import asyncio
 import numpy as np
 import logging
 import datetime
-
+import threading
 
 from urllib.parse import urlencode
 from copy import deepcopy
@@ -28,10 +28,11 @@ class Binance(BaseExchange):
         self._secret = secret
         self.exchange_info = None
         self._get_exchange_info()
-        
         self.data_store = DataStore()
         
-        self._subscriber = BinanceSubscriber(self.data_store)
+        self._lock_dic = dict(orderbook=threading.Lock(), candle=threading.Lock())
+        
+        self._subscriber = BinanceSubscriber(self.data_store, self._lock_dic)
 
     def _public_api(self, path, extra=None):
         debugger.debug('{}::: Parameters=[{}, {}], function name=[_public_api]'.format(self.name, path, extra))
@@ -273,21 +274,22 @@ class Binance(BaseExchange):
 
         if self._subscriber.candle_receiver is None or not self._subscriber.candle_receiver.isAlive():
             self._subscriber.subscribe_candle(time_str)
-    
-        candle_dict = deepcopy(self.data_store.candle_queue)
-    
-        if not candle_dict:
-            return ExchangeResult(False, '', 'candle data is not yet stored', 1)
-    
-        rows = ['timestamp', 'open', 'close', 'high', 'low', 'volume']
-    
-        result_dict = dict()
-        for symbol, candle_list in candle_dict.items():
-            history = {key_: list() for key_ in rows}
-            for candle in candle_list:
-                for key, item in candle.items():
-                    history[key].append(item)
-            result_dict[symbol] = history
+        
+        with self._lock_dic['candle']:
+            candle_dict = deepcopy(self.data_store.candle_queue)
+        
+            if not candle_dict:
+                return ExchangeResult(False, '', 'candle data is not yet stored', 1)
+        
+            rows = ['timestamp', 'open', 'close', 'high', 'low', 'volume']
+        
+            result_dict = dict()
+            for symbol, candle_list in candle_dict.items():
+                history = {key_: list() for key_ in rows}
+                for candle in candle_list:
+                    for key, item in candle.items():
+                        history[key].append(item)
+                result_dict[symbol] = history
     
         return ExchangeResult(True, result_dict)
 
