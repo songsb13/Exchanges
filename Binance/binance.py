@@ -292,20 +292,21 @@ class Binance(BaseExchange):
         return self._private_api('POST', '/wapi/v3/withdraw.html', params)
 
     def get_candle(self):
-        candle_dict = deepcopy(self.data_store.candle_queue)
-    
-        if not candle_dict:
-            return ExchangeResult(False, '', 'candle data is not yet stored', 1)
-    
-        rows = ['timestamp', 'open', 'close', 'high', 'low', 'volume']
-    
-        result_dict = dict()
-        for symbol, candle_list in candle_dict.items():
-            history = {key_: list() for key_ in rows}
-            for candle in candle_list:
-                for key, item in candle.items():
-                    history[key].append(item)
-            result_dict[symbol] = history
+        with self._lock_dic['candle']:
+            candle_dict = deepcopy(self.data_store.candle_queue)
+        
+            if not candle_dict:
+                return ExchangeResult(False, '', 'candle data is not yet stored', 1)
+        
+            rows = ['timestamp', 'open', 'close', 'high', 'low', 'volume']
+        
+            result_dict = dict()
+            for symbol, candle_list in candle_dict.items():
+                history = {key_: list() for key_ in rows}
+                for candle in candle_list:
+                    for key, item in candle.items():
+                        history[key].append(item)
+                result_dict[symbol] = history
     
         return ExchangeResult(True, result_dict)
 
@@ -540,33 +541,33 @@ class Binance(BaseExchange):
                 pair = pair.upper()
                 if pair == 'BTCBTC':
                     continue
-                
-                orderbook_list = deepcopy(self.data_store.orderbook_queue.get(pair, None))
-                
-                if orderbook_list is None:
-                    continue
-                
-                data_dict = dict(bids=list(),
-                                 asks=list())
-                
-                for data in orderbook_list:
-                    data_dict['bids'].append(data['bids'])
-                    data_dict['asks'].append(data['asks'])
-
-                avg_orderbook[pair] = dict()
-                
-                for order_type in ['asks', 'bids']:
-                    sum_ = Decimal(0.0)
-                    total_coin_num = Decimal(0.0)
-                    for data in data_dict[order_type]:
-                        price = data['price']
-                        alt_coin_num = data['amount']
-                        sum_ += Decimal(price) * Decimal(alt_coin_num)
-                        total_coin_num += Decimal(alt_coin_num)
-                        if sum_ > btc_sum:
-                            break
-                    avg_orderbook[pair][order_type] = (sum_ / total_coin_num).quantize(
-                        Decimal(10) ** -8)
+                with self._lock_dic['orderbook']:
+                    orderbook_list = deepcopy(self.data_store.orderbook_queue.get(pair, None))
+                    
+                    if orderbook_list is None:
+                        continue
+                    
+                    data_dict = dict(bids=list(),
+                                     asks=list())
+                    
+                    for data in orderbook_list:
+                        data_dict['bids'].append(data['bids'])
+                        data_dict['asks'].append(data['asks'])
+    
+                    avg_orderbook[pair] = dict()
+                    
+                    for order_type in ['asks', 'bids']:
+                        sum_ = Decimal(0.0)
+                        total_coin_num = Decimal(0.0)
+                        for data in data_dict[order_type]:
+                            price = data['price']
+                            alt_coin_num = data['amount']
+                            sum_ += Decimal(price) * Decimal(alt_coin_num)
+                            total_coin_num += Decimal(alt_coin_num)
+                            if sum_ > btc_sum:
+                                break
+                        avg_orderbook[pair][order_type] = (sum_ / total_coin_num).quantize(
+                            Decimal(10) ** -8)
 
             return ExchangeResult(True, avg_orderbook)
 
