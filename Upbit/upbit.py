@@ -4,7 +4,7 @@ import time
 import json
 import aiohttp
 import numpy as np
-
+import asyncio
 
 from decimal import Decimal, ROUND_DOWN
 from urllib.parse import urlencode
@@ -20,6 +20,9 @@ class BaseUpbit(BaseExchange):
         self._coin_list = coin_list
     
     def _set_orderbook_setting(self):
+        pass
+    
+    def _set_candle_setting(self):
         pass
     
     def _public_api(self, path, extra=None):
