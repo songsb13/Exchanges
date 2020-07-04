@@ -57,13 +57,6 @@ class Receiver(threading.Thread):
             json_ = {"method": "UNSUBSCRIBE", "params": self._params, 'id': self._id}
             self.websocket_app.send(json_)
 
-    # def set_websocket_app(self):
-    #     return websocket.WebSocketApp(
-    #         url=self._url,
-    #         on_message=self.on_message,
-    #         on_error=self.on_error,
-    #         on_close=self.on_close,
-    #     )
     def run(self):
         while not self.stop_flag:
             try:
