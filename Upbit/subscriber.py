@@ -2,7 +2,6 @@ import json
 
 from websocket import create_connection
 from websocket import WebSocketConnectionClosedException
-from Exchanges.base_exchange import DataStore
 from Util.pyinstaller_patch import *
 from enum import Enum
 
@@ -17,22 +16,33 @@ class Tickets(Enum):
 
 
 class UpbitSubscriber(threading.Thread):
-    def __init__(self, data_store):
+    def __init__(self, data_store, lock_dic):
         super(UpbitSubscriber, self).__init__()
         self.data_store = data_store
         self.name = 'upbit_subscriber'
         self.stop_flag = False
         self._upbit_websocket = create_connection('wss://api.upbit.com/websocket/v1')
+        self._lock_dic = lock_dic
+        
+        self.candle_symbol_set = list()
+        self.orderbook_symbol_set = list()
+        
+        self.orderbook_subscribed = False
+        self.candle_subscribed = False
     
-    def subscribe_orderbook(self, market_list):
+    def subscribe_orderbook(self):
         data = [{"ticket": Tickets.ORDERBOOK},
-                {"type": 'orderbook', "codes": market_list, "isOnlyRealtime": True}]
-
+                {"type": 'orderbook', "codes": self.orderbook_symbol_set, "isOnlyRealtime": True}]
+        
+        self.orderbook_subscribed = True
+        
         self._upbit_websocket.send(data)
         
-    def subscribe_candle(self, market_list):
+    def subscribe_candle(self):
         data = [{"ticket": Tickets.CANDLE},
-                {"type": 'trade', "codes": market_list, "isOnlyRealtime": True}]
+                {"type": 'trade', "codes": self.candle_symbol_set, "isOnlyRealtime": True}]
+        
+        self.candle_subscribed = False
         
         self._upbit_websocket.send(data)
 
@@ -52,13 +62,13 @@ class UpbitSubscriber(threading.Thread):
             ticket = market['ticket']
             
             if ticket == Tickets.ORDERBOOK:
-                self.data_store.orderbook_queue
+                with self._lock_dic['orderbook']:
+                    self.data_store.orderbook_queue
                 
             elif ticket == Tickets.CANDLE:
-                self.data_store.candle_queue
+                with self._lock_dic['candle']:
+                    self.data_store.candle_queue
             
-            else:
-                pass
         except WebSocketConnectionClosedException:
             debugger.debug('Disconnected orderbook websocket.')
             self.stop_flag = True
