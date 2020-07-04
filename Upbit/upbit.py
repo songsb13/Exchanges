@@ -3,6 +3,8 @@ import requests
 import time
 import json
 import aiohttp
+import numpy as np
+
 
 from decimal import Decimal, ROUND_DOWN
 from urllib.parse import urlencode
@@ -22,9 +24,9 @@ class BaseUpbit(BaseExchange):
     
     def _public_api(self, path, extra=None):
         if extra is None:
-            extra = {}
+            extra = dict()
         
-        path = '/'.join([self._base_url, path])
+        path = self._base_url + path
         rq = requests.get(path, json=extra)
         try:
             res = rq.json()
@@ -71,23 +73,23 @@ class BaseUpbit(BaseExchange):
         return 'Bearer {}'.format(jwt.encode(payload, self._secret, ).decode('utf8'))
     
     def get_ticker(self, market):
-        return self._public_api('get', 'ticker', market)
+        return self._public_api('/ticker', market)
     
     def currencies(self):
         # using get_currencies, service_currencies
-        return self._public_api('get', '/'.join(['market', 'all']))
+        return self._public_api('/market/all')
     
     def get_currencies(self, currencies):
-        res = []
+        res = list()
         return [res.append(data['market']) for data in currencies if not currencies['market'] in res]
     
     def service_currencies(self, currencies):
         # using deposit_addrs
-        res = []
+        res = list()
         return [res.append(data.split('-')[1]) for data in currencies if currencies['market'].split('-')[1] not in res]
     
     def get_order_history(self, uuid):
-        return self._private_api('get', 'order', {'uuid': uuid})
+        return self._private_api('get', '/order', {'uuid': uuid})
     
     def withdraw(self, coin, amount, to_address, payment_id=None):
         params = {
@@ -99,9 +101,9 @@ class BaseUpbit(BaseExchange):
         if payment_id:
             params.update({'secondary_address': payment_id})
         
-        return self._private_api('post', '/'.join(['withdraws', 'coin']), params)
+        return self._private_api('post', '/withdraws/coin', params)
     
-    def buy(self, coin, amount, price):
+    def buy(self, coin, amount, price=None):
         amount, price = map(str, (amount, price * 1.05))
         
         params = {
@@ -112,9 +114,9 @@ class BaseUpbit(BaseExchange):
             'ord_type': 'limit'
         }
         
-        return self._private_api('POST', 'orders', params)
+        return self._private_api('POST', '/orders', params)
     
-    def sell(self, coin, amount, price):
+    def sell(self, coin, amount, price=None):
         amount, price = map(str, (amount, price * 0.95))
         
         params = {
@@ -125,10 +127,9 @@ class BaseUpbit(BaseExchange):
             'ord_type': 'limit'
         }
         
-        return self._private_api('POST', 'orders', params)
+        return self._private_api('POST', '/orders', params)
     
     def base_to_alt(self, currency_pair, btc_amount, alt_amount, td_fee, tx_fee):
-        # after self.buy()
         alt_amount *= 1 - Decimal(td_fee)
         alt_amount -= Decimal(tx_fee[currency_pair.split('_')[1]])
         alt_amount = alt_amount.quantize(Decimal(10) ** -4, rounding=ROUND_DOWN)
@@ -149,23 +150,13 @@ class BaseUpbit(BaseExchange):
     #             alt_amount -= Decimal(0.0001).quantize(Decimal(10) ** -4)
     #             continue
     
-    async def async_public_api(self, method, path, extra=None, header=None):
-        if header is None:
-            header = {}
-        
+    async def async_public_api(self, path, extra=None):
         if extra is None:
-            extra = {}
+            extra = dict()
         try:
-            async with aiohttp.ClientSession(headers=header) as s:
-                method = method.upper()
-                path = '/'.join([self._base_url, path])
-                
-                if method == 'GET':
-                    rq = await s.get(path, headers=header, json=extra)
-                elif method == 'POST':
-                    rq = await s.post(path, headers=header, params=extra)
-                else:
-                    return False, '', '[{}]incorrect method'.format(method)
+            async with aiohttp.ClientSession() as s:
+                path = self._base_url + path
+                rq = await s.get(path, json=extra)
                 
                 res = json.loads(await rq.text())
                 
@@ -185,29 +176,40 @@ class BaseUpbit(BaseExchange):
         
         if extra is not None:
             payload.update({'query': urlencode(extra)})
-        
         header = self.get_jwt_token(payload)
+        try:
+            async with aiohttp.ClientSession() as s:
+                path = self._base_url + path
+                rq = await s.post(path, headers=header, data=extra)
         
-        return await self.async_public_api(method, path, extra, header)
+                res = json.loads(await rq.text())
+        
+                if 'error' in res:
+                    return False, '', res['error']['message']
+        
+                else:
+                    return True, res, ''
+        except Exception as ex:
+            return False, '', 'Error [{}]'.format(ex)
     
     async def get_deposit_addrs(self, coin_list=None):
-        return self.async_public_api('get', '/'.join(['v1', 'deposits', 'coin_addresses']))
+        return self.async_public_api('/v1/deposits/coin_addresses')
     
     async def get_balance(self):
-        return self._private_api('get', 'accounts')
+        return self._private_api('get', '/accounts')
     
     async def get_detail_balance(self, data):
         # bal = self.get_balance()
         return {bal['currency']: bal['balance'] for bal in data}
     
     async def get_orderbook(self, market):
-        return self.async_public_api('get', 'orderbook', {'markets': market})
+        return self.async_public_api('/orderbook', {'markets': market})
     
     async def get_btc_orderbook(self, btc_sum):
-        s, d, m = await self.get_orderbook('KRW-BTC')
+        return await self.get_orderbook('KRW-BTC')
     
     async def get_curr_avg_orderbook(self, coin_list, btc_sum=1):
-        avg_order_book = {}
+        avg_order_book = dict()
         for coin in coin_list:
             coin = coin.replace('_', '-')
             suc, book, msg = await self.get_orderbook(coin)
@@ -215,10 +217,10 @@ class BaseUpbit(BaseExchange):
             if not suc:
                 return False, '', msg
             
-            avg_order_book[coin] = {}
+            avg_order_book[coin] = dict()
             
             for type_ in ['ask', 'bid']:
-                order_amount, order_sum = [], 0
+                order_amount, order_sum = list(), 0
                 
                 for data in book[0]['orderbook_units']:
                     size = data['{}_size'.format(type_)]
@@ -243,13 +245,13 @@ class BaseUpbit(BaseExchange):
         o_suc, o_orderbook, o_msg = other_res
         
         if u_suc and o_suc:
-            m_to_s = {}
+            m_to_s = dict()
             for currency_pair in coins:
                 m_ask = u_orderbook[currency_pair]['asks']
                 s_bid = o_orderbook[currency_pair]['bids']
                 m_to_s[currency_pair] = float(((s_bid - m_ask) / m_ask).quantize(Decimal(10) ** -8))
             
-            s_to_m = {}
+            s_to_m = dict()
             for currency_pair in coins:
                 m_bid = u_orderbook[currency_pair]['bids']
                 s_ask = o_orderbook[currency_pair]['asks']
