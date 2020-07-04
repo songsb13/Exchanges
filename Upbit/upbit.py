@@ -28,7 +28,10 @@ class BaseUpbit(BaseExchange):
         self._lock_dic = dict(orderbook=threading.Lock(), candle=threading.Lock())
         
         self._subscriber = UpbitSubscriber(self.data_store, self._lock_dic)
-
+        
+        self._websocket_orderbook_settings()
+        self._websocket_candle_settings()
+        
     def _websocket_candle_settings(self):
         time_str = '{}m'.format(self._candle_time) if self._candle_time < 60 else '{}h'.format(self._candle_time // 60)
         if not self._subscriber.candle_symbol_set:
@@ -233,31 +236,29 @@ class BaseUpbit(BaseExchange):
         return await self.get_orderbook('KRW-BTC')
     
     async def get_curr_avg_orderbook(self, coin_list, btc_sum=1):
-        avg_order_book = dict()
-        for coin in coin_list:
-            coin = coin.replace('_', '-')
-            suc, book, msg = await self.get_orderbook(coin)
+        
+        with self._lock_dic['orderbook']:
+            data_dic = self.data_store.orderbook_queue
             
-            if not suc:
-                return False, '', msg
-            
-            avg_order_book[coin] = dict()
-            
-            for type_ in ['ask', 'bid']:
-                order_amount, order_sum = list(), 0
+            avg_order_book = dict()
+            for coin in data_dic:
+                avg_order_book[coin] = dict()
                 
-                for data in book[0]['orderbook_units']:
-                    size = data['{}_size'.format(type_)]
-                    order_amount.append(size)
-                    order_sum += data['{}_price'.format(type_)] * size
+                for type_ in ['ask', 'bid']:
+                    order_amount, order_sum = list(), 0
                     
-                    if order_sum >= btc_sum:
-                        volume = order_sum / np.sum(order_amount)
-                        avg_order_book[coin]['{}s'.format(type_)] = Decimal(volume).quantize(Decimal(10) ** -8)
+                    for data in data_dic[coin]['orderbook_units']:
+                        size = data['{}_size'.format(type_)]
+                        order_amount.append(size)
+                        order_sum += data['{}_price'.format(type_)] * size
                         
-                        break
-            
-            return True, avg_order_book, ''
+                        if order_sum >= btc_sum:
+                            volume = order_sum / np.sum(order_amount)
+                            avg_order_book[coin]['{}s'.format(type_)] = Decimal(volume).quantize(Decimal(10) ** -8)
+                            
+                            break
+                
+                return True, avg_order_book, ''
     
     async def compare_orderbook(self, other, coins, default_btc=1):
         upbit_res, other_res = await asyncio.gather(
