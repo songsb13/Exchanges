@@ -5,26 +5,47 @@ import json
 import aiohttp
 import numpy as np
 import asyncio
+import threading
 
 from decimal import Decimal, ROUND_DOWN
 from urllib.parse import urlencode
+
 from Exchanges.base_exchange import BaseExchange
+from Exchanges.Upbit.subscriber import UpbitSubscriber
+from Exchanges.base_exchange import DataStore
 
 
 class BaseUpbit(BaseExchange):
     
-    def __init__(self, key, secret, coin_list):
+    def __init__(self, key, secret, candle_time, coin_list):
         self._base_url = 'https://api.upbit.com/v1'
         self._key = key
         self._secret = secret
+        self.data_store = DataStore()
+        
+        self._candle_time = candle_time
         self._coin_list = coin_list
+        self._lock_dic = dict(orderbook=threading.Lock(), candle=threading.Lock())
+        
+        self._subscriber = UpbitSubscriber(self.data_store, self._lock_dic)
+
+    def _websocket_candle_settings(self):
+        time_str = '{}m'.format(self._candle_time) if self._candle_time < 60 else '{}h'.format(self._candle_time // 60)
+        if not self._subscriber.candle_symbol_set:
+            pairs = [pair.replace('_', '-') for pair in self._coin_list]
+            setattr(self._subscriber, 'candle_symbol_set', pairs)
+        
+        if self._subscriber.candle_subscribed is None or not self._subscriber.isAlive():
+            self._subscriber.subscribe_candle(time_str)
+
+    def _websocket_orderbook_settings(self):
+        pairs = [pair.replace('_', '-') for pair in self._coin_list]
+        if not self._subscriber.orderbook_symbol_set:
+            setattr(self._subscriber, 'orderbook_symbol_set', pairs)
     
-    def _set_orderbook_setting(self):
-        pass
-    
-    def _set_candle_setting(self):
-        pass
-    
+        if self._subscriber.orderbook_subscribed is None or not self._subscriber.isAlive():
+            self._subscriber.subscribe_orderbook()
+
     def _public_api(self, path, extra=None):
         if extra is None:
             extra = dict()
