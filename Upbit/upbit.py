@@ -1,39 +1,31 @@
 import jwt
+import requests
+import time
+import json
+import aiohttp
 
-from BaseExchange import BaseExchange
+from decimal import Decimal, ROUND_DOWN
+from urllib.parse import urlencode
+from Exchanges.base_exchange import BaseExchange
 
 
 class BaseUpbit(BaseExchange):
-    '''
-
-    '''
     
     def __init__(self, key, secret, coin_list):
         self._base_url = 'https://api.upbit.com/v1'
-        if kwargs:
-            self._key = key
-            self._secret = secret
+        self._key = key
+        self._secret = secret
         self._coin_list = coin_list
     
     def _set_orderbook_setting(self):
         pass
     
-    def _public_api(self, method, path, extra=None, header=None):
-        if header is None:
-            header = {}
-        
+    def _public_api(self, path, extra=None):
         if extra is None:
             extra = {}
         
-        method = method.upper()
         path = '/'.join([self._base_url, path])
-        if method == 'GET':
-            rq = requests.get(path, headers=header, json=extra)
-        elif method == 'POST':
-            rq = requests.post(path, headers=header, params=extra)
-        else:
-            return False, '', '[{}]incorrect method'.format(method)
-        
+        rq = requests.get(path, json=extra)
         try:
             res = rq.json()
             
@@ -57,12 +49,22 @@ class BaseUpbit(BaseExchange):
         
         header = self.get_jwt_token(payload)
         
-        return self._public_api(method, path, extra, header)
+        path = '/'.join([self._base_url, path])
+        rq = requests.post(path, header=header, data=extra)
+
+        try:
+            res = rq.json()
     
-    def _sign_generator(self, *args):
+            if 'error' in res:
+                return False, '', res['error']['message']
     
+            else:
+                return True, res, ''
+
+        except Exception as ex:
+            return False, '', 'Error [{}]'.format(ex)
+
     def fee_count(self):
-        # 몇변의 수수료가 산정되는지
         return 1
     
     def get_jwt_token(self, payload):
