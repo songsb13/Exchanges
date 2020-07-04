@@ -109,12 +109,10 @@ class Receiver(threading.Thread):
                 timestamp=kline['t'],
                 volume=kline['v']
             ))
-        
-            if len(self._temp_queue[symbol]) >= 20:
-                with self.lock():
-                    self.store_queue[symbol] = self._temp_queue[symbol]
-                    self._temp_queue[symbol] = list()
-                    
+            with self.lock():
+                self.store_queue[symbol] = self._temp_queue[symbol]
+                self._temp_queue[symbol] = list()
+                
 
 class BinanceSubscriber(object):
     def __init__(self, data_store, lock):
