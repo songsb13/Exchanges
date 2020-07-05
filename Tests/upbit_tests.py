@@ -1,5 +1,5 @@
 import unittest
-from Exchanges.Bitfinex import bitfinex
+from Exchanges.Upbit import upbit
 import asyncio
 import time
 
@@ -9,16 +9,10 @@ class TestNotification(unittest.TestCase):
     
     @classmethod
     def setUpClass(cls):
-        cls.exchange = bitfinex.Bitfinex(
+        cls.exchange = upbit.BaseUpbit(
             key='qfbl7FNHhPbXgGhJVSDaoJMxXcJnphhDoDLnugNk4QI ',
             secret='wIvD1OOUYMxXONNB7biRjUtltTDY9hcD1BlFO6IqVx6'
         )
-    
-    def test_get_ticker(self):
-        symbol = self.exchange._sai_symbol_converter(self.symbol_set[0])
-        result = self.exchange.get_ticker(symbol)
-        self.assertTrue(result.success)
-        print(result.data)
     
     def test_get_available_coin(self):
         result = self.exchange.get_available_coin()
