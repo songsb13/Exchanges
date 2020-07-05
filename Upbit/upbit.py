@@ -241,25 +241,27 @@ class BaseUpbit(BaseExchange):
         return await self.get_orderbook('KRW-BTC')
     
     async def get_curr_avg_orderbook(self, coin_list, btc_sum=1):
-        
         with self._lock_dic['orderbook']:
             data_dic = self.data_store.orderbook_queue
             
+            if not self.data_store.orderbook_queue:
+                return False, '', 'orderbook data is not yet stored'
+            
             avg_order_book = dict()
-            for coin in data_dic:
-                avg_order_book[coin] = dict()
+            for pair, item in data_dic.items():
+                sai_symbol = self._upbit_to_sai_symbol_converter(pair)
+                avg_order_book[sai_symbol] = dict()
                 
                 for type_ in ['ask', 'bid']:
                     order_amount, order_sum = list(), 0
-                    
-                    for data in data_dic[coin]['orderbook_units']:
+                    for data in item:
                         size = data['{}_size'.format(type_)]
                         order_amount.append(size)
                         order_sum += data['{}_price'.format(type_)] * size
                         
                         if order_sum >= btc_sum:
                             volume = order_sum / np.sum(order_amount)
-                            avg_order_book[coin]['{}s'.format(type_)] = Decimal(volume).quantize(Decimal(10) ** -8)
+                            avg_order_book[sai_symbol]['{}s'.format(type_)] = Decimal(volume).quantize(Decimal(10) ** -8)
                             
                             break
                 
