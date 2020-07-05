@@ -31,20 +31,19 @@ class UpbitSubscriber(threading.Thread):
         self.candle_subscribed = False
     
     def subscribe_orderbook(self):
-        data = [{"ticket": Tickets.ORDERBOOK},
+        data = [{"ticket": "{}".format(Tickets.ORDERBOOK.value)},
                 {"type": 'orderbook', "codes": self.orderbook_symbol_set, "isOnlyRealtime": True}]
         
         self.orderbook_subscribed = True
         
-        self._upbit_websocket.send(data)
+        self._upbit_websocket.send(json.dumps(data))
         
     def subscribe_candle(self):
-        data = [{"ticket": Tickets.CANDLE},
+        data = [{"ticket": "{}".format(Tickets.CANDLE.value)},
                 {"type": 'trade', "codes": self.candle_symbol_set, "isOnlyRealtime": True}]
         
         self.candle_subscribed = False
-        
-        self._upbit_websocket.send(data)
+        self._upbit_websocket.send(json.dumps(data))
 
     def run(self):
         while not self.stop_flag:
