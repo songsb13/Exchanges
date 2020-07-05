@@ -43,7 +43,7 @@ class UpbitSubscriber(threading.Thread):
         
     def subscribe_candle(self):
         data = [{"ticket": "{}".format(Tickets.CANDLE.value)},
-                {"type": 'trade', "codes": self.candle_symbol_set, "isOnlyRealtime": True}]
+                {"type": 'ticker', "codes": self.candle_symbol_set}]
         
         self.candle_subscribed = False
         self._upbit_websocket.send(json.dumps(data))
@@ -73,10 +73,18 @@ class UpbitSubscriber(threading.Thread):
                     else:
                         self._temp_orderbook_store += data['orderbook_units']
                 
-            elif ticket == Tickets.CANDLE:
+            elif type_ == 'ticker':
                 with self._lock_dic['candle']:
-                    self.data_store.candle_queue
-            
+                    candle = dict(
+                        open=data['opening_price'],
+                        close=data['trade_price'],
+                        high=data['high_price'],
+                        low=data['low_price']
+                    )
+                    
+                    self.data_store.candle_queue[market] = candle
+                    
+            time.sleep(1)
         except WebSocketConnectionClosedException:
             debugger.debug('Disconnected orderbook websocket.')
             self.stop_flag = True
