@@ -32,22 +32,25 @@ class BaseUpbit(BaseExchange):
         self._websocket_orderbook_settings()
         self._websocket_candle_settings()
 
-        self._subscriber.run()
+        self._subscriber.start()
     
-    def _sai_symbol_converter(self, pair):
+    def _sai_to_upbit_symbol_converter(self, pair):
         return pair.replace('_', '-')
     
+    def _upbit_to_sai_symbol_converter(self, pair):
+        return pair.replace('-', '_')
+        
     def _websocket_candle_settings(self):
         time_str = '{}m'.format(self._candle_time) if self._candle_time < 60 else '{}h'.format(self._candle_time // 60)
         if not self._subscriber.candle_symbol_set:
-            pairs = [self._sai_symbol_converter(pair) for pair in self._coin_list]
+            pairs = [self._sai_to_upbit_symbol_converter(pair) for pair in self._coin_list]
             setattr(self._subscriber, 'candle_symbol_set', pairs)
         
         if self._subscriber.candle_subscribed is None or not self._subscriber.isAlive():
             self._subscriber.subscribe_candle()
 
     def _websocket_orderbook_settings(self):
-        pairs = [self._sai_symbol_converter(pair) for pair in self._coin_list]
+        pairs = [self._sai_to_upbit_symbol_converter(pair) for pair in self._coin_list]
         if not self._subscriber.orderbook_symbol_set:
             setattr(self._subscriber, 'orderbook_symbol_set', pairs)
     
