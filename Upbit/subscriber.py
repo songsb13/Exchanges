@@ -14,6 +14,7 @@ class Tickets(Enum):
     ORDERBOOK = 10
     CANDLE = 20
 
+# TODO Subscriber에 관한 문제점, recv가 block형태인데 같은 receiver에서 받아도 되는지에 대한 의문
 
 class UpbitSubscriber(threading.Thread):
     def __init__(self, data_store, lock_dic):

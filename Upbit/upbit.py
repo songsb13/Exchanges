@@ -15,6 +15,7 @@ from Exchanges.Upbit.subscriber import UpbitSubscriber
 from Exchanges.base_exchange import DataStore
 
 
+# TODO ExchangeResult encapsulation 작업
 class BaseUpbit(BaseExchange):
     
     def __init__(self, key, secret, candle_time, coin_list):
@@ -118,6 +119,14 @@ class BaseUpbit(BaseExchange):
         res = list()
         return [res.append(data['market']) for data in currencies if not currencies['market'] in res]
     
+    def get_candle(self):
+        if not self.data_store.candle_queue:
+            return False, '', 'candle data is not yet stored', 1
+        
+        result_dict = self.data_store.candle_queue
+        
+        return True, result_dict, '', 0
+        
     def service_currencies(self, currencies):
         # using deposit_addrs
         res = list()
