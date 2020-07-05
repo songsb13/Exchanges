@@ -27,6 +27,9 @@ class UpbitSubscriber(threading.Thread):
         self.candle_symbol_set = list()
         self.orderbook_symbol_set = list()
         
+        self._temp_orderbook_store = list()
+        self._temp_candle_store = list()
+        
         self.orderbook_subscribed = False
         self.candle_subscribed = False
     
@@ -58,11 +61,17 @@ class UpbitSubscriber(threading.Thread):
             
             data = json.loads(message.decode())
             market = data['code']
-            ticket = market['ticket']
+            type_ = data['type']
             
-            if ticket == Tickets.ORDERBOOK:
+            if type_ == 'orderbook':
                 with self._lock_dic['orderbook']:
-                    self.data_store.orderbook_queue
+                    self._temp_orderbook_store += data['orderbook_units']
+                    
+                    if len(self._temp_orderbook_store) >= 100:
+                        self.data_store.orderbook_queue[market] = self._temp_orderbook_store
+                        self._temp_orderbook_store = list()
+                    else:
+                        self._temp_orderbook_store += data['orderbook_units']
                 
             elif ticket == Tickets.CANDLE:
                 with self._lock_dic['candle']:
