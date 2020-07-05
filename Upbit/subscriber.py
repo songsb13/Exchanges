@@ -76,6 +76,7 @@ class UpbitSubscriber(threading.Thread):
             elif type_ == 'ticker':
                 with self._lock_dic['candle']:
                     candle = dict(
+                        timestamp=data['trade_timestamp'],
                         open=data['opening_price'],
                         close=data['trade_price'],
                         high=data['high_price'],
