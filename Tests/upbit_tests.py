@@ -12,6 +12,8 @@ class TestNotification(unittest.TestCase):
         cls.exchange = upbit.BaseUpbit(
             key='qfbl7FNHhPbXgGhJVSDaoJMxXcJnphhDoDLnugNk4QI ',
             secret='wIvD1OOUYMxXONNB7biRjUtltTDY9hcD1BlFO6IqVx6'
+            candle_time=1,
+            coin_list=TestNotification.symbol_set
         )
     
     def test_get_available_coin(self):
@@ -22,7 +24,7 @@ class TestNotification(unittest.TestCase):
     
     def test_get_curr_avg_orderbook(self):
         loop = asyncio.get_event_loop()
-        result = loop.run_until_complete(self.exchange.get_curr_avg_orderbook(self.symbol_set))
+        result = loop.run_until_complete(self.exchange.get_curr_avg_orderbook(''))
         self.assertTrue(result.success)
         print(result.data)
     
