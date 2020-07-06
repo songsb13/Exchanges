@@ -10,7 +10,7 @@ import threading
 from decimal import Decimal, ROUND_DOWN
 from urllib.parse import urlencode
 
-from Exchanges.base_exchange import BaseExchange
+from Exchanges.base_exchange import BaseExchange, ExchangeResult
 from Exchanges.Upbit.subscriber import UpbitSubscriber
 from Exchanges.base_exchange import DataStore
 
@@ -68,10 +68,10 @@ class BaseUpbit(BaseExchange):
             res = rq.json()
             
             if 'error' in res:
-                return False, '', res['error']['message']
+                return ExchangeResult(False, '', res['error']['message'])
             
             else:
-                return True, res, ''
+                return ExchangeResult(True, res)
         
         except Exception as ex:
             return False, '', 'Error [{}]'.format(ex)
@@ -94,13 +94,13 @@ class BaseUpbit(BaseExchange):
             res = rq.json()
     
             if 'error' in res:
-                return False, '', res['error']['message']
+                return ExchangeResult(False, '', res['error']['message'])
     
             else:
-                return True, res, ''
+                return ExchangeResult(True, res)
 
         except Exception as ex:
-            return False, '', 'Error [{}]'.format(ex)
+            return ExchangeResult(False, '', 'Error [{}]'.format(ex))
 
     def fee_count(self):
         return 1
@@ -121,11 +121,11 @@ class BaseUpbit(BaseExchange):
     
     def get_candle(self):
         if not self.data_store.candle_queue:
-            return False, '', 'candle data is not yet stored', 1
+            return ExchangeResult(False, '', 'candle data is not yet stored', 1)
         
         result_dict = self.data_store.candle_queue
         
-        return True, result_dict, '', 0
+        return ExchangeResult(True, result_dict, '', 0)
         
     def service_currencies(self, currencies):
         # using deposit_addrs
@@ -178,7 +178,7 @@ class BaseUpbit(BaseExchange):
         alt_amount -= Decimal(tx_fee[currency_pair.split('_')[1]])
         alt_amount = alt_amount.quantize(Decimal(10) ** -4, rounding=ROUND_DOWN)
         
-        return True, alt_amount, ''
+        return ExchangeResult(True, alt_amount)
     
     # def alt_to_base(self, currency_pair, btc_amount, alt_amount):
     #     # after self.sell()
@@ -205,12 +205,12 @@ class BaseUpbit(BaseExchange):
                 res = json.loads(await rq.text())
                 
                 if 'error' in res:
-                    return False, '', res['error']['message']
+                    return ExchangeResult(False, '', res['error']['message'])
                 
                 else:
                     return True, res, ''
         except Exception as ex:
-            return False, '', 'Error [{}]'.format(ex)
+            return ExchangeResult(False, '', 'Error [{}]'.format(ex))
     
     async def async_private_api(self, method, path, extra=None):
         payload = {
@@ -229,12 +229,12 @@ class BaseUpbit(BaseExchange):
                 res = json.loads(await rq.text())
         
                 if 'error' in res:
-                    return False, '', res['error']['message']
+                    return ExchangeResult(False, '', res['error']['message'])
         
                 else:
-                    return True, res, ''
+                    return ExchangeResult(True, res)
         except Exception as ex:
-            return False, '', 'Error [{}]'.format(ex)
+            return ExchangeResult(False, '', 'Error [{}]'.format(ex))
     
     async def get_deposit_addrs(self, coin_list=None):
         return self.async_public_api('/v1/deposits/coin_addresses')
@@ -277,7 +277,7 @@ class BaseUpbit(BaseExchange):
                             
                             break
                 
-                return True, avg_order_book, ''
+                return ExchangeResult(True, avg_order_book)
     
     async def compare_orderbook(self, other, coins, default_btc=1):
         upbit_res, other_res = await asyncio.gather(
@@ -303,5 +303,5 @@ class BaseUpbit(BaseExchange):
             
             res = u_orderbook, o_orderbook, {'m_to_s': m_to_s, 's_to_m': s_to_m}
             
-            return True, res, ''
+            return ExchangeResult(True, res)
 
