@@ -76,9 +76,8 @@ class Binance(BaseExchange):
             self._subscriber.subscribe_candle(time_str)
     
     def _websocket_orderbook_settings(self):
-        pairs = [self.sai_to_binance_converter(pair).lower()
-                 for pair in self._coin_list]
         if not self._subscriber.orderbook_symbol_set:
+            pairs = [self.sai_to_binance_converter(pair).lower() for pair in self._coin_list]
             setattr(self._subscriber, 'orderbook_symbol_set', pairs)
     
         if self._subscriber.orderbook_receiver is None or not self._subscriber.orderbook_receiver.isAlive():
