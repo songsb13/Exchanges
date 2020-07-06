@@ -39,11 +39,36 @@ class Binance(BaseExchange):
         
         self._websocket_candle_settings()
         self._websocket_orderbook_settings()
+        
+    def _symbol_localizing(self, symbol):
+        actual_symbol = dict(
+            BCH='BCC'
+        )
+        return actual_symbol.get(symbol, symbol)
+
+    def _symbol_customizing(self, symbol):
+        actual_symbol = dict(
+            BCC='BCH'
+        )
+
+        return actual_symbol.get(symbol, symbol)
+
+    def sai_to_binance_converter(self, pair):
+        # BTC_XRP -> XRPBTC
+        market, trade = pair.split('_')
+        
+        return self._symbol_localizing(trade) + market
     
+    def binance_to_sai_converter(self, pair):
+        
+        market, trade = pair[-3:], pair[:-3]
+        
+        return market + '_' + self._symbol_customizing(trade)
+        
     def _websocket_candle_settings(self):
         time_str = '{}m'.format(self._candle_time) if self._candle_time < 60 else '{}h'.format(self._candle_time // 60)
         if not self._subscriber.candle_symbol_set:
-            pairs = [(self._symbol_localizing(pair.split('_')[1]) + pair.split('_')[0]).lower()
+            pairs = [self.sai_to_binance_converter(pair).lower()
                      for pair in self._coin_list]
             setattr(self._subscriber, 'candle_symbol_set', pairs)
 
@@ -51,7 +76,7 @@ class Binance(BaseExchange):
             self._subscriber.subscribe_candle(time_str)
     
     def _websocket_orderbook_settings(self):
-        pairs = [(self._symbol_localizing(pair.split('_')[1]) + pair.split('_')[0]).lower()
+        pairs = [self.sai_to_binance_converter(pair).lower()
                  for pair in self._coin_list]
         if not self._subscriber.orderbook_symbol_set:
             setattr(self._subscriber, 'orderbook_symbol_set', pairs)
@@ -108,23 +133,6 @@ class Binance(BaseExchange):
             msg = '{}::: ERROR_BODY=[{}], URL=[{}], PARAMETER=[{}]'.format(self.name, ex, path, extra)
             debugger.debug(msg)
             return ExchangeResult(False, '', msg, 1)
-
-    def _symbol_localizing(self, symbol):
-        actual_symbol = dict(
-            BCH='BCC'
-        )
-        return actual_symbol.get(symbol, symbol)
-
-    def _symbol_customizing(self, symbol):
-        actual_symbol = dict(
-            BCC='BCH'
-        )
-
-        return actual_symbol.get(symbol, symbol)
-
-    def _sai_symbol_converter(self, symbol):
-        # BTC_XRP -> XRPBTC
-        return ''.join(symbol.split('_')[::-1])
 
     def _get_server_time(self):
         return self._public_api('/api/v3/time')
