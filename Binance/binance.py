@@ -239,16 +239,15 @@ class Binance(BaseExchange):
         debugger.debug('{}::: Parameters=[{}, {}, {}, {}], function name=[base_to_alt]'.format(
             self.name, currency_pair, btc_amount, alt_amount, td_fee, tx_fee
         ))
-        currency_pair = self._symbol_localizing(currency_pair)
-        base_market, coin = currency_pair.split('_')
+        coin = currency_pair.split('_')[1]
 
-        symbol = self._sai_symbol_converter(currency_pair)
+        symbol = self.sai_to_binance_converter(currency_pair)
         result_object = self.buy(symbol, alt_amount)
 
         if result_object.success:
             alt_amount *= 1 - Decimal(td_fee)
             alt_amount -= Decimal(tx_fee[coin])
-            alt_amount = alt_amount.quantize(self.bnc_btm_quantizer(currency_pair), rounding=ROUND_DOWN)
+            alt_amount = alt_amount.quantize(self.bnc_btm_quantizer(symbol), rounding=ROUND_DOWN)
 
             result_object.data = alt_amount
 
@@ -258,9 +257,7 @@ class Binance(BaseExchange):
         debugger.debug('{}::: Parameters=[{}, {}, {}], function name=[alt_to_base]'.format(
             self.name, currency_pair, btc_amount, alt_amount
         ))
-        currency_pair = self._symbol_localizing(currency_pair)
-
-        symbol = self._sai_symbol_converter(currency_pair)
+        symbol = self.sai_to_binance_converter(currency_pair)
         for _ in range(10):
             result_object = self.sell(symbol, alt_amount)
 
@@ -271,7 +268,7 @@ class Binance(BaseExchange):
         return result_object
 
     def get_ticker(self, market):
-        symbol = self._sai_symbol_converter(market)
+        symbol = self.sai_to_binance_converter(market)
         for _ in range(3):
             result_object = self._public_api('/api/v3/ticker/price', {'symbol': symbol})
             if result_object.success:
