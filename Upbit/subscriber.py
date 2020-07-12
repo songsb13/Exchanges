@@ -1,5 +1,6 @@
 import json
 
+import websocket
 from websocket import create_connection
 from websocket import WebSocketConnectionClosedException
 from Util.pyinstaller_patch import *
@@ -15,6 +16,68 @@ class Tickets(Enum):
     CANDLE = 20
 
 # TODO Subscriber에 관한 문제점, recv가 block형태인데 같은 receiver에서 받아도 되는지에 대한 의문
+
+
+class UpbitSubscriber2(object):
+    def __init__(self):
+        self._symbol_set = list()
+        self.temp_store = list()
+        
+        self._websocket = self.start_websocket_thread()
+        
+        self._subscribe_set = dict()
+        
+    def start_websocket_thread(self):
+        ws = websocket.WebSocketApp('wss://api.upbit.com/websocket/v1',
+                                    on_message=self.on_message,
+                                    on_close=self.on_close,
+                                    )
+    
+        ws_thread = threading.Thread(target=ws.run_forever)
+        ws_thread.daemon = True
+    
+        ws_thread.start()
+        
+        return ws
+
+    def on_message(self, ws, message):
+        pass
+
+    def on_error(self, ws, error):
+        pass
+
+    def on_close(self, ws):
+        pass
+    
+    def set_subscribe(self):
+        data = list()
+        for key, item in self._subscribe_set.items():
+            data += self._subscribe_set[key]
+    
+        self._websocket.send(json.dumps(data))
+
+    def unsubscribe_orderbook(self):
+        self._subscribe_set.pop('orderbook')
+        
+        self.set_subscribe()
+
+    def unsubscribe_candle(self):
+        self._subscribe_set.pop('candle')
+
+        self.set_subscribe()
+
+    def subscribe_orderbook(self):
+        self._subscribe_set['orderbook'] = [{"ticket": "{}".format(Tickets.ORDERBOOK.value)},
+                                            {"type": 'orderbook', "codes": self._symbol_set, "isOnlyRealtime": True}]
+        
+        self.set_subscribe()
+    
+    def subscribe_candle(self):
+        self._subscribe_set['candle'] = [{"ticket": "{}".format(Tickets.CANDLE.value)},
+                                         {"type": 'ticker', "codes": self._symbol_set}]
+
+        self.set_subscribe()
+
 
 class UpbitSubscriber(threading.Thread):
     def __init__(self, data_store, lock_dic):
@@ -33,6 +96,9 @@ class UpbitSubscriber(threading.Thread):
         
         self.orderbook_subscribed = False
         self.candle_subscribed = False
+        
+        
+        
     
     def subscribe_orderbook(self):
         data = [{"ticket": "{}".format(Tickets.ORDERBOOK.value)},
