@@ -10,9 +10,10 @@ import numpy as np
 import logging
 import datetime
 import threading
+import decimal
 
 from urllib.parse import urlencode
-from decimal import Decimal, ROUND_DOWN
+from decimal import Decimal, ROUND_DOWN, getcontext
 
 from Exchanges.base_exchange import BaseExchange, ExchangeResult, DataStore
 from Exchanges.Binance.subscriber import BinanceSubscriber
