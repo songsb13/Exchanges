@@ -18,6 +18,8 @@ from Exchanges.base_exchange import BaseExchange, ExchangeResult, DataStore
 from Exchanges.Binance.subscriber import BinanceSubscriber
 from Util.pyinstaller_patch import *
 
+decimal.getcontext().prec = 8
+
 
 class Binance(BaseExchange):
     def __init__(self, key, secret, coin_list, time_):
