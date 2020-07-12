@@ -1,10 +1,10 @@
 import json
 
 import websocket
-from websocket import create_connection
 from websocket import WebSocketConnectionClosedException
 from Util.pyinstaller_patch import *
 from enum import Enum
+
 
 class Tickets(Enum):
     """
@@ -16,14 +16,17 @@ class Tickets(Enum):
     CANDLE = 20
 
 
-class UpbitSubscriber2(websocket.WebSocketApp):
+class UpbitSubscriber(websocket.WebSocketApp):
     def __init__(self, data_store, lock_dic):
         url = 'wss://api.upbit.com/websocket/v1'
-        super(UpbitSubscriber2, self).__init__(url)
+        super(UpbitSubscriber, self).__init__(url,
+                                              on_open=self.on_open,
+                                              on_message=self.on_message,
+                                              on_error=self.on_error,
+                                              on_close=self.on_close)
         self.data_store = data_store
         self.name = 'upbit_subscriber'
         self.stop_flag = False
-        self._websocket, self._thread = self.start_websocket_thread()
         self._lock_dic = lock_dic
     
         self.candle_symbol_set = list()
@@ -31,60 +34,53 @@ class UpbitSubscriber2(websocket.WebSocketApp):
         self._temp_orderbook_store = list()
         self._temp_candle_store = list()
         
-        self._subscribe_set = dict()
+        self.subscribe_set = dict()
+        self.subscribe_thread = threading.Thread(target=self.run_forever, daemon=True)
+        self.subscribe_thread.start()
         
     def stop(self):
         self.stop_flag = True
     
-    def start_websocket_thread(self):
-        ws = websocket.WebSocketApp('wss://api.upbit.com/websocket/v1',
-                                    on_message=self.on_message,
-                                    on_close=self.on_close,
-                                    )
-    
-        ws_thread = threading.Thread(target=ws.run_forever)
-        ws_thread.daemon = True
-    
-        ws_thread.start()
-        
-        return ws, ws_thread
-
     def on_error(self, ws, error):
         pass
 
     def on_close(self, ws):
         pass
     
+    def on_open(self, ws):
+        while True:
+            time.sleep(0.1)
+    
     def set_subscribe(self):
         data = list()
-        for key, item in self._subscribe_set.items():
-            data += self._subscribe_set[key]
+        for key, item in self.subscribe_set.items():
+            data += self.subscribe_set[key]
         
         self.send(json.dumps(data))
 
     def unsubscribe_orderbook(self):
-        self._subscribe_set.pop('orderbook')
+        self.subscribe_set.pop('orderbook')
         
         self.set_subscribe()
 
     def unsubscribe_candle(self):
-        self._subscribe_set.pop('candle')
+        self.subscribe_set.pop('candle')
 
         self.set_subscribe()
 
     def subscribe_orderbook(self):
-        self._subscribe_set['orderbook'] = [{"ticket": "{}".format(Tickets.ORDERBOOK.value)},
-                                            {"type": 'orderbook', "codes": self.orderbook_symbol_set, "isOnlyRealtime": True}]
+        self.subscribe_set['orderbook'] = [{"ticket": "{}".format(Tickets.ORDERBOOK.value)},
+                                           {"type": 'orderbook', "codes": self.orderbook_symbol_set, "isOnlyRealtime": True}]
         
         self.set_subscribe()
     
     def subscribe_candle(self):
-        self._subscribe_set['candle'] = [{"ticket": "{}".format(Tickets.CANDLE.value)},
-                                         {"type": 'ticker', "codes": self.candle_symbol_set}]
+        self.subscribe_set['candle'] = [{"ticket": "{}".format(Tickets.CANDLE.value)},
+                                        {"type": 'ticker', "codes": self.candle_symbol_set}]
 
         self.set_subscribe()
 
-    def on_message(self, ws, message):
+    def on_message(self, message):
         try:
             data = json.loads(message.decode())
             market = data['code']
