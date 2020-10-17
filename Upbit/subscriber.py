@@ -18,6 +18,8 @@ class Tickets(Enum):
 
 class UpbitSubscriber(websocket.WebSocketApp):
     def __init__(self, data_store, lock_dic):
+        debugger.debug('UpbitSubscriber init!')
+
         url = 'wss://api.upbit.com/websocket/v1'
         super(UpbitSubscriber, self).__init__(url,
                                               on_open=self.on_open,
@@ -37,6 +39,8 @@ class UpbitSubscriber(websocket.WebSocketApp):
         self.subscribe_set = dict()
         self.subscribe_thread = threading.Thread(target=self.run_forever, daemon=True)
         self.subscribe_thread.start()
+        
+        debugger.debug('UpbitSubscriber start!')
         
     def stop(self):
         self.stop_flag = True
@@ -85,7 +89,7 @@ class UpbitSubscriber(websocket.WebSocketApp):
             data = json.loads(message.decode())
             market = data['code']
             type_ = data['type']
-        
+            debugger.debug('get message [{}], [{}]'.format(market, type_))
             if type_ == 'orderbook':
                 with self._lock_dic['orderbook']:
                     self._temp_orderbook_store += data['orderbook_units']
@@ -95,7 +99,7 @@ class UpbitSubscriber(websocket.WebSocketApp):
                         self._temp_orderbook_store = list()
                     else:
                         self._temp_orderbook_store += data['orderbook_units']
-        
+                    debugger.debug(self.data_store.orderbook_queue[market])
             elif type_ == 'ticker':
                 with self._lock_dic['candle']:
                     candle = dict(
@@ -107,7 +111,7 @@ class UpbitSubscriber(websocket.WebSocketApp):
                     )
                 
                     self.data_store.candle_queue[market] = candle
-        
+                    debugger.debug(self.data_store.candle_queue[market])
             time.sleep(1)
         except WebSocketConnectionClosedException:
             debugger.debug('Disconnected orderbook websocket.')
