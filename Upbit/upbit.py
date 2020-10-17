@@ -16,9 +16,7 @@ from Exchanges.Upbit.subscriber import UpbitSubscriber
 from Exchanges.base_exchange import DataStore
 
 
-# TODO ExchangeResult encapsulation 작업
 class BaseUpbit(BaseExchange):
-    
     def __init__(self, key, secret, candle_time, coin_list):
         self._base_url = 'https://api.upbit.com/v1'
         self._key = key
