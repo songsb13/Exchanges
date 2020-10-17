@@ -78,7 +78,8 @@ class BaseUpbit(BaseExchange):
             res = rq.json()
             
             if 'error' in res:
-                return ExchangeResult(False, '', res['error']['message'])
+                error_msg = res.get('error', dict()).get('message', 'Fail, but message is not found.')
+                return ExchangeResult(False, '', error_msg)
             
             else:
                 return ExchangeResult(True, res)
@@ -104,7 +105,8 @@ class BaseUpbit(BaseExchange):
             res = rq.json()
     
             if 'error' in res:
-                return ExchangeResult(False, '', res['error']['message'])
+                error_msg = res.get('error', dict()).get('message', 'Fail, but message is not found.')
+                return ExchangeResult(False, '', error_msg)
     
             else:
                 return ExchangeResult(True, res)
@@ -215,7 +217,10 @@ class BaseUpbit(BaseExchange):
                 res = json.loads(await rq.text())
                 
                 if 'error' in res:
-                    return ExchangeResult(False, '', res['error']['message'])
+                    error_msg = res.get('error', dict()).get('message',
+                                                             'Fail, but message is not found.')
+    
+                    return ExchangeResult(False, '', error_msg)
                 
                 else:
                     return True, res, ''
@@ -239,7 +244,10 @@ class BaseUpbit(BaseExchange):
                 res = json.loads(await rq.text())
         
                 if 'error' in res:
-                    return ExchangeResult(False, '', res['error']['message'])
+                    error_msg = res.get('error', dict()).get('message',
+                                                             'Fail, but message is not found.')
+    
+                    return ExchangeResult(False, '', error_msg)
         
                 else:
                     return ExchangeResult(True, res)
