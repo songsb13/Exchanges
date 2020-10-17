@@ -24,9 +24,10 @@ class TestNotification(unittest.TestCase):
     
     def test_get_curr_avg_orderbook(self):
         loop = asyncio.get_event_loop()
-        result = loop.run_until_complete(self.exchange.get_curr_avg_orderbook(''))
-        self.assertTrue(result.success)
-        print(result.data)
+        while True:
+            result = loop.run_until_complete(self.exchange.get_curr_avg_orderbook(''))
+            print(result.__dict__)
+            time.sleep(1)
     
     def test_get_balance(self):
         loop = asyncio.get_event_loop()
@@ -63,7 +64,7 @@ class TestNotification(unittest.TestCase):
         print(result.data)
     
     def test_market_trade(self):
-        converted_coin = self.exchange._sai_symbol_converter('BTC_XRP')
+        converted_coin = self.exchange._sai_to_upbit_symbol_converter('BTC_XRP')
         buy_result = self.exchange.buy(converted_coin, 5)
         if buy_result.success:
             print(buy_result.data)
