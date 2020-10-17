@@ -37,10 +37,10 @@ class TestNotification(unittest.TestCase):
         print(balance_result.data)
     
     def test_get_candle(self):
-        result = self.exchange.get_candle()
-        self.assertTrue(result.success)
-        print(result.data)
-        self.assertEqual(len(result.data['timestamp']), 199)
+        while True:
+            result = self.exchange.get_candle()
+            print(result.__dict__)
+            time.sleep(1)
     
     def test_get_deposit_addrs(self):
         loop = asyncio.get_event_loop()
