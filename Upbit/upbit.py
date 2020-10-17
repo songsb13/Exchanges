@@ -9,6 +9,7 @@ import threading
 
 from decimal import Decimal, ROUND_DOWN
 from urllib.parse import urlencode
+from Util.pyinstaller_patch import *
 
 from Exchanges.base_exchange import BaseExchange, ExchangeResult
 from Exchanges.Upbit.subscriber import UpbitSubscriber
@@ -30,16 +31,29 @@ class BaseUpbit(BaseExchange):
         
         self._subscriber = UpbitSubscriber(self.data_store, self._lock_dic)
         
-        self._websocket_orderbook_settings()
-        self._websocket_candle_settings()
-
-    
+        self._connect_to_subscriber()
+        
     def _sai_to_upbit_symbol_converter(self, pair):
         return pair.replace('_', '-')
     
     def _upbit_to_sai_symbol_converter(self, pair):
         return pair.replace('-', '_')
-        
+    
+    def _connect_to_subscriber(self):
+        for _ in range(3):
+            debugger.debug('connecting to subscriber..')
+            try:
+                self._websocket_orderbook_settings()
+                self._websocket_candle_settings()
+                debugger.debug('connected.')
+                break
+            except Exception as ex:
+                print(ex)
+            time.sleep(1)
+        else:
+            debugger.exception('Fail to set websocket settings')
+            raise
+            
     def _websocket_candle_settings(self):
         if not self._subscriber.candle_symbol_set:
             pairs = [self._sai_to_upbit_symbol_converter(pair) for pair in self._coin_list]
@@ -255,7 +269,7 @@ class BaseUpbit(BaseExchange):
             data_dic = self.data_store.orderbook_queue
             
             if not self.data_store.orderbook_queue:
-                return False, '', 'orderbook data is not yet stored'
+                return ExchangeResult(False, '', 'orderbook data is not yet stored')
             
             avg_order_book = dict()
             for pair, item in data_dic.items():
