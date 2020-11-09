@@ -99,7 +99,7 @@ class UpbitSubscriber(websocket.WebSocketApp):
                         self._temp_orderbook_store = list()
                     else:
                         self._temp_orderbook_store += data['orderbook_units']
-                    debugger.debug(self.data_store.orderbook_queue[market])
+                    debugger.debug(self.data_store.orderbook_queue.get(market, None))
             elif type_ == 'ticker':
                 with self._lock_dic['candle']:
                     candle = dict(
@@ -112,7 +112,6 @@ class UpbitSubscriber(websocket.WebSocketApp):
                 
                     self.data_store.candle_queue[market] = candle
                     debugger.debug(self.data_store.candle_queue[market])
-            time.sleep(1)
         except WebSocketConnectionClosedException:
             debugger.debug('Disconnected orderbook websocket.')
             self.stop_flag = True
