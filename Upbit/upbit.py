@@ -50,7 +50,7 @@ class BaseUpbit(BaseExchange):
                 debugger.debug('connected.')
                 break
             except Exception as ex:
-                print(ex)
+                debugger.debug('connection error found, [{}]'.format(ex))
             time.sleep(1)
         else:
             debugger.exception('Fail to set websocket settings')
