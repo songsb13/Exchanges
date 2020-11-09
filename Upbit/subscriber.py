@@ -51,10 +51,6 @@ class UpbitSubscriber(websocket.WebSocketApp):
     def on_close(self, ws):
         pass
     
-    def on_open(self, ws):
-        while True:
-            time.sleep(0.1)
-    
     def set_subscribe(self):
         data = list()
         for key, item in self.subscribe_set.items():
