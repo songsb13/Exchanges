@@ -15,6 +15,10 @@ from Exchanges.base_exchange import BaseExchange, ExchangeResult
 from Exchanges.Upbit.subscriber import UpbitSubscriber
 from Exchanges.base_exchange import DataStore
 
+import decimal
+
+decimal.getcontext().prec = 4
+
 
 class BaseUpbit(BaseExchange):
     def __init__(self, key, secret, candle_time, coin_list):
@@ -188,7 +192,7 @@ class BaseUpbit(BaseExchange):
     def base_to_alt(self, currency_pair, btc_amount, alt_amount, td_fee, tx_fee):
         alt_amount *= 1 - Decimal(td_fee)
         alt_amount -= Decimal(tx_fee[currency_pair.split('_')[1]])
-        alt_amount = alt_amount.quantize(Decimal(10) ** -4, rounding=ROUND_DOWN)
+        alt_amount = alt_amount
         
         return ExchangeResult(True, alt_amount)
     
@@ -291,7 +295,7 @@ class BaseUpbit(BaseExchange):
                         
                         if order_sum >= btc_sum:
                             volume = order_sum / np.sum(order_amount)
-                            avg_order_book[sai_symbol]['{}s'.format(type_)] = Decimal(volume).quantize(Decimal(10) ** -8)
+                            avg_order_book[sai_symbol]['{}s'.format(type_)] = Decimal(volume)
                             
                             break
                 
@@ -311,13 +315,13 @@ class BaseUpbit(BaseExchange):
             for currency_pair in coins:
                 m_ask = u_orderbook[currency_pair]['asks']
                 s_bid = o_orderbook[currency_pair]['bids']
-                m_to_s[currency_pair] = float(((s_bid - m_ask) / m_ask).quantize(Decimal(10) ** -8))
+                m_to_s[currency_pair] = float(((s_bid - m_ask) / m_ask)
             
             s_to_m = dict()
             for currency_pair in coins:
                 m_bid = u_orderbook[currency_pair]['bids']
                 s_ask = o_orderbook[currency_pair]['asks']
-                s_to_m[currency_pair] = float(((m_bid - s_ask) / s_ask).quantize(Decimal(10) ** -8))
+                s_to_m[currency_pair] = float(((m_bid - s_ask) / s_ask)
             
             res = u_orderbook, o_orderbook, {'m_to_s': m_to_s, 's_to_m': s_to_m}
             
