@@ -32,7 +32,9 @@ class BaseUpbit(BaseExchange):
         self._lock_dic = dict(orderbook=threading.Lock(), candle=threading.Lock())
         
         self._subscriber = UpbitSubscriber(self.data_store, self._lock_dic)
-        
+        self.subscribe_thread = threading.Thread(target=self._subscriber.run_forever, daemon=True)
+        self.subscribe_thread.start()
+
         self._connect_to_subscriber()
         
     def _sai_to_upbit_symbol_converter(self, pair):
@@ -61,7 +63,7 @@ class BaseUpbit(BaseExchange):
             pairs = [self._sai_to_upbit_symbol_converter(pair) for pair in self._coin_list]
             setattr(self._subscriber, 'candle_symbol_set', pairs)
 
-        if self._subscriber.subscribe_set.get('candle', None) is None or not self._subscriber.subscribe_thread.isAlive():
+        if self._subscriber.subscribe_set.get('candle', None) is None or not self.subscribe_thread.isAlive():
             self._subscriber.subscribe_candle()
 
     def _websocket_orderbook_settings(self):
@@ -69,7 +71,7 @@ class BaseUpbit(BaseExchange):
             pairs = [self._sai_to_upbit_symbol_converter(pair) for pair in self._coin_list]
             setattr(self._subscriber, 'orderbook_symbol_set', pairs)
     
-        if self._subscriber.subscribe_set.get('orderbook', None) is None or not self._subscriber.subscribe_thread.isAlive():
+        if self._subscriber.subscribe_set.get('orderbook', None) is None or not self.subscribe_thread.isAlive():
             self._subscriber.subscribe_orderbook()
 
     def _public_api(self, path, extra=None):
