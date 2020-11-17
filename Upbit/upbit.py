@@ -7,7 +7,6 @@ import numpy as np
 import asyncio
 import threading
 
-from decimal import Decimal, ROUND_DOWN
 from urllib.parse import urlencode
 from Util.pyinstaller_patch import *
 
@@ -192,8 +191,8 @@ class BaseUpbit(BaseExchange):
         return self._private_api('POST', '/orders', params)
     
     def base_to_alt(self, currency_pair, btc_amount, alt_amount, td_fee, tx_fee):
-        alt_amount *= 1 - Decimal(td_fee)
-        alt_amount -= Decimal(tx_fee[currency_pair.split('_')[1]])
+        alt_amount *= 1 - decimal.Decimal(td_fee)
+        alt_amount -= decimal.Decimal(tx_fee[currency_pair.split('_')[1]])
         alt_amount = alt_amount
         
         return ExchangeResult(True, alt_amount)
@@ -297,7 +296,7 @@ class BaseUpbit(BaseExchange):
                         
                         if order_sum >= btc_sum:
                             volume = order_sum / np.sum(order_amount)
-                            avg_order_book[sai_symbol]['{}s'.format(type_)] = Decimal(volume)
+                            avg_order_book[sai_symbol]['{}s'.format(type_)] = decimal.Decimal(volume)
                             
                             break
                 
@@ -317,13 +316,13 @@ class BaseUpbit(BaseExchange):
             for currency_pair in coins:
                 m_ask = u_orderbook[currency_pair]['asks']
                 s_bid = o_orderbook[currency_pair]['bids']
-                m_to_s[currency_pair] = float(((s_bid - m_ask) / m_ask)
+                m_to_s[currency_pair] = float(((s_bid - m_ask) / m_ask))
             
             s_to_m = dict()
             for currency_pair in coins:
                 m_bid = u_orderbook[currency_pair]['bids']
                 s_ask = o_orderbook[currency_pair]['asks']
-                s_to_m[currency_pair] = float(((m_bid - s_ask) / s_ask)
+                s_to_m[currency_pair] = float(((m_bid - s_ask) / s_ask))
             
             res = u_orderbook, o_orderbook, {'m_to_s': m_to_s, 's_to_m': s_to_m}
             
