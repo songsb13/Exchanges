@@ -21,11 +21,8 @@ class UpbitSubscriber(websocket.WebSocketApp):
         debugger.debug('UpbitSubscriber init!')
 
         url = 'wss://api.upbit.com/websocket/v1'
-        super(UpbitSubscriber, self).__init__(url,
-                                              on_open=self.on_open,
-                                              on_message=self.on_message,
-                                              on_error=self.on_error,
-                                              on_close=self.on_close)
+        super(UpbitSubscriber, self).__init__(url, on_message=self.on_message)
+        
         self.data_store = data_store
         self.name = 'upbit_subscriber'
         self.stop_flag = False
@@ -37,19 +34,11 @@ class UpbitSubscriber(websocket.WebSocketApp):
         self._temp_candle_store = list()
         
         self.subscribe_set = dict()
-        self.subscribe_thread = threading.Thread(target=self.run_forever, daemon=True)
-        self.subscribe_thread.start()
         
         debugger.debug('UpbitSubscriber start!')
         
     def stop(self):
         self.stop_flag = True
-    
-    def on_error(self, ws, error):
-        pass
-
-    def on_close(self, ws):
-        pass
     
     def set_subscribe(self):
         data = list()
