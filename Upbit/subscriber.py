@@ -30,7 +30,7 @@ class UpbitSubscriber(websocket.WebSocketApp):
     
         self.candle_symbol_set = list()
         self.orderbook_symbol_set = list()
-        self._temp_orderbook_store = list()
+        self._temp_orderbook_store = dict()
         self._temp_candle_store = list()
         
         self.subscribe_set = dict()
@@ -77,13 +77,17 @@ class UpbitSubscriber(websocket.WebSocketApp):
             debugger.debug('get message [{}], [{}]'.format(market, type_))
             if type_ == 'orderbook':
                 with self._lock_dic['orderbook']:
-                    self._temp_orderbook_store += data['orderbook_units']
-                
-                    if len(self._temp_orderbook_store) >= 100:
+                    # 1. insert data to temp_orderbook_store if type_ is 'orderbook'
+                    # 2. if more than 100 are filled, insert to orderbook_queue for using 'get_curr_avg_orderbook'
+                    if market not in self._temp_orderbook_store:
+                        self._temp_orderbook_store.setdefault(market, list())
+                        
+                    self._temp_orderbook_store[market] += data['orderbook_units']
+
+                    if len(self._temp_orderbook_store[market]) >= 100:
                         self.data_store.orderbook_queue[market] = self._temp_orderbook_store
-                        self._temp_orderbook_store = list()
-                    else:
-                        self._temp_orderbook_store += data['orderbook_units']
+                        self._temp_orderbook_store[market] = list()
+
                     debugger.debug(self.data_store.orderbook_queue.get(market, None))
             elif type_ == 'ticker':
                 with self._lock_dic['candle']:
