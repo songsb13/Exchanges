@@ -16,7 +16,7 @@ from Exchanges.base_exchange import DataStore
 
 import decimal
 
-decimal.getcontext().prec = 4
+decimal.getcontext().prec = 8
 
 
 class BaseUpbit(BaseExchange):
@@ -165,27 +165,31 @@ class BaseUpbit(BaseExchange):
         return self._private_api('post', '/withdraws/coin', params)
     
     def buy(self, coin, amount, price=None):
-        amount, price = map(str, (amount, price * 1.05))
+        order_type = 'price' if price is None else 'limit'
+        
+        amount, price = map(str, (amount, price))
         
         params = {
             'market': coin,
             'side': 'bid',
             'volume': amount,
             'price': price,
-            'ord_type': 'limit'
+            'ord_type': order_type
         }
         
         return self._private_api('POST', '/orders', params)
     
     def sell(self, coin, amount, price=None):
-        amount, price = map(str, (amount, price * 0.95))
+        order_type = 'market' if price is None else 'limit'
+
+        amount, price = map(str, (amount, price))
         
         params = {
             'market': coin,
             'side': 'ask',
             'volume': amount,
             'price': price,
-            'ord_type': 'limit'
+            'ord_type': order_type
         }
         
         return self._private_api('POST', '/orders', params)
