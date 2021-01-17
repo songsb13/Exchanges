@@ -18,7 +18,11 @@ class Tickets(Enum):
 
 class UpbitSubscriber(websocket.WebSocketApp):
     def __init__(self, data_store, lock_dic):
-        debugger.debug('UpbitSubscriber init!')
+        """
+            data_store: An object for storing orderbook&candle data, using orderbook&candle queue in this object.
+            lock_dic: dictionary for avoid race condition, {orderbook: Lock, candle: Lock}
+        """
+        debugger.debug('UpbitSubscriber::: start')
 
         url = 'wss://api.upbit.com/websocket/v1'
         super(UpbitSubscriber, self).__init__(url, on_message=self.on_message)
@@ -35,8 +39,6 @@ class UpbitSubscriber(websocket.WebSocketApp):
         
         self.subscribe_set = dict()
         
-        debugger.debug('UpbitSubscriber start!')
-        
     def stop(self):
         self.stop_flag = True
     
@@ -48,22 +50,27 @@ class UpbitSubscriber(websocket.WebSocketApp):
         self.send(json.dumps(data))
 
     def unsubscribe_orderbook(self):
+        debugger.debug('UpbitSubscriber::: unsubscribe_orderbook')
+
         self.subscribe_set.pop('orderbook')
         
         self.set_subscribe()
 
     def unsubscribe_candle(self):
+        debugger.debug('UpbitSubscriber::: unsubscribe_candle')
         self.subscribe_set.pop('candle')
 
         self.set_subscribe()
 
     def subscribe_orderbook(self):
+        debugger.debug('UpbitSubscriber::: subscribe_orderbook')
         self.subscribe_set['orderbook'] = [{"ticket": "{}".format(Tickets.ORDERBOOK.value)},
                                            {"type": 'orderbook', "codes": self.orderbook_symbol_set, "isOnlyRealtime": True}]
         
         self.set_subscribe()
     
     def subscribe_candle(self):
+        debugger.debug('UpbitSubscriber::: subscribe_candle')
         self.subscribe_set['candle'] = [{"ticket": "{}".format(Tickets.CANDLE.value)},
                                         {"type": 'ticker', "codes": self.candle_symbol_set}]
 
