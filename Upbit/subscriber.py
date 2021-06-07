@@ -32,12 +32,50 @@ class UpbitSubscriber(websocket.WebSocketApp):
         self.stop_flag = False
         self._lock_dic = lock_dic
     
-        self.candle_symbol_set = list()
-        self.orderbook_symbol_set = list()
+        self._candle_symbol_set = list()
+        self._orderbook_symbol_set = list()
         self._temp_orderbook_store = dict()
         self._temp_candle_store = list()
         
         self.subscribe_set = dict()
+    
+    @property
+    def candle_symbol_set(self):
+        return self.candle_symbol_set
+    
+    def add_candle_symbol_set(self, value):
+        reset = False
+        if isinstance(list, value):
+            if not value.difference(set(self._candle_symbol_set)):
+                self._candle_symbol_set = self._candle_symbol_set.union(set(value))
+                reset = True
+        elif isinstance(str, value):
+            if value not in self._candle_symbol_set:
+                self._candle_symbol_set.add(value)
+                reset = True
+        
+        if reset is True:
+            self.unsubscribe_candle()
+            self.subscribe_candle()
+
+    @property
+    def orderbook_symbol_set(self):
+        return self.orderbook_symbol_set
+
+    def add_orderbook_symbol_set(self, value):
+        reset = False
+        if isinstance(list, value):
+            if not value.difference(set(self._orderbook_symbol_set)):
+                self._orderbook_symbol_set += value
+                reset = True
+        elif isinstance(str, value):
+            if value not in self._orderbook_symbol_set:
+                self._orderbook_symbol_set.append(value)
+                reset = True
+                
+        if reset is True:
+            self.unsubscribe_orderbook()
+            self.subscribe_orderbook()
         
     def stop(self):
         self.stop_flag = True
@@ -65,14 +103,14 @@ class UpbitSubscriber(websocket.WebSocketApp):
     def subscribe_orderbook(self):
         debugger.debug('UpbitSubscriber::: subscribe_orderbook')
         self.subscribe_set['orderbook'] = [{"ticket": "{}".format(Tickets.ORDERBOOK.value)},
-                                           {"type": 'orderbook', "codes": self.orderbook_symbol_set, "isOnlyRealtime": True}]
+                                           {"type": 'orderbook', "codes": self._orderbook_symbol_set, "isOnlyRealtime": True}]
         
         self.set_subscribe()
     
     def subscribe_candle(self):
         debugger.debug('UpbitSubscriber::: subscribe_candle')
         self.subscribe_set['candle'] = [{"ticket": "{}".format(Tickets.CANDLE.value)},
-                                        {"type": 'ticker', "codes": self.candle_symbol_set}]
+                                        {"type": 'ticker', "codes": self._candle_symbol_set}]
 
         self.set_subscribe()
 

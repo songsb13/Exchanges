@@ -20,58 +20,25 @@ decimal.getcontext().prec = 8
 
 
 class BaseUpbit(BaseExchange):
-    def __init__(self, key, secret, candle_time, coin_list):
+    def __init__(self, key, secret):
         self._base_url = 'https://api.upbit.com/v1'
         self._key = key
         self._secret = secret
         self.data_store = DataStore()
         
-        self._candle_time = candle_time
-        self._coin_list = coin_list
         self._lock_dic = dict(orderbook=threading.Lock(), candle=threading.Lock())
         
         self._subscriber = UpbitSubscriber(self.data_store, self._lock_dic)
-        self.subscribe_thread = threading.Thread(target=self._subscriber.run_forever, daemon=True)
-        self.subscribe_thread.start()
 
-        self._connect_to_subscriber()
-        
     def _sai_to_upbit_symbol_converter(self, pair):
         return pair.replace('_', '-')
     
     def _upbit_to_sai_symbol_converter(self, pair):
         return pair.replace('-', '_')
     
-    def _connect_to_subscriber(self):
-        for _ in range(3):
-            debugger.debug('connecting to subscriber..')
-            try:
-                self._websocket_orderbook_settings()
-                self._websocket_candle_settings()
-                debugger.debug('connected.')
-                break
-            except Exception as ex:
-                debugger.debug('connection error found, [{}]'.format(ex))
-            time.sleep(1)
-        else:
-            debugger.exception('Fail to set websocket settings')
-            raise
-            
-    def _websocket_candle_settings(self):
-        if not self._subscriber.candle_symbol_set:
-            pairs = [self._sai_to_upbit_symbol_converter(pair) for pair in self._coin_list]
-            setattr(self._subscriber, 'candle_symbol_set', pairs)
-
-        if self._subscriber.subscribe_set.get('candle', None) is None or not self.subscribe_thread.isAlive():
-            self._subscriber.subscribe_candle()
-
-    def _websocket_orderbook_settings(self):
-        if not self._subscriber.orderbook_symbol_set:
-            pairs = [self._sai_to_upbit_symbol_converter(pair) for pair in self._coin_list]
-            setattr(self._subscriber, 'orderbook_symbol_set', pairs)
-    
-        if self._subscriber.subscribe_set.get('orderbook', None) is None or not self.subscribe_thread.isAlive():
-            self._subscriber.subscribe_orderbook()
+    def start_socket_thread(self):
+        self.subscribe_thread = threading.Thread(target=self._subscriber.run_forever, daemon=True)
+        self.subscribe_thread.start()
 
     def _public_api(self, path, extra=None):
         if extra is None:
@@ -136,13 +103,16 @@ class BaseUpbit(BaseExchange):
         res = list()
         return [res.append(data['market']) for data in currencies if not currencies['market'] in res]
     
-    def get_candle(self):
-        if not self.data_store.candle_queue:
-            return ExchangeResult(False, '', 'candle data is not yet stored', 1)
-        
-        result_dict = self.data_store.candle_queue
-        
-        return ExchangeResult(True, result_dict, '', 0)
+    def get_candle(self, coin, unit, count):
+        with self._lock_dic['candle']:
+            self._subscriber.add_candle_symbol_set(coin)
+            
+            if not self.data_store.candle_queue:
+                return ExchangeResult(False, '', 'candle data is not yet stored', 1)
+            
+            result_dict = self.data_store.candle_queue
+            
+            return ExchangeResult(True, result_dict, '', 0)
         
     def service_currencies(self, currencies):
         # using deposit_addrs
@@ -281,6 +251,7 @@ class BaseUpbit(BaseExchange):
     
     async def get_curr_avg_orderbook(self, coin_list, btc_sum=1):
         with self._lock_dic['orderbook']:
+            self._subscriber.add_orderbook_symbol_set(coin_list)
             data_dic = self.data_store.orderbook_queue
             
             if not self.data_store.orderbook_queue:
