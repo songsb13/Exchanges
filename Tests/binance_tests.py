@@ -30,11 +30,18 @@ class TestNotification(unittest.TestCase):
         print(result.data)
     
     def test_get_candle(self):
-        result = self.exchange.get_candle("BTC_XRP", 1, 199)
+        result = self.exchange.get_candle(self.symbol_set, 1)
+        self.assertTrue(result.success)
+        print(result.data)
+        self.assertEqual(len(result.data['timestamp']), 20)
+    
+    def test_get_orderbook(self):
+        loop = asyncio.get_event_loop()
+        result = loop.run_until_complete(self.exchange.get_curr_avg_orderbook(self.symbol_set))
         self.assertTrue(result.success)
         print(result.data)
         self.assertEqual(len(result.data['timestamp']), 199)
-    
+
     def test_get_deposit_addrs(self):
         loop = asyncio.get_event_loop()
         result = loop.run_until_complete(self.exchange.get_deposit_addrs())
