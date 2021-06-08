@@ -1,47 +1,47 @@
 import unittest
-from Exchanges.Upbit import upbit
+from Exchanges.binance import binance
 import asyncio
 import time
 
 
 class TestNotification(unittest.TestCase):
     symbol_set = ['BTC_ETH', 'BTC_XRP']
-    
     @classmethod
     def setUpClass(cls):
-        cls.exchange = upbit.BaseUpbit(
-            key='qfbl7FNHhPbXgGhJVSDaoJMxXcJnphhDoDLnugNk4QI ',
-            secret='wIvD1OOUYMxXONNB7biRjUtltTDY9hcD1BlFO6IqVx6'
-            candle_time=1,
-            coin_list=TestNotification.symbol_set
+        cls.exchange = binance.Binance(
+            'oYQYru6IvzCgxSFaCRdRQyKCHfpUQEEujZAxJsCw5LEjuR7D2F8S7pIGxrN9u2lB ',
+            '4WcKtsR88UqGMyYUuKVb7XZlo0adfr8z3eOtZZm4mRWaWTfJTc4prLcZ29Ti8zXl'
         )
-    
+
+    def test_exchange_info(self):
+        # get default info for taking deposit fee and etc..
+        result = self.exchange._get_exchange_info()
+        self.assertTrue(result.success)
+        print(result.data)
+        self.assertIn(
+            'BTC_ETH',
+            sorted(list(result.data.keys()))
+        )
+
     def test_get_available_coin(self):
         result = self.exchange.get_available_coin()
         self.assertTrue(result.success)
         self.assertIn('BTC_XRP', result.data)
         print(result.data)
     
-    def test_get_curr_avg_orderbook(self):
-        loop = asyncio.get_event_loop()
-        while True:
-            result = loop.run_until_complete(self.exchange.get_curr_avg_orderbook(''))
-            print(result.__dict__)
-            time.sleep(1)
-    
-    def test_get_balance(self):
-        loop = asyncio.get_event_loop()
-        balance_result = loop.run_until_complete(self.exchange.get_balance())
-        self.assertTrue(balance_result.success)
-        self.assertIn('BTC', balance_result.data)
-        print(balance_result.data)
-    
     def test_get_candle(self):
-        while True:
-            result = self.exchange.get_candle()
-            print(result.__dict__)
-            time.sleep(1)
+        result = self.exchange.get_candle(self.symbol_set, 1)
+        self.assertTrue(result.success)
+        print(result.data)
+        self.assertEqual(len(result.data['timestamp']), 20)
     
+    def test_get_orderbook(self):
+        loop = asyncio.get_event_loop()
+        result = loop.run_until_complete(self.exchange.get_curr_avg_orderbook(self.symbol_set))
+        self.assertTrue(result.success)
+        print(result.data)
+        self.assertEqual(len(result.data['timestamp']), 199)
+
     def test_get_deposit_addrs(self):
         loop = asyncio.get_event_loop()
         result = loop.run_until_complete(self.exchange.get_deposit_addrs())
@@ -55,6 +55,13 @@ class TestNotification(unittest.TestCase):
         self.assertTrue(result.success)
         self.assertIn('BTC', result.data)
         print(result.data)
+
+    def test_get_balance(self):
+        loop = asyncio.get_event_loop()
+        balance_result = loop.run_until_complete(self.exchange.get_balance())
+        self.assertTrue(balance_result.success)
+        self.assertIn('BTC', balance_result.data)
+        print(balance_result.data)
     
     def test_get_avg_price(self):
         loop = asyncio.get_event_loop()
@@ -64,7 +71,7 @@ class TestNotification(unittest.TestCase):
         print(result.data)
     
     def test_market_trade(self):
-        converted_coin = self.exchange._sai_to_upbit_symbol_converter('BTC_XRP')
+        converted_coin = self.exchange._sai_symbol_converter('BTC_XRP')
         buy_result = self.exchange.buy(converted_coin, 5)
         if buy_result.success:
             print(buy_result.data)
@@ -78,7 +85,7 @@ class TestNotification(unittest.TestCase):
         else:
             print(sell_result.message)
         self.assertTrue(sell_result.success)
-    
+
     def test_servertime(self):
         servertime_result = self.exchange
         print(time.time() - float(servertime_result.data))

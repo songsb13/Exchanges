@@ -16,7 +16,7 @@ from urllib.parse import urlencode
 from decimal import Decimal, ROUND_DOWN, getcontext
 
 from Exchanges.base_exchange import BaseExchange, ExchangeResult, DataStore
-from Exchanges.Binance.subscriber import BinanceSubscriber
+from Exchanges.binance.subscriber import BinanceSubscriber
 from Util.pyinstaller_patch import *
 
 decimal.getcontext().prec = 8
