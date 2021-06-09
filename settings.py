@@ -1,0 +1,4 @@
+"""
+setting of whole exchanges
+"""
+
