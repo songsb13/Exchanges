@@ -10,5 +10,5 @@ class Consts(object):
     ASKS = 'asks'
     BIDS = 'bids'
     
-    MARKET = 'makret'
+    MARKET = 'market'
     LIMIT = 'limit'
