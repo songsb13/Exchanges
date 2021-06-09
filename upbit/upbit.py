@@ -11,7 +11,7 @@ from urllib.parse import urlencode
 from Util.pyinstaller_patch import *
 
 from Exchanges.base_exchange import BaseExchange, ExchangeResult
-from Exchanges.Upbit.subscriber import UpbitSubscriber
+from Exchanges.upbit.subscriber import UpbitSubscriber
 from Exchanges.base_exchange import DataStore
 
 import decimal
