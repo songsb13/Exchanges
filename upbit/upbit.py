@@ -1,18 +1,23 @@
 import jwt
-import requests
 import time
 import json
 import aiohttp
 import numpy as np
 import asyncio
+import requests
 import threading
 
 from urllib.parse import urlencode
-from Util.pyinstaller_patch import *
+from Util.pyinstaller_patch import debugger
 
-from Exchanges.base_exchange import BaseExchange, ExchangeResult
+from Exchanges.settings import Consts
+
+from Exchanges.upbit.setting import Urls
 from Exchanges.upbit.subscriber import UpbitSubscriber
-from Exchanges.base_exchange import DataStore
+from Exchanges.upbit.util import sai_to_upbit_symbol_converter, upbit_to_sai_symbol_converter
+
+from Exchanges.abstracts import BaseExchange
+from Exchanges.objects import DataStore, ExchangeResult
 
 import decimal
 
@@ -21,7 +26,6 @@ decimal.getcontext().prec = 8
 
 class BaseUpbit(BaseExchange):
     def __init__(self, key, secret):
-        self._base_url = 'https://api.upbit.com/v1'
         self._key = key
         self._secret = secret
         self.data_store = DataStore()
@@ -29,12 +33,6 @@ class BaseUpbit(BaseExchange):
         self._lock_dic = dict(orderbook=threading.Lock(), candle=threading.Lock())
         
         self._subscriber = UpbitSubscriber(self.data_store, self._lock_dic)
-
-    def _sai_to_upbit_symbol_converter(self, pair):
-        return pair.replace('_', '-')
-    
-    def _upbit_to_sai_symbol_converter(self, pair):
-        return pair.replace('-', '_')
     
     def start_socket_thread(self):
         self.subscribe_thread = threading.Thread(target=self._subscriber.run_forever, daemon=True)
@@ -44,8 +42,8 @@ class BaseUpbit(BaseExchange):
         if extra is None:
             extra = dict()
         
-        path = self._base_url + path
-        rq = requests.get(path, json=extra)
+        url = Urls.BASE + path
+        rq = requests.get(url, json=extra)
         try:
             res = rq.json()
             
@@ -70,8 +68,8 @@ class BaseUpbit(BaseExchange):
         
         header = self.get_jwt_token(payload)
         
-        path = '/'.join([self._base_url, path])
-        rq = requests.post(path, header=header, data=extra)
+        url = Urls.BASE + path
+        rq = requests.post(url, header=header, data=extra)
 
         try:
             res = rq.json()
@@ -93,11 +91,11 @@ class BaseUpbit(BaseExchange):
         return 'Bearer {}'.format(jwt.encode(payload, self._secret, ).decode('utf8'))
     
     def get_ticker(self, market):
-        return self._public_api('/ticker', market)
+        return self._public_api(Urls.TICKER, market)
     
     def currencies(self):
         # using get_currencies, service_currencies
-        return self._public_api('/market/all')
+        return self._public_api(Urls.CURRENCY)
     
     def get_currencies(self, currencies):
         res = list()
@@ -120,7 +118,7 @@ class BaseUpbit(BaseExchange):
         return [res.append(data.split('-')[1]) for data in currencies if currencies['market'].split('-')[1] not in res]
     
     def get_order_history(self, uuid):
-        return self._private_api('get', '/order', {'uuid': uuid})
+        return self._private_api(Consts.GET, Urls.ORDER, {'uuid': uuid})
     
     def withdraw(self, coin, amount, to_address, payment_id=None):
         params = {
@@ -132,7 +130,7 @@ class BaseUpbit(BaseExchange):
         if payment_id:
             params.update({'secondary_address': payment_id})
         
-        return self._private_api('post', '/withdraws/coin', params)
+        return self._private_api(Consts.POST, Urls.WITHDRAW, params)
     
     def buy(self, coin, amount, price=None):
         order_type = 'price' if price is None else 'limit'
@@ -147,7 +145,7 @@ class BaseUpbit(BaseExchange):
             'ord_type': order_type
         }
         
-        return self._private_api('POST', '/orders', params)
+        return self._private_api(Consts.POST, Urls.ORDER, params)
     
     def sell(self, coin, amount, price=None):
         order_type = 'market' if price is None else 'limit'
@@ -162,7 +160,7 @@ class BaseUpbit(BaseExchange):
             'ord_type': order_type
         }
         
-        return self._private_api('POST', '/orders', params)
+        return self._private_api(Consts.POST, Urls.ORDER, params)
     
     def base_to_alt(self, currency_pair, btc_amount, alt_amount, td_fee, tx_fee):
         alt_amount *= 1 - decimal.Decimal(td_fee)
@@ -171,27 +169,13 @@ class BaseUpbit(BaseExchange):
         
         return ExchangeResult(True, alt_amount)
     
-    # def alt_to_base(self, currency_pair, btc_amount, alt_amount):
-    #     # after self.sell()
-    #     if suc:
-    #         upbit_logger.info('AltToBase 성공')
-    #
-    #         return True, '', data, 0
-    #
-    #     else:
-    #         upbit_logger.info(msg)
-    #
-    #         if '부족합니다.' in msg:
-    #             alt_amount -= Decimal(0.0001).quantize(Decimal(10) ** -4)
-    #             continue
-    
     async def async_public_api(self, path, extra=None):
         if extra is None:
             extra = dict()
         try:
             async with aiohttp.ClientSession() as s:
-                path = self._base_url + path
-                rq = await s.get(path, json=extra)
+                url = Urls.BASE + path
+                rq = await s.get(url, json=extra)
                 
                 res = json.loads(await rq.text())
                 
@@ -217,8 +201,8 @@ class BaseUpbit(BaseExchange):
         header = self.get_jwt_token(payload)
         try:
             async with aiohttp.ClientSession() as s:
-                path = self._base_url + path
-                rq = await s.post(path, headers=header, data=extra)
+                url = Urls.BASE + path
+                rq = await s.post(url, headers=header, data=extra)
         
                 res = json.loads(await rq.text())
         
@@ -234,17 +218,17 @@ class BaseUpbit(BaseExchange):
             return ExchangeResult(False, '', 'Error [{}]'.format(ex))
     
     async def get_deposit_addrs(self, coin_list=None):
-        return self.async_public_api('/v1/deposits/coin_addresses')
+        return self.async_public_api(Urls.DEPOSIT_ADDRESS)
     
     async def get_balance(self):
-        return self._private_api('get', '/accounts')
+        return self._private_api(Consts.GET, Urls.ACCOUNT)
     
     async def get_detail_balance(self, data):
         # bal = self.get_balance()
         return {bal['currency']: bal['balance'] for bal in data}
     
     async def get_orderbook(self, market):
-        return self.async_public_api('/orderbook', {'markets': market})
+        return self.async_public_api(Urls.ORDERBOOK, {'markets': market})
     
     async def get_btc_orderbook(self, btc_sum):
         return await self.get_orderbook('KRW-BTC')
@@ -259,7 +243,7 @@ class BaseUpbit(BaseExchange):
             
             avg_order_book = dict()
             for pair, item in data_dic.items():
-                sai_symbol = self._upbit_to_sai_symbol_converter(pair)
+                sai_symbol = upbit_to_sai_symbol_converter(pair)
                 avg_order_book[sai_symbol] = dict()
                 
                 for type_ in ['ask', 'bid']:
