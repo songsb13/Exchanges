@@ -133,8 +133,7 @@ class BaseUpbit(BaseExchange):
         return self._private_api(Consts.POST, Urls.WITHDRAW, params)
     
     def buy(self, coin, amount, price=None):
-        order_type = 'price' if price is None else 'limit'
-        
+        order_type = Consts.MARKET if price is not None else Consts.LIMIT
         amount, price = map(str, (amount, price))
         
         params = {
@@ -148,7 +147,7 @@ class BaseUpbit(BaseExchange):
         return self._private_api(Consts.POST, Urls.ORDER, params)
     
     def sell(self, coin, amount, price=None):
-        order_type = 'market' if price is None else 'limit'
+        order_type = Consts.MARKET if price is not None else Consts.LIMIT
 
         amount, price = map(str, (amount, price))
         
@@ -273,17 +272,18 @@ class BaseUpbit(BaseExchange):
         if u_suc and o_suc:
             m_to_s = dict()
             for currency_pair in coins:
-                m_ask = u_orderbook[currency_pair]['asks']
-                s_bid = o_orderbook[currency_pair]['bids']
+                m_ask = u_orderbook[currency_pair][Consts.ASKS]
+                s_bid = o_orderbook[currency_pair][Consts.BIDS]
                 m_to_s[currency_pair] = float(((s_bid - m_ask) / m_ask))
             
             s_to_m = dict()
             for currency_pair in coins:
-                m_bid = u_orderbook[currency_pair]['bids']
-                s_ask = o_orderbook[currency_pair]['asks']
+                m_bid = u_orderbook[currency_pair][Consts.BIDS]
+                s_ask = o_orderbook[currency_pair][Consts.ASKS]
                 s_to_m[currency_pair] = float(((m_bid - s_ask) / s_ask))
-            
-            res = u_orderbook, o_orderbook, {'m_to_s': m_to_s, 's_to_m': s_to_m}
-            
-            return ExchangeResult(True, res)
-
+            result = (
+                u_orderbook,
+                o_orderbook,
+                {Consts.PRIMARY_TO_SECONDARY: m_to_s, Consts.SECONDARY_TO_PRIMARY: s_to_m}
+            )
+            return ExchangeResult(True, result)
