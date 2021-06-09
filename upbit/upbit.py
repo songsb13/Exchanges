@@ -11,6 +11,7 @@ from urllib.parse import urlencode
 from Util.pyinstaller_patch import debugger
 
 from Exchanges.settings import Consts
+from Exchanges.messages import WarningMessage as WarningMsg
 
 from Exchanges.upbit.setting import Urls
 from Exchanges.upbit.subscriber import UpbitSubscriber
@@ -48,7 +49,7 @@ class BaseUpbit(BaseExchange):
             res = rq.json()
             
             if 'error' in res:
-                error_msg = res.get('error', dict()).get('message', 'Fail, but message is not found.')
+                error_msg = res.get('error', dict()).get('message', WarningMsg.MESSAGE_NOT_FOUND)
                 return ExchangeResult(False, '', error_msg)
             
             else:
@@ -75,7 +76,7 @@ class BaseUpbit(BaseExchange):
             res = rq.json()
     
             if 'error' in res:
-                error_msg = res.get('error', dict()).get('message', 'Fail, but message is not found.')
+                error_msg = res.get('error', dict()).get('message', WarningMsg.MESSAGE_NOT_FOUND)
                 return ExchangeResult(False, '', error_msg)
     
             else:
@@ -106,7 +107,7 @@ class BaseUpbit(BaseExchange):
             self._subscriber.add_candle_symbol_set(coin)
             
             if not self.data_store.candle_queue:
-                return ExchangeResult(False, '', 'candle data is not yet stored', 1)
+                return ExchangeResult(False, '', WarningMsg.CANDLE_NOT_STORED, 1)
             
             result_dict = self.data_store.candle_queue
             
@@ -180,7 +181,7 @@ class BaseUpbit(BaseExchange):
                 
                 if 'error' in res:
                     error_msg = res.get('error', dict()).get('message',
-                                                             'Fail, but message is not found.')
+                                                             WarningMsg.MESSAGE_NOT_FOUND)
     
                     return ExchangeResult(False, '', error_msg)
                 
@@ -207,7 +208,7 @@ class BaseUpbit(BaseExchange):
         
                 if 'error' in res:
                     error_msg = res.get('error', dict()).get('message',
-                                                             'Fail, but message is not found.')
+                                                             WarningMsg.MESSAGE_NOT_FOUND)
     
                     return ExchangeResult(False, '', error_msg)
         
@@ -238,7 +239,7 @@ class BaseUpbit(BaseExchange):
             data_dic = self.data_store.orderbook_queue
             
             if not self.data_store.orderbook_queue:
-                return ExchangeResult(False, '', 'orderbook data is not yet stored')
+                return ExchangeResult(False, '', WarningMsg.ORDERBOOK_NOT_STORED)
             
             avg_order_book = dict()
             for pair, item in data_dic.items():
