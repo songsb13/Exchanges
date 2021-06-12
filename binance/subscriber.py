@@ -1,17 +1,14 @@
-import websocket
 try:
     import thread
 except ImportError:
     import _thread as thread
-
-from enum import Enum
 
 import json
 
 from Util.pyinstaller_patch import *
 from websocket import create_connection
 from websocket import WebSocketConnectionClosedException
-from Exchanges.binance.setting import Tickets
+from Exchanges.binance.setting import Tickets, Urls
 
 
 class Receiver(threading.Thread):
@@ -20,14 +17,11 @@ class Receiver(threading.Thread):
         self.store_queue = store_queue
         self._temp_queue = {symbol.upper(): list() for symbol in symbol_set}
         self._params = params
-        self._url = 'wss://stream.binance.com:9443'
         self.lock = lock
 
-        if len(params) == 1:
-            self._url += '/ws' + '/'.join(params)
-        elif len(params) >= 2:
-            self._url += '/stream?streams=' + '/'.join(params)
-            
+        path = Urls.Websocket.SINGLE if len(params) == 1 else Urls.Websocket.STREAMS
+        self._url = Urls.Websocket.BASE + path + '/'.join(params)
+
         self._id = _id
 
         self.stop_flag = False
@@ -129,10 +123,10 @@ class BinanceSubscriber(object):
     
     def subscribe_orderbook(self):
         if self.orderbook_symbol_set:
-            params = ['{}@bookTicker'.format(symbol) for symbol in self.orderbook_symbol_set]
+            params = [Urls.Websocket.SELECTED_BOOK_TICKER.format(symbol=symbol) for symbol in self.orderbook_symbol_set]
         else:
             # 전체 orderbook 가져옴.
-            params = ['!bookTicker']
+            params = [Urls.Websocket.ALL_BOOK_TICKER]
         
         self.orderbook_receiver = Receiver(
             self.data_store.orderbook_queue,

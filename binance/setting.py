@@ -25,3 +25,12 @@ class Urls(object):
     DEPOSITS = '/sapi/v1/capital/deposit/address'
     WITHDRAW = '/wapi/v3/withdraw.html'
     TRANSACTION_FEE = '/assetWithdraw/getAllAsset.html'
+
+    class Websocket(object):
+        BASE = 'wss://stream.binance.com:9443'
+        SINGLE = '/ws'
+        STREAMS = '/stream'
+
+        SELECTED_BOOK_TICKER = '{symbol}@bookTicker'
+        ALL_BOOK_TICKER = '!bookTicker'
+
