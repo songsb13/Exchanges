@@ -79,7 +79,7 @@ class Binance(BaseExchange):
             extra = dict()
 
         try:
-            rq = requests.get(self._base_url + path, params=extra)
+            rq = requests.get(Urls.BASE + path, params=extra)
             response = rq.json()
 
             if 'msg' in response:
@@ -106,9 +106,9 @@ class Binance(BaseExchange):
             query = "{}&signature={}".format(urlencode(sorted(extra.items())), sig)
 
             if method == 'GET':
-                rq = requests.get(self._base_url + path, params=query, headers={"X-MBX-APIKEY": self._key})
+                rq = requests.get(Urls.BASE + path, params=query, headers={"X-MBX-APIKEY": self._key})
             else:
-                rq = requests.post(self._base_url + path, data=query, headers={"X-MBX-APIKEY": self._key})
+                rq = requests.post(Urls.BASE + path, data=query, headers={"X-MBX-APIKEY": self._key})
             response = rq.json()
 
             if 'msg' in response:
@@ -316,10 +316,10 @@ class Binance(BaseExchange):
                 if method == 'GET':
                     sig = query.pop('signature')
                     query = "{}&signature={}".format(urlencode(sorted(extra.items())), sig)
-                    rq = await session.get(self._base_url + path + "?{}".format(query))
+                    rq = await session.get(Urls.BASE + path + "?{}".format(query))
 
                 else:
-                    rq = await session.post(self._base_url + path, data=query)
+                    rq = await session.post(Urls.BASE + path, data=query)
 
                 response = json.loads(await rq.text())
 
@@ -343,7 +343,7 @@ class Binance(BaseExchange):
             extra = dict()
 
         async with aiohttp.ClientSession() as session:
-            rq = await session.get(self._base_url + path, params=extra)
+            rq = await session.get(Urls.BASE + path, params=extra)
 
         try:
             response = json.loads(await rq.text())
@@ -486,7 +486,7 @@ class Binance(BaseExchange):
     async def get_transaction_fee(self):
         fees = dict()
         try:
-            url = '/'.join([Urls.PAGE_BASE, Urls.TRANSACTION_FEE])
+            url = Urls.PAGE_BASE + Urls.TRANSACTION_FEE
             for _ in range(3):
                 async with aiohttp.ClientSession() as session:
                     rq = await session.get(url)
