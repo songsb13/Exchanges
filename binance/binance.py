@@ -41,19 +41,6 @@ class Binance(BaseExchange):
         
         self._websocket_candle_settings()
         self._websocket_orderbook_settings()
-        
-    def _symbol_localizing(self, symbol):
-        actual_symbol = dict(
-            BCH='BCC'
-        )
-        return actual_symbol.get(symbol, symbol)
-
-    def _symbol_customizing(self, symbol):
-        actual_symbol = dict(
-            BCC='BCH'
-        )
-
-        return actual_symbol.get(symbol, symbol)
 
     def _websocket_candle_settings(self):
         time_str = '{}m'.format(self._candle_time) if self._candle_time < 60 else '{}h'.format(self._candle_time // 60)
