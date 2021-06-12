@@ -11,17 +11,7 @@ import json
 from Util.pyinstaller_patch import *
 from websocket import create_connection
 from websocket import WebSocketConnectionClosedException
-
-
-class ChannelIdSet(Enum):
-    """
-        Binance의 경우에는 channel Id를 정하는 형식이므로 임의로 정해서 보관한다.
-        Public => 1~1000
-        Private => 1001~ 2000
-    """
-    
-    ORDERBOOK = 10
-    CANDLE = 20
+from Exchanges.binance.setting import Tickets
 
 
 class Receiver(threading.Thread):
@@ -60,9 +50,9 @@ class Receiver(threading.Thread):
     def run(self):
         while not self.stop_flag:
             try:
-                if self._id == ChannelIdSet.ORDERBOOK.value:
+                if self._id == Tickets.ORDERBOOK.value:
                     self.orderbook_receiver()
-                elif self._id == ChannelIdSet.CANDLE.value:
+                elif self._id == Tickets.CANDLE.value:
                     self.candle_receiver()
                     
             except WebSocketConnectionClosedException:
@@ -147,7 +137,7 @@ class BinanceSubscriber(object):
         self.orderbook_receiver = Receiver(
             self.data_store.orderbook_queue,
             params,
-            ChannelIdSet.ORDERBOOK.value,
+            Tickets.ORDERBOOK.value,
             self.orderbook_symbol_set,
             self._lock_dic['orderbook']
         )
@@ -162,7 +152,7 @@ class BinanceSubscriber(object):
         self.candle_receiver = Receiver(
             self.data_store.candle_queue,
             params,
-            ChannelIdSet.CANDLE.value,
+            Tickets.CANDLE.value,
             self.candle_symbol_set,
             self._lock_dic['candle']
         )

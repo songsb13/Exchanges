@@ -13,6 +13,7 @@ from urllib.parse import urlencode
 from decimal import Decimal, ROUND_DOWN, getcontext
 
 from Exchanges.binance.util import sai_to_binance_converter, binance_to_sai_converter
+from Exchanges.binance.setting import Urls
 from Exchanges.abstracts import BaseExchange
 from Exchanges.objects import ExchangeResult, DataStore
 from Exchanges.binance.subscriber import BinanceSubscriber
@@ -24,7 +25,6 @@ decimal.getcontext().prec = 8
 class Binance(BaseExchange):
     def __init__(self, key, secret, coin_list, time_):
         self.name = 'Binance'
-        self._base_url = 'https://api.binance.com'
         self._key = key
         self._secret = secret
         
@@ -143,7 +143,7 @@ class Binance(BaseExchange):
 
     def _get_exchange_info(self):
         for _ in range(3):
-            result_object = self._public_api('/api/v3/exchangeInfo')
+            result_object = self._public_api(Urls.EXCHANGE_INFO)
             if result_object.success:
                 break
 
@@ -200,7 +200,7 @@ class Binance(BaseExchange):
                     'quantity': '{0:4f}'.format(amount).strip(),
                   })
 
-        return self._private_api('POST', '/api/v3/order', params)
+        return self._private_api('POST', Urls.ORDER, params)
 
     def sell(self, coin, amount, price=None):
         debugger.debug('{}::: Parameters=[{}, {}, {}], function name=[sell]'.format(self.name, coin, amount, price))
@@ -215,7 +215,7 @@ class Binance(BaseExchange):
                     'quantity': '{}'.format(amount),
                   })
 
-        return self._private_api('POST', '/api/v3/order', params)
+        return self._private_api('POST', Urls.ORDER, params)
 
     def fee_count(self):
         return 1
@@ -259,7 +259,7 @@ class Binance(BaseExchange):
     def get_ticker(self, market):
         symbol = binance_to_sai_converter(market)
         for _ in range(3):
-            result_object = self._public_api('/api/v3/ticker/price', {'symbol': symbol})
+            result_object = self._public_api(Urls.TICKER, {'symbol': symbol})
             if result_object.success:
                 break
         time.sleep(result_object.wait_time)
@@ -282,7 +282,7 @@ class Binance(BaseExchange):
             tag_dic = {'addressTag': payment_id}
             params.update(tag_dic)
 
-        return self._private_api('POST', '/wapi/v3/withdraw.html', params)
+        return self._private_api('POST', Urls.WITHDRAW, params)
 
     def get_candle(self):
         with self._lock_dic['candle']:
@@ -363,7 +363,7 @@ class Binance(BaseExchange):
 
     async def _get_balance(self):
         for _ in range(3):
-            result_object = await self._async_private_api('GET', '/api/v3/account')
+            result_object = await self._async_private_api('GET', Urls.ACCOUNT)
             if result_object.success:
                 break
             time.sleep(result_object.wait_time)
@@ -372,7 +372,7 @@ class Binance(BaseExchange):
 
     async def _get_deposit_addrs(self, symbol):
         for _ in range(3):
-            result_object = await self._async_private_api('GET', '/wapi/v3/depositAddress.html', {'asset': symbol})
+            result_object = await self._async_private_api('GET', Urls.DEPOSITS, {'asset': symbol})
 
             if result_object.success:
                 break
@@ -382,7 +382,7 @@ class Binance(BaseExchange):
 
     async def _get_orderbook(self, symbol):
         for _ in range(3):
-            result_object = await self._async_public_api('/api/v3/depth', {'symbol': symbol})
+            result_object = await self._async_public_api(Urls.ORDERBOOK, {'symbol': symbol})
             if result_object.success:
                 break
             time.sleep(result_object.wait_time)
@@ -432,7 +432,7 @@ class Binance(BaseExchange):
                 coin = sp[1] + sp[0]
                 for _ in range(10):
                     history_result_object = await self._async_private_api(
-                        'GET', '/api/v3/allOrders', {'symbol': coin})
+                        'GET', Urls.ALL_ORDERS, {'symbol': coin})
 
                     if history_result_object.success:
                         break
@@ -486,10 +486,10 @@ class Binance(BaseExchange):
     async def get_transaction_fee(self):
         fees = dict()
         try:
-
+            url = '/'.join([Urls.PAGE_BASE, Urls.TRANSACTION_FEE])
             for _ in range(3):
                 async with aiohttp.ClientSession() as session:
-                    rq = await session.get('https://www.binance.com/assetWithdraw/getAllAsset.html')
+                    rq = await session.get(url)
                     data_list = json.loads(await rq.text())
 
                     if not data_list:
