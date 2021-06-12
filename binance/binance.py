@@ -12,6 +12,7 @@ import decimal
 from urllib.parse import urlencode
 from decimal import Decimal, ROUND_DOWN, getcontext
 
+from Exchanges.settings import Consts
 from Exchanges.binance.util import sai_to_binance_converter, binance_to_sai_converter
 from Exchanges.binance.setting import Urls
 from Exchanges.abstracts import BaseExchange
@@ -92,7 +93,7 @@ class Binance(BaseExchange):
             sig = query.pop('signature')
             query = "{}&signature={}".format(urlencode(sorted(extra.items())), sig)
 
-            if method == 'GET':
+            if method == Consts.GET:
                 rq = requests.get(Urls.BASE + path, params=query, headers={"X-MBX-APIKEY": self._key})
             else:
                 rq = requests.post(Urls.BASE + path, data=query, headers={"X-MBX-APIKEY": self._key})
@@ -178,8 +179,7 @@ class Binance(BaseExchange):
         debugger.debug('{}::: Parameters=[{}, {}, {}], function name=[buy]'.format(self.name, coin, amount, price))
 
         params = dict()
-
-        params['type'] = 'MARKET' if price is None else 'LIMIT'
+        params['type'] = Consts.MARKET.upper() if price is None else Consts.LIMIT.upper()
 
         params.update({
                     'symbol': coin,
@@ -187,14 +187,14 @@ class Binance(BaseExchange):
                     'quantity': '{0:4f}'.format(amount).strip(),
                   })
 
-        return self._private_api('POST', Urls.ORDER, params)
+        return self._private_api(Consts.POST, Urls.ORDER, params)
 
     def sell(self, coin, amount, price=None):
         debugger.debug('{}::: Parameters=[{}, {}, {}], function name=[sell]'.format(self.name, coin, amount, price))
 
         params = dict()
 
-        params['type'] = 'MARKET' if price is None else 'LIMIT'
+        params['type'] = Consts.MARKET.upper() if price is None else Consts.LIMIT.upper()
 
         params.update({
                     'symbol': coin,
@@ -202,7 +202,7 @@ class Binance(BaseExchange):
                     'quantity': '{}'.format(amount),
                   })
 
-        return self._private_api('POST', Urls.ORDER, params)
+        return self._private_api(Consts.POST, Urls.ORDER, params)
 
     def fee_count(self):
         return 1
@@ -269,7 +269,7 @@ class Binance(BaseExchange):
             tag_dic = {'addressTag': payment_id}
             params.update(tag_dic)
 
-        return self._private_api('POST', Urls.WITHDRAW, params)
+        return self._private_api(Consts.POST, Urls.WITHDRAW, params)
 
     def get_candle(self):
         with self._lock_dic['candle']:
@@ -300,7 +300,7 @@ class Binance(BaseExchange):
             query = self._sign_generator(extra)
 
             try:
-                if method == 'GET':
+                if method == Consts.GET:
                     sig = query.pop('signature')
                     query = "{}&signature={}".format(urlencode(sorted(extra.items())), sig)
                     rq = await session.get(Urls.BASE + path + "?{}".format(query))
@@ -350,7 +350,7 @@ class Binance(BaseExchange):
 
     async def _get_balance(self):
         for _ in range(3):
-            result_object = await self._async_private_api('GET', Urls.ACCOUNT)
+            result_object = await self._async_private_api(Consts.GET, Urls.ACCOUNT)
             if result_object.success:
                 break
             time.sleep(result_object.wait_time)
@@ -359,7 +359,7 @@ class Binance(BaseExchange):
 
     async def _get_deposit_addrs(self, symbol):
         for _ in range(3):
-            result_object = await self._async_private_api('GET', Urls.DEPOSITS, {'asset': symbol})
+            result_object = await self._async_private_api(Consts.GET, Urls.DEPOSITS, {'asset': symbol})
 
             if result_object.success:
                 break
@@ -419,7 +419,7 @@ class Binance(BaseExchange):
                 coin = sp[1] + sp[0]
                 for _ in range(10):
                     history_result_object = await self._async_private_api(
-                        'GET', Urls.ALL_ORDERS, {'symbol': coin})
+                        Consts.GET, Urls.ALL_ORDERS, {'symbol': coin})
 
                     if history_result_object.success:
                         break
@@ -531,12 +531,12 @@ class Binance(BaseExchange):
                                      asks=list())
                     
                     for data in orderbook_list:
-                        data_dict['bids'].append(data['bids'])
-                        data_dict['asks'].append(data['asks'])
+                        data_dict[Consts.BIDS].append(data[Consts.BIDS])
+                        data_dict[Consts.ASKS].append(data[Consts.ASKS])
     
                     avg_orderbook[pair] = dict()
                     
-                    for order_type in ['asks', 'bids']:
+                    for order_type in [Consts.ASKS, Consts.BIDS]:
                         sum_ = Decimal(0.0)
                         total_coin_num = Decimal(0.0)
                         for data in data_dict[order_type]:
@@ -572,15 +572,16 @@ class Binance(BaseExchange):
                 m_to_s, s_to_m = (dict() for _ in range(2))
 
                 for currency_pair in coins:
-                    m_ask = binance_result_object.data[currency_pair]['asks']
-                    s_bid = other_result_object.data[currency_pair]['bids']
+                    m_ask = binance_result_object.data[currency_pair][Consts.ASKS]
+                    s_bid = other_result_object.data[currency_pair][Consts.BIDS]
                     m_to_s[currency_pair] = float(((s_bid - m_ask) / m_ask).quantize(Decimal(10) ** -8))
 
-                    m_bid = binance_result_object.data[currency_pair]['bids']
-                    s_ask = other_result_object.data[currency_pair]['asks']
+                    m_bid = binance_result_object.data[currency_pair][Consts.BIDS]
+                    s_ask = other_result_object.data[currency_pair][Consts.ASKS]
                     s_to_m[currency_pair] = float(((m_bid - s_ask) / s_ask).quantize(Decimal(10) ** -8))
 
-                res = binance_result_object.data, other_result_object.data, {'m_to_s': m_to_s, 's_to_m': s_to_m}
+                res = binance_result_object.data, other_result_object.data, {Consts.PRIMARY_TO_SECONDARY: m_to_s,
+                                                                             Consts.SECONDARY_TO_PRIMARY: s_to_m}
 
                 return ExchangeResult(True, res, '', 0)
             else:
