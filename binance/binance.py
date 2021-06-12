@@ -13,6 +13,7 @@ from urllib.parse import urlencode
 from decimal import Decimal, ROUND_DOWN, getcontext
 
 from Exchanges.settings import Consts
+from Exchanges.messages import WarningMessage, MessageDebug
 from Exchanges.binance.util import sai_to_binance_converter, binance_to_sai_converter
 from Exchanges.binance.setting import Urls
 from Exchanges.abstracts import BaseExchange
@@ -62,6 +63,7 @@ class Binance(BaseExchange):
             self._subscriber.subscribe_orderbook()
 
     def _public_api(self, path, extra=None):
+        debugger.debug(MessageDebug.ENTRANCE.format(name=self.name, fn='public_api', data=', '.join([path, extra])))
         debugger.debug('{}::: Parameters=[{}, {}], function name=[_public_api]'.format(self.name, path, extra))
         if extra is None:
             extra = dict()
@@ -83,6 +85,7 @@ class Binance(BaseExchange):
             return ExchangeResult(False, '', msg, 1)
 
     def _private_api(self, method, path, extra=None):
+        debugger.debug()
         debugger.debug('{}::: Parameters=[{}, {}], function name=[_private_api]'.format(self.name, path, extra))
 
         if extra is None:
