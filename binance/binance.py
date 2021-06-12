@@ -6,18 +6,17 @@ import json
 import time
 import aiohttp
 import asyncio
-import numpy as np
-import logging
-import datetime
 import threading
 import decimal
 
 from urllib.parse import urlencode
 from decimal import Decimal, ROUND_DOWN, getcontext
 
-from Exchanges.base_exchange import BaseExchange, ExchangeResult, DataStore
+from Exchanges.binance.util import sai_to_binance_converter, binance_to_sai_converter
+from Exchanges.abstracts import BaseExchange
+from Exchanges.objects import ExchangeResult, DataStore
 from Exchanges.binance.subscriber import BinanceSubscriber
-from Util.pyinstaller_patch import *
+from Util.pyinstaller_patch import debugger
 
 decimal.getcontext().prec = 8
 
@@ -56,22 +55,10 @@ class Binance(BaseExchange):
 
         return actual_symbol.get(symbol, symbol)
 
-    def sai_to_binance_converter(self, pair):
-        # BTC_XRP -> XRPBTC
-        market, trade = pair.split('_')
-        
-        return self._symbol_localizing(trade) + market
-    
-    def binance_to_sai_converter(self, pair):
-        
-        market, trade = pair[-3:], pair[:-3]
-        
-        return market + '_' + self._symbol_customizing(trade)
-        
     def _websocket_candle_settings(self):
         time_str = '{}m'.format(self._candle_time) if self._candle_time < 60 else '{}h'.format(self._candle_time // 60)
         if not self._subscriber.candle_symbol_set:
-            pairs = [self.sai_to_binance_converter(pair).lower()
+            pairs = [binance_to_sai_converter(pair).lower()
                      for pair in self._coin_list]
             setattr(self._subscriber, 'candle_symbol_set', pairs)
 
@@ -80,7 +67,7 @@ class Binance(BaseExchange):
     
     def _websocket_orderbook_settings(self):
         if not self._subscriber.orderbook_symbol_set:
-            pairs = [self.sai_to_binance_converter(pair).lower() for pair in self._coin_list]
+            pairs = [binance_to_sai_converter(pair).lower() for pair in self._coin_list]
             setattr(self._subscriber, 'orderbook_symbol_set', pairs)
     
         if self._subscriber.orderbook_receiver is None or not self._subscriber.orderbook_receiver.isAlive():
@@ -243,7 +230,7 @@ class Binance(BaseExchange):
         ))
         coin = currency_pair.split('_')[1]
 
-        symbol = self.sai_to_binance_converter(currency_pair)
+        symbol = binance_to_sai_converter(currency_pair)
         result_object = self.buy(symbol, alt_amount)
 
         if result_object.success:
@@ -259,7 +246,7 @@ class Binance(BaseExchange):
         debugger.debug('{}::: Parameters=[{}, {}, {}], function name=[alt_to_base]'.format(
             self.name, currency_pair, btc_amount, alt_amount
         ))
-        symbol = self.sai_to_binance_converter(currency_pair)
+        symbol = binance_to_sai_converter(currency_pair)
         for _ in range(10):
             result_object = self.sell(symbol, alt_amount)
 
@@ -270,7 +257,7 @@ class Binance(BaseExchange):
         return result_object
 
     def get_ticker(self, market):
-        symbol = self.sai_to_binance_converter(market)
+        symbol = binance_to_sai_converter(market)
         for _ in range(3):
             result_object = self._public_api('/api/v3/ticker/price', {'symbol': symbol})
             if result_object.success:
