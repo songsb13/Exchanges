@@ -26,6 +26,8 @@ decimal.getcontext().prec = 8
 
 
 class BaseUpbit(BaseExchange):
+    name = 'Upbit'
+
     def __init__(self, key, secret):
         self._key = key
         self._secret = secret
@@ -49,15 +51,16 @@ class BaseUpbit(BaseExchange):
             res = rq.json()
             
             if 'error' in res:
-                error_msg = res.get('error', dict()).get('message', WarningMsg.MESSAGE_NOT_FOUND)
+                error_msg = res.get('error', dict()).get('message', WarningMsg.MESSAGE_NOT_FOUND.format(name=self.name))
                 return ExchangeResult(False, '', error_msg)
             
             else:
                 return ExchangeResult(True, res)
         
-        except Exception as ex:
-            return False, '', 'Error [{}]'.format(ex)
-    
+        except:
+            debugger.exception('FATAL: Upbit, _public_api')
+            return ExchangeResult(False, str(), WarningMsg.EXCEPTION_RAISED.format(name=self.name))
+
     def _private_api(self, method, path, extra=None):
         payload = {
             'access_key': self._key,
@@ -76,14 +79,15 @@ class BaseUpbit(BaseExchange):
             res = rq.json()
     
             if 'error' in res:
-                error_msg = res.get('error', dict()).get('message', WarningMsg.MESSAGE_NOT_FOUND)
+                error_msg = res.get('error', dict()).get('message', WarningMsg.MESSAGE_NOT_FOUND.format(name=self.name))
                 return ExchangeResult(False, '', error_msg)
     
             else:
                 return ExchangeResult(True, res)
 
-        except Exception as ex:
-            return ExchangeResult(False, '', 'Error [{}]'.format(ex))
+        except:
+            debugger.exception('FATAL: Upbit, _private_api')
+            return ExchangeResult(False, str(), WarningMsg.EXCEPTION_RAISED.format(name=self.name))
 
     def fee_count(self):
         return 1
@@ -107,7 +111,7 @@ class BaseUpbit(BaseExchange):
             self._subscriber.add_candle_symbol_set(coin)
             
             if not self.data_store.candle_queue:
-                return ExchangeResult(False, '', WarningMsg.CANDLE_NOT_STORED, 1)
+                return ExchangeResult(False, '', WarningMsg.CANDLE_NOT_STORED.format(name=self.name), 1)
             
             result_dict = self.data_store.candle_queue
             
@@ -181,15 +185,16 @@ class BaseUpbit(BaseExchange):
                 
                 if 'error' in res:
                     error_msg = res.get('error', dict()).get('message',
-                                                             WarningMsg.MESSAGE_NOT_FOUND)
+                                                             WarningMsg.MESSAGE_NOT_FOUND.format(name=self.name))
     
                     return ExchangeResult(False, '', error_msg)
                 
                 else:
                     return True, res, ''
-        except Exception as ex:
-            return ExchangeResult(False, '', 'Error [{}]'.format(ex))
-    
+        except:
+            debugger.exception('FATAL: Upbit, _async_public_api')
+            return ExchangeResult(False, str(), WarningMsg.EXCEPTION_RAISED.format(name=self.name))
+
     async def async_private_api(self, method, path, extra=None):
         payload = {
             'access_key': self._key,
@@ -208,15 +213,16 @@ class BaseUpbit(BaseExchange):
         
                 if 'error' in res:
                     error_msg = res.get('error', dict()).get('message',
-                                                             WarningMsg.MESSAGE_NOT_FOUND)
+                                                             WarningMsg.MESSAGE_NOT_FOUND.format(name=self.name))
     
                     return ExchangeResult(False, '', error_msg)
         
                 else:
                     return ExchangeResult(True, res)
-        except Exception as ex:
-            return ExchangeResult(False, '', 'Error [{}]'.format(ex))
-    
+        except:
+            debugger.exception('FATAL: Upbit, _public_api')
+            return ExchangeResult(False, str(), WarningMsg.EXCEPTION_RAISED.format(name=self.name))
+
     async def get_deposit_addrs(self, coin_list=None):
         return self.async_public_api(Urls.DEPOSIT_ADDRESS)
     
@@ -239,7 +245,7 @@ class BaseUpbit(BaseExchange):
             data_dic = self.data_store.orderbook_queue
             
             if not self.data_store.orderbook_queue:
-                return ExchangeResult(False, '', WarningMsg.ORDERBOOK_NOT_STORED)
+                return ExchangeResult(False, '', WarningMsg.ORDERBOOK_NOT_STORED.format(name=self.name))
             
             avg_order_book = dict()
             for pair, item in data_dic.items():

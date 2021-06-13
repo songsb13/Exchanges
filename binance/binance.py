@@ -25,8 +25,9 @@ decimal.getcontext().prec = 8
 
 
 class Binance(BaseExchange):
+    name = 'Binance'
+
     def __init__(self, key, secret, coin_list, time_):
-        self.name = 'Binance'
         self._key = key
         self._secret = secret
         
@@ -81,7 +82,7 @@ class Binance(BaseExchange):
                 return ExchangeResult(True, response)
 
         except:
-            debugger.exception('FATAL: _public_api')
+            debugger.exception('FATAL: Binance, _public_api')
             return ExchangeResult(False, '', WarningMessage.EXCEPTION_RAISED.format(name=self.name), 1)
 
     def _private_api(self, method, path, extra=None):
@@ -110,7 +111,7 @@ class Binance(BaseExchange):
                 return ExchangeResult(True, response)
 
         except:
-            debugger.exception('FATAL: _priavet_api')
+            debugger.exception('FATAL: Binance, _priavet_api')
             return ExchangeResult(False, str(), WarningMessage.EXCEPTION_RAISED.format(name=self.name), 1)
 
     def _get_server_time(self):
@@ -307,7 +308,7 @@ class Binance(BaseExchange):
                     return ExchangeResult(True, response)
 
             except:
-                debugger.exception('FATAL: _async_private_api')
+                debugger.exception('FATAL: Binance, _async_private_api')
                 return ExchangeResult(False, WarningMessage.EXCEPTION_RAISED.format(name=self.name), 1)
 
     async def _async_public_api(self, path, extra=None):
@@ -391,7 +392,7 @@ class Binance(BaseExchange):
             return ExchangeResult(True, return_deposit_dict, result_message, 0)
 
         except Exception as ex:
-            debugger.exception('FATAL: get_deposit_addrs')
+            debugger.exception('FATAL: Binance, get_deposit_addrs')
 
             return ExchangeResult(False, str(), WarningMessage.EXCEPTION_RAISED.format(name=self.name), 1)
 
@@ -479,7 +480,7 @@ class Binance(BaseExchange):
                 return ExchangeResult(False, str(), WarningMessage.TRANSACTION_FAILED.format(name=self.name), 60)
 
         except:
-            debugger.exception('FATAL: get_transaction_fee')
+            debugger.exception('FATAL: Binance, get_transaction_fee')
             return ExchangeResult(False, str(), WarningMessage.EXCEPTION_RAISED.format(name=self.name), 60)
 
     async def get_balance(self):
@@ -540,7 +541,7 @@ class Binance(BaseExchange):
             return ExchangeResult(True, avg_orderbook)
 
         except:
-            debugger.exception('FATAL: get_curr_avg_orderbook')
+            debugger.exception('FATAL: Binance, get_curr_avg_orderbook')
             return ExchangeResult(False, str(), WarningMessage.EXCEPTION_RAISED.format(name=self.name), 1)
 
     async def compare_orderbook(self, other, coins, default_btc=1):
