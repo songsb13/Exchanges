@@ -82,7 +82,7 @@ class Binance(BaseExchange):
 
         except:
             debugger.exception('FATAL: _public_api')
-            return ExchangeResult(False, '', WarningMessage.EXCEPTION_RAISED, 1)
+            return ExchangeResult(False, '', WarningMessage.EXCEPTION_RAISED.format(name=self.name), 1)
 
     def _private_api(self, method, path, extra=None):
         if extra is None:
@@ -111,7 +111,7 @@ class Binance(BaseExchange):
 
         except:
             debugger.exception('FATAL: _priavet_api')
-            return ExchangeResult(False, str(), WarningMessage.EXCEPTION_RAISED, 1)
+            return ExchangeResult(False, str(), WarningMessage.EXCEPTION_RAISED.format(name=self.name), 1)
 
     def _get_server_time(self):
         return self._public_api(Urls.SERVER_TIME)
@@ -172,7 +172,7 @@ class Binance(BaseExchange):
         if pair in self.exchange_info:
             return ExchangeResult(True, (-8, int(math.log10(float(self.exchange_info[pair])))), '', 0)
         else:
-            return ExchangeResult(False, str(), WarningMessage.PRECISION_NOT_FOUND.format(self.name), 60)
+            return ExchangeResult(False, str(), WarningMessage.PRECISION_NOT_FOUND.format(name=self.name), 60)
 
     def get_available_coin(self):
         return ExchangeResult(True, list(self.exchange_info.keys()), '', 0)
@@ -265,7 +265,7 @@ class Binance(BaseExchange):
             candle_dict = self.data_store.candle_queue
         
             if not candle_dict:
-                return ExchangeResult(False, str(), WarningMessage.CANDLE_NOT_STORED.format(self.name), 1)
+                return ExchangeResult(False, str(), WarningMessage.CANDLE_NOT_STORED.format(name=self.name), 1)
         
             rows = ['timestamp', 'open', 'close', 'high', 'low', 'volume']
         
@@ -308,7 +308,7 @@ class Binance(BaseExchange):
 
             except:
                 debugger.exception('FATAL: _async_private_api')
-                return ExchangeResult(False, WarningMessage.EXCEPTION_RAISED, 1)
+                return ExchangeResult(False, WarningMessage.EXCEPTION_RAISED.format(name=self.name), 1)
 
     async def _async_public_api(self, path, extra=None):
         if extra is None:
@@ -331,7 +331,7 @@ class Binance(BaseExchange):
 
         except:
             debugger.exception('FATAL')
-            return ExchangeResult(False, '', WarningMessage.EXCEPTION_RAISED, 1)
+            return ExchangeResult(False, '', WarningMessage.EXCEPTION_RAISED.format(name=self.name), 1)
 
     async def _get_balance(self):
         for _ in range(3):
@@ -393,7 +393,7 @@ class Binance(BaseExchange):
         except Exception as ex:
             debugger.exception('FATAL: get_deposit_addrs')
 
-            return ExchangeResult(False, str(), WarningMessage.EXCEPTION_RAISED, 1)
+            return ExchangeResult(False, str(), WarningMessage.EXCEPTION_RAISED.format(name=self.name), 1)
 
     async def get_avg_price(self, coins):  # 내거래 평균매수가
         # 해당 함수는 현재 미사용 상태
@@ -449,13 +449,13 @@ class Binance(BaseExchange):
                 }}
                 res_value.append(_values)
 
-            return ExchangeResult(True, res_value, '', 0)
+            return ExchangeResult(True, res_value)
 
         except Exception as ex:
-            return ExchangeResult(False, '', '{}::: 평균 값을 가져오는데 실패했습니다. [{}]'.format(self.name, ex), 1)
+            return ExchangeResult(False, str(), WarningMessage.EXCEPTION_RAISED.format(name=self.name), 1)
 
     async def get_trading_fee(self):
-        return ExchangeResult(True, 0.001, '', 0)
+        return ExchangeResult(True, 0.001)
 
     async def get_transaction_fee(self):
         fees = dict()
@@ -476,10 +476,11 @@ class Binance(BaseExchange):
 
                 return ExchangeResult(True, fees, '', 0)
             else:
-                return ExchangeResult(False, '', '{}::: ERROR_BODY=[출금 비용을 가져오는데 실패했습니다.]'.format(self.name), 60)
+                return ExchangeResult(False, str(), WarningMessage.TRANSACTION_FAILED.format(name=self.name), 60)
 
-        except Exception as ex:
-            return ExchangeResult(False, '', '{}::: ERROR_BODY=[출금 비용을 가져오는데 실패했습니다. {}]'.format(self.name, ex), 60)
+        except:
+            debugger.exception('FATAL: get_transaction_fee')
+            return ExchangeResult(False, str(), WarningMessage.EXCEPTION_RAISED.format(name=self.name), 60)
 
     async def get_balance(self):
         result_object = await self._get_balance()
@@ -501,7 +502,7 @@ class Binance(BaseExchange):
                      for pair in self._coin_list]
                 
             if not self.data_store.orderbook_queue:
-                return ExchangeResult(False, '', 'orderbook data is not yet stored', 1)
+                return ExchangeResult(False, str(), WarningMessage.ORDERBOOK_NOT_STORED.format(name=self.name), 1)
 
             avg_orderbook = dict()
             for pair in pairs:
@@ -540,7 +541,7 @@ class Binance(BaseExchange):
 
         except:
             debugger.exception('FATAL: get_curr_avg_orderbook')
-            return ExchangeResult(False, str(), WarningMessage.EXCEPTION_RAISED, 1)
+            return ExchangeResult(False, str(), WarningMessage.EXCEPTION_RAISED.format(name=self.name), 1)
 
     async def compare_orderbook(self, other, coins, default_btc=1):
         for _ in range(3):
