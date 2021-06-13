@@ -52,14 +52,14 @@ class BaseUpbit(BaseExchange):
             
             if 'error' in res:
                 error_msg = res.get('error', dict()).get('message', WarningMsg.MESSAGE_NOT_FOUND.format(name=self.name))
-                return ExchangeResult(False, '', error_msg)
+                return ExchangeResult(False, message=error_msg, wait_time=1)
             
             else:
                 return ExchangeResult(True, res)
         
         except:
             debugger.exception('FATAL: Upbit, _public_api')
-            return ExchangeResult(False, str(), WarningMsg.EXCEPTION_RAISED.format(name=self.name))
+            return ExchangeResult(False, message=WarningMsg.EXCEPTION_RAISED.format(name=self.name), wait_time=1)
 
     def _private_api(self, method, path, extra=None):
         payload = {
@@ -80,14 +80,14 @@ class BaseUpbit(BaseExchange):
     
             if 'error' in res:
                 error_msg = res.get('error', dict()).get('message', WarningMsg.MESSAGE_NOT_FOUND.format(name=self.name))
-                return ExchangeResult(False, '', error_msg)
+                return ExchangeResult(False, message=error_msg, wait_time=1)
     
             else:
                 return ExchangeResult(True, res)
 
         except:
             debugger.exception('FATAL: Upbit, _private_api')
-            return ExchangeResult(False, str(), WarningMsg.EXCEPTION_RAISED.format(name=self.name))
+            return ExchangeResult(False, message=WarningMsg.EXCEPTION_RAISED.format(name=self.name), wait_time=1)
 
     def fee_count(self):
         return 1
@@ -111,11 +111,11 @@ class BaseUpbit(BaseExchange):
             self._subscriber.add_candle_symbol_set(coin)
             
             if not self.data_store.candle_queue:
-                return ExchangeResult(False, '', WarningMsg.CANDLE_NOT_STORED.format(name=self.name), 1)
+                return ExchangeResult(False, message=WarningMsg.CANDLE_NOT_STORED.format(name=self.name), wait_time=1)
             
             result_dict = self.data_store.candle_queue
             
-            return ExchangeResult(True, result_dict, '', 0)
+            return ExchangeResult(True, result_dict)
         
     def service_currencies(self, currencies):
         # using deposit_addrs
@@ -187,13 +187,13 @@ class BaseUpbit(BaseExchange):
                     error_msg = res.get('error', dict()).get('message',
                                                              WarningMsg.MESSAGE_NOT_FOUND.format(name=self.name))
     
-                    return ExchangeResult(False, '', error_msg)
+                    return ExchangeResult(False, message=error_msg, wait_time=1)
                 
                 else:
-                    return True, res, ''
+                    return ExchangeResult(True, res)
         except:
             debugger.exception('FATAL: Upbit, _async_public_api')
-            return ExchangeResult(False, str(), WarningMsg.EXCEPTION_RAISED.format(name=self.name))
+            return ExchangeResult(False, message=WarningMsg.EXCEPTION_RAISED.format(name=self.name), wait_time=1)
 
     async def async_private_api(self, method, path, extra=None):
         payload = {
@@ -215,13 +215,13 @@ class BaseUpbit(BaseExchange):
                     error_msg = res.get('error', dict()).get('message',
                                                              WarningMsg.MESSAGE_NOT_FOUND.format(name=self.name))
     
-                    return ExchangeResult(False, '', error_msg)
+                    return ExchangeResult(False, message=error_msg, wait_time=1)
         
                 else:
                     return ExchangeResult(True, res)
         except:
             debugger.exception('FATAL: Upbit, _public_api')
-            return ExchangeResult(False, str(), WarningMsg.EXCEPTION_RAISED.format(name=self.name))
+            return ExchangeResult(False, message=WarningMsg.EXCEPTION_RAISED.format(name=self.name), wait_time=1)
 
     async def get_deposit_addrs(self, coin_list=None):
         return self.async_public_api(Urls.DEPOSIT_ADDRESS)
@@ -245,7 +245,7 @@ class BaseUpbit(BaseExchange):
             data_dic = self.data_store.orderbook_queue
             
             if not self.data_store.orderbook_queue:
-                return ExchangeResult(False, '', WarningMsg.ORDERBOOK_NOT_STORED.format(name=self.name))
+                return ExchangeResult(False, message=WarningMsg.ORDERBOOK_NOT_STORED.format(name=self.name), wait_time=1)
             
             avg_order_book = dict()
             for pair, item in data_dic.items():

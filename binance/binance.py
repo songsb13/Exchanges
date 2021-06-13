@@ -77,13 +77,13 @@ class Binance(BaseExchange):
                 debugger.debug(message)
 
                 user_message = WarningMessage.FAIL_MESSAGE_BODY.format(name=self.name, message=response['msg'])
-                return ExchangeResult(False, '', user_message, 1)
+                return ExchangeResult(False, message=user_message, wait_time=1)
             else:
                 return ExchangeResult(True, response)
 
         except:
             debugger.exception('FATAL: Binance, _public_api')
-            return ExchangeResult(False, '', WarningMessage.EXCEPTION_RAISED.format(name=self.name), 1)
+            return ExchangeResult(False, message=WarningMessage.EXCEPTION_RAISED.format(name=self.name), wait_time=1)
 
     def _private_api(self, method, path, extra=None):
         if extra is None:
@@ -106,13 +106,13 @@ class Binance(BaseExchange):
                 debugger.debug(message)
 
                 user_message = WarningMessage.FAIL_MESSAGE_BODY.format(name=self.name, message=response['msg'])
-                return ExchangeResult(False, str(), user_message, 1)
+                return ExchangeResult(False, wait_time=user_message, message=1)
             else:
                 return ExchangeResult(True, response)
 
         except:
             debugger.exception('FATAL: Binance, _priavet_api')
-            return ExchangeResult(False, str(), WarningMessage.EXCEPTION_RAISED.format(name=self.name), 1)
+            return ExchangeResult(False, message=WarningMessage.EXCEPTION_RAISED.format(name=self.name), wait_time=1)
 
     def _get_server_time(self):
         return self._public_api(Urls.SERVER_TIME)
@@ -171,12 +171,13 @@ class Binance(BaseExchange):
         pair = self._symbol_localizing(pair)
 
         if pair in self.exchange_info:
-            return ExchangeResult(True, (-8, int(math.log10(float(self.exchange_info[pair])))), '', 0)
+            precision = int(math.log10(float(self.exchange_info[pair])))
+            return ExchangeResult(True, precision)
         else:
-            return ExchangeResult(False, str(), WarningMessage.PRECISION_NOT_FOUND.format(name=self.name), 60)
+            return ExchangeResult(False, message=WarningMessage.PRECISION_NOT_FOUND.format(name=self.name), wait_time=60)
 
     def get_available_coin(self):
-        return ExchangeResult(True, list(self.exchange_info.keys()), '', 0)
+        return ExchangeResult(True, list(self.exchange_info.keys()))
 
     def buy(self, coin, amount, price=None):
         params = dict()
@@ -266,7 +267,7 @@ class Binance(BaseExchange):
             candle_dict = self.data_store.candle_queue
         
             if not candle_dict:
-                return ExchangeResult(False, str(), WarningMessage.CANDLE_NOT_STORED.format(name=self.name), 1)
+                return ExchangeResult(False, message=WarningMessage.CANDLE_NOT_STORED.format(name=self.name), wait_time=1)
         
             rows = ['timestamp', 'open', 'close', 'high', 'low', 'volume']
         
@@ -302,14 +303,14 @@ class Binance(BaseExchange):
                     message = MessageDebug.FAIL_RESPONSE_DETAILS.format(name=self.name, body=response['msg'],
                                                                         path=path, parameter=extra)
                     debugger.debug(message)
-                    return ExchangeResult(False, '', message, 1)
+                    return ExchangeResult(False, message=message, wait_time=1)
 
                 else:
                     return ExchangeResult(True, response)
 
             except:
                 debugger.exception('FATAL: Binance, _async_private_api')
-                return ExchangeResult(False, WarningMessage.EXCEPTION_RAISED.format(name=self.name), 1)
+                return ExchangeResult(False, message=WarningMessage.EXCEPTION_RAISED.format(name=self.name), wait_time=1)
 
     async def _async_public_api(self, path, extra=None):
         if extra is None:
@@ -325,14 +326,14 @@ class Binance(BaseExchange):
                 message = MessageDebug.FAIL_RESPONSE_DETAILS.format(name=self.name, body=response['msg'],
                                                                     path=path, parameter=extra)
                 debugger.debug(message)
-                return ExchangeResult(False, str(), message, 1)
+                return ExchangeResult(False, message=message, wait_time=1)
 
             else:
                 return ExchangeResult(True, response)
 
         except:
             debugger.exception('FATAL')
-            return ExchangeResult(False, '', WarningMessage.EXCEPTION_RAISED.format(name=self.name), 1)
+            return ExchangeResult(False, message=WarningMessage.EXCEPTION_RAISED.format(name=self.name), wait_time=1)
 
     async def _get_balance(self):
         for _ in range(3):
@@ -389,12 +390,12 @@ class Binance(BaseExchange):
 
                 if 'addressTag' in get_deposit_result_object.data:
                     return_deposit_dict[coin + 'TAG'] = get_deposit_result_object.data['addressTag']
-            return ExchangeResult(True, return_deposit_dict, result_message, 0)
+            return ExchangeResult(True, return_deposit_dict, result_message)
 
         except Exception as ex:
             debugger.exception('FATAL: Binance, get_deposit_addrs')
 
-            return ExchangeResult(False, str(), WarningMessage.EXCEPTION_RAISED.format(name=self.name), 1)
+            return ExchangeResult(False, message=WarningMessage.EXCEPTION_RAISED.format(name=self.name), wait_time=1)
 
     async def get_avg_price(self, coins):  # 내거래 평균매수가
         # 해당 함수는 현재 미사용 상태
@@ -453,7 +454,7 @@ class Binance(BaseExchange):
             return ExchangeResult(True, res_value)
 
         except Exception as ex:
-            return ExchangeResult(False, str(), WarningMessage.EXCEPTION_RAISED.format(name=self.name), 1)
+            return ExchangeResult(False, message=WarningMessage.EXCEPTION_RAISED.format(name=self.name), wait_time=1)
 
     async def get_trading_fee(self):
         return ExchangeResult(True, 0.001)
@@ -475,13 +476,13 @@ class Binance(BaseExchange):
                     symbol = self._symbol_customizing(f['assetCode'])
                     fees[symbol] = Decimal(f['transactionFee']).quantize(Decimal(10)**-8)
 
-                return ExchangeResult(True, fees, '', 0)
+                return ExchangeResult(True, fees)
             else:
-                return ExchangeResult(False, str(), WarningMessage.TRANSACTION_FAILED.format(name=self.name), 60)
+                return ExchangeResult(False, message=WarningMessage.TRANSACTION_FAILED.format(name=self.name), wait_time=60)
 
         except:
             debugger.exception('FATAL: Binance, get_transaction_fee')
-            return ExchangeResult(False, str(), WarningMessage.EXCEPTION_RAISED.format(name=self.name), 60)
+            return ExchangeResult(False, message=WarningMessage.EXCEPTION_RAISED.format(name=self.name), wait_time=60)
 
     async def get_balance(self):
         result_object = await self._get_balance()
@@ -503,7 +504,7 @@ class Binance(BaseExchange):
                      for pair in self._coin_list]
                 
             if not self.data_store.orderbook_queue:
-                return ExchangeResult(False, str(), WarningMessage.ORDERBOOK_NOT_STORED.format(name=self.name), 1)
+                return ExchangeResult(False, message=WarningMessage.ORDERBOOK_NOT_STORED.format(name=self.name), wait_time=1)
 
             avg_orderbook = dict()
             for pair in pairs:
@@ -542,7 +543,7 @@ class Binance(BaseExchange):
 
         except:
             debugger.exception('FATAL: Binance, get_curr_avg_orderbook')
-            return ExchangeResult(False, str(), WarningMessage.EXCEPTION_RAISED.format(name=self.name), 1)
+            return ExchangeResult(False, message=WarningMessage.EXCEPTION_RAISED.format(name=self.name), wait_time=1)
 
     async def compare_orderbook(self, other, coins, default_btc=1):
         for _ in range(3):
@@ -573,10 +574,10 @@ class Binance(BaseExchange):
                 res = binance_result_object.data, other_result_object.data, {Consts.PRIMARY_TO_SECONDARY: m_to_s,
                                                                              Consts.SECONDARY_TO_PRIMARY: s_to_m}
 
-                return ExchangeResult(True, res, '', 0)
+                return ExchangeResult(True, res)
             else:
                 time.sleep(wait_time)
 
         else:
             error_message = binance_result_object.message + '\n' + other_result_object.message
-            return ExchangeResult(False, '', error_message, 1)
+            return ExchangeResult(False, message=error_message, wait_time=1)
