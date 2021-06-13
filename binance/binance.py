@@ -63,8 +63,6 @@ class Binance(BaseExchange):
             self._subscriber.subscribe_orderbook()
 
     def _public_api(self, path, extra=None):
-        debugger.debug(MessageDebug.ENTRANCE.format(name=self.name, fn='public_api', data=', '.join([path, extra])))
-        debugger.debug('{}::: Parameters=[{}, {}], function name=[_public_api]'.format(self.name, path, extra))
         if extra is None:
             extra = dict()
 
@@ -73,21 +71,20 @@ class Binance(BaseExchange):
             response = rq.json()
 
             if 'msg' in response:
-                msg = '{}::: ERROR_BODY=[{}], URL=[{}], PARAMETER=[{}]'.format(self.name, response['msg'], path, extra)
-                debugger.debug(msg)
-                return ExchangeResult(False, '', msg, 1)
-            else:
-                return ExchangeResult(True, response, '', 0)
+                message = MessageDebug.FAIL_RESPONSE_DETAILS.format(name=self.name, body=response['msg'],
+                                                                    path=path, parameter=extra)
+                debugger.debug(message)
 
-        except Exception as ex:
-            msg = '{}::: ERROR_BODY=[{}], URL=[{}], PARAMETER=[{}]'.format(self.name, ex, path, extra)
-            debugger.debug(msg)
-            return ExchangeResult(False, '', msg, 1)
+                user_message = WarningMessage.FAIL_MESSAGE_BODY.format(name=self.name, message=response['msg'])
+                return ExchangeResult(False, '', user_message, 1)
+            else:
+                return ExchangeResult(True, response)
+
+        except:
+            debugger.exception('FATAL: _public_api')
+            return ExchangeResult(False, '', WarningMessage.EXCEPTION_RAISED, 1)
 
     def _private_api(self, method, path, extra=None):
-        debugger.debug()
-        debugger.debug('{}::: Parameters=[{}, {}], function name=[_private_api]'.format(self.name, path, extra))
-
         if extra is None:
             extra = dict()
 
@@ -103,19 +100,21 @@ class Binance(BaseExchange):
             response = rq.json()
 
             if 'msg' in response:
-                msg = 'ERROR_BODY=[{}], URL=[{}], PARAMETER=[{}]'.format(response['msg'], path, extra)
-                debugger.debug(msg)
-                return ExchangeResult(False, '', msg, 1)
-            else:
-                return ExchangeResult(True, response, '', 0)
+                message = MessageDebug.FAIL_RESPONSE_DETAILS.format(name=self.name, body=response['msg'],
+                                                                    path=path, parameter=extra)
+                debugger.debug(message)
 
-        except Exception as ex:
-            msg = '{}::: ERROR_BODY=[{}], URL=[{}], PARAMETER=[{}]'.format(self.name, ex, path, extra)
-            debugger.debug(msg)
-            return ExchangeResult(False, '', msg, 1)
+                user_message = WarningMessage.FAIL_MESSAGE_BODY.format(name=self.name, message=response['msg'])
+                return ExchangeResult(False, str(), user_message, 1)
+            else:
+                return ExchangeResult(True, response)
+
+        except:
+            debugger.exception('FATAL: _priavet_api')
+            return ExchangeResult(False, str(), WarningMessage.EXCEPTION_RAISED, 1)
 
     def _get_server_time(self):
-        return self._public_api('/api/v3/time')
+        return self._public_api(Urls.SERVER_TIME)
 
     def _sign_generator(self, *args):
         params, *_ = args
@@ -173,14 +172,12 @@ class Binance(BaseExchange):
         if pair in self.exchange_info:
             return ExchangeResult(True, (-8, int(math.log10(float(self.exchange_info[pair])))), '', 0)
         else:
-            return ExchangeResult(False, '', '{}::: ERROR_BODY=[{} 호가 정보가 없습니다.], URL=[get_precision]'.format(self.name, pair), 60)
+            return ExchangeResult(False, str(), WarningMessage.PRECISION_NOT_FOUND.format(self.name), 60)
 
     def get_available_coin(self):
         return ExchangeResult(True, list(self.exchange_info.keys()), '', 0)
 
     def buy(self, coin, amount, price=None):
-        debugger.debug('{}::: Parameters=[{}, {}, {}], function name=[buy]'.format(self.name, coin, amount, price))
-
         params = dict()
         params['type'] = Consts.MARKET.upper() if price is None else Consts.LIMIT.upper()
 
@@ -193,8 +190,6 @@ class Binance(BaseExchange):
         return self._private_api(Consts.POST, Urls.ORDER, params)
 
     def sell(self, coin, amount, price=None):
-        debugger.debug('{}::: Parameters=[{}, {}, {}], function name=[sell]'.format(self.name, coin, amount, price))
-
         params = dict()
 
         params['type'] = Consts.MARKET.upper() if price is None else Consts.LIMIT.upper()
@@ -215,9 +210,6 @@ class Binance(BaseExchange):
         return Decimal(10) ** -4 if binance_qtz < Decimal(10) ** -4 else binance_qtz
 
     def base_to_alt(self, currency_pair, btc_amount, alt_amount, td_fee, tx_fee):
-        debugger.debug('{}::: Parameters=[{}, {}, {}, {}], function name=[base_to_alt]'.format(
-            self.name, currency_pair, btc_amount, alt_amount, td_fee, tx_fee
-        ))
         coin = currency_pair.split('_')[1]
 
         symbol = binance_to_sai_converter(currency_pair)
@@ -233,9 +225,6 @@ class Binance(BaseExchange):
         return result_object
 
     def alt_to_base(self, currency_pair, btc_amount, alt_amount):
-        debugger.debug('{}::: Parameters=[{}, {}, {}], function name=[alt_to_base]'.format(
-            self.name, currency_pair, btc_amount, alt_amount
-        ))
         symbol = binance_to_sai_converter(currency_pair)
         for _ in range(10):
             result_object = self.sell(symbol, alt_amount)
@@ -257,9 +246,6 @@ class Binance(BaseExchange):
         return result_object
 
     def withdraw(self, coin, amount, to_address, payment_id=None):
-        debugger.debug('{}::: Parameters=[{}, {}, {}, {}], function name=[withdraw]'.format(self.name, coin, amount,
-                                                                                            to_address, payment_id))
-
         coin = self._symbol_localizing(coin)
         params = {
                     'asset': coin,
@@ -279,7 +265,7 @@ class Binance(BaseExchange):
             candle_dict = self.data_store.candle_queue
         
             if not candle_dict:
-                return ExchangeResult(False, '', 'candle data is not yet stored', 1)
+                return ExchangeResult(False, str(), WarningMessage.CANDLE_NOT_STORED.format(self.name), 1)
         
             rows = ['timestamp', 'open', 'close', 'high', 'low', 'volume']
         
@@ -294,8 +280,6 @@ class Binance(BaseExchange):
         return ExchangeResult(True, result_dict)
 
     async def _async_private_api(self, method, path, extra=None):
-        debugger.debug('{}::: Parameters=[{}, {}, {}], function name=[_async_private_api]'.format(self.name, method, path, extra))
-
         if extra is None:
             extra = dict()
 
@@ -314,21 +298,19 @@ class Binance(BaseExchange):
                 response = json.loads(await rq.text())
 
                 if 'msg' in response:
-                    msg = '{}::: ERROR_BODY=[{}], URL=[{}], PARAMETER=[{}]'.format(self.name, response['msg'], path, extra)
-                    debugger.debug(msg)
-                    return ExchangeResult(False, '', msg, 1)
+                    message = MessageDebug.FAIL_RESPONSE_DETAILS.format(name=self.name, body=response['msg'],
+                                                                        path=path, parameter=extra)
+                    debugger.debug(message)
+                    return ExchangeResult(False, '', message, 1)
 
                 else:
-                    return ExchangeResult(True, response, '', 0)
+                    return ExchangeResult(True, response)
 
-            except Exception as ex:
-                msg = '{}::: ERROR_BODY=[{}], URL=[{}], PARAMETER=[{}]'.format(self.name, ex, path, extra)
-                debugger.debug(msg)
-                return ExchangeResult(False, '', 1)
+            except:
+                debugger.exception('FATAL: _async_private_api')
+                return ExchangeResult(False, WarningMessage.EXCEPTION_RAISED, 1)
 
     async def _async_public_api(self, path, extra=None):
-        debugger.debug('{}::: Parameters=[{}, {},], function name=[_async_public_api]'.format(self.name, path, extra))
-
         if extra is None:
             extra = dict()
 
@@ -339,17 +321,17 @@ class Binance(BaseExchange):
             response = json.loads(await rq.text())
 
             if 'msg' in response:
-                msg = '{}::: ERROR_BODY=[{}], URL=[{}], PARAMETER=[{}]'.format(self.name, response['msg'], path, extra)
-                debugger.debug(msg)
-                return ExchangeResult(False, '', msg, 1)
+                message = MessageDebug.FAIL_RESPONSE_DETAILS.format(name=self.name, body=response['msg'],
+                                                                    path=path, parameter=extra)
+                debugger.debug(message)
+                return ExchangeResult(False, str(), message, 1)
 
             else:
-                return ExchangeResult(True, response, '', 0)
+                return ExchangeResult(True, response)
 
-        except Exception as ex:
-            msg = '{}::: ERROR_BODY=[{}], URL=[{}], PARAMETER=[{}]'.format(self.name, ex, path, extra)
-            debugger.debug(msg)
-            return ExchangeResult(False, '', msg, 1)
+        except:
+            debugger.exception('FATAL')
+            return ExchangeResult(False, '', WarningMessage.EXCEPTION_RAISED, 1)
 
     async def _get_balance(self):
         for _ in range(3):
@@ -409,7 +391,9 @@ class Binance(BaseExchange):
             return ExchangeResult(True, return_deposit_dict, result_message, 0)
 
         except Exception as ex:
-            return ExchangeResult(False, '', '{}::: ERROR_BODY=[입금 주소를 가져오는데 실패했습니다. {}]'.format(self.name, ex), 1)
+            debugger.exception('FATAL: get_deposit_addrs')
+
+            return ExchangeResult(False, str(), WarningMessage.EXCEPTION_RAISED, 1)
 
     async def get_avg_price(self, coins):  # 내거래 평균매수가
         # 해당 함수는 현재 미사용 상태
@@ -554,8 +538,9 @@ class Binance(BaseExchange):
 
             return ExchangeResult(True, avg_orderbook)
 
-        except Exception as ex:
-            return ExchangeResult(False, '', '{}::: ERROR_BODY=[{}], URL=[get_curr_avg_orderbook]'.format(self.name, ex), 1)
+        except:
+            debugger.exception('FATAL: get_curr_avg_orderbook')
+            return ExchangeResult(False, str(), WarningMessage.EXCEPTION_RAISED, 1)
 
     async def compare_orderbook(self, other, coins, default_btc=1):
         for _ in range(3):
