@@ -1,18 +1,24 @@
 import jwt
-import requests
 import time
 import json
 import aiohttp
 import numpy as np
 import asyncio
+import requests
 import threading
 
 from urllib.parse import urlencode
-from Util.pyinstaller_patch import *
+from Util.pyinstaller_patch import debugger
 
-from Exchanges.base_exchange import BaseExchange, ExchangeResult
+from Exchanges.settings import Consts
+from Exchanges.messages import WarningMessage as WarningMsg
+
+from Exchanges.upbit.setting import Urls
 from Exchanges.upbit.subscriber import UpbitSubscriber
-from Exchanges.base_exchange import DataStore
+from Exchanges.upbit.util import sai_to_upbit_symbol_converter, upbit_to_sai_symbol_converter
+
+from Exchanges.abstracts import BaseExchange
+from Exchanges.objects import DataStore, ExchangeResult
 
 import decimal
 
@@ -20,8 +26,9 @@ decimal.getcontext().prec = 8
 
 
 class BaseUpbit(BaseExchange):
+    name = 'Upbit'
+
     def __init__(self, key, secret):
-        self._base_url = 'https://api.upbit.com/v1'
         self._key = key
         self._secret = secret
         self.data_store = DataStore()
@@ -29,12 +36,6 @@ class BaseUpbit(BaseExchange):
         self._lock_dic = dict(orderbook=threading.Lock(), candle=threading.Lock())
         
         self._subscriber = UpbitSubscriber(self.data_store, self._lock_dic)
-
-    def _sai_to_upbit_symbol_converter(self, pair):
-        return pair.replace('_', '-')
-    
-    def _upbit_to_sai_symbol_converter(self, pair):
-        return pair.replace('-', '_')
     
     def start_socket_thread(self):
         self.subscribe_thread = threading.Thread(target=self._subscriber.run_forever, daemon=True)
@@ -44,21 +45,22 @@ class BaseUpbit(BaseExchange):
         if extra is None:
             extra = dict()
         
-        path = self._base_url + path
-        rq = requests.get(path, json=extra)
+        url = Urls.BASE + path
+        rq = requests.get(url, json=extra)
         try:
             res = rq.json()
             
             if 'error' in res:
-                error_msg = res.get('error', dict()).get('message', 'Fail, but message is not found.')
-                return ExchangeResult(False, '', error_msg)
+                error_msg = res.get('error', dict()).get('message', WarningMsg.MESSAGE_NOT_FOUND.format(name=self.name))
+                return ExchangeResult(False, message=error_msg, wait_time=1)
             
             else:
                 return ExchangeResult(True, res)
         
-        except Exception as ex:
-            return False, '', 'Error [{}]'.format(ex)
-    
+        except:
+            debugger.exception('FATAL: Upbit, _public_api')
+            return ExchangeResult(False, message=WarningMsg.EXCEPTION_RAISED.format(name=self.name), wait_time=1)
+
     def _private_api(self, method, path, extra=None):
         payload = {
             'access_key': self._key,
@@ -70,21 +72,22 @@ class BaseUpbit(BaseExchange):
         
         header = self.get_jwt_token(payload)
         
-        path = '/'.join([self._base_url, path])
-        rq = requests.post(path, header=header, data=extra)
+        url = Urls.BASE + path
+        rq = requests.post(url, header=header, data=extra)
 
         try:
             res = rq.json()
     
             if 'error' in res:
-                error_msg = res.get('error', dict()).get('message', 'Fail, but message is not found.')
-                return ExchangeResult(False, '', error_msg)
+                error_msg = res.get('error', dict()).get('message', WarningMsg.MESSAGE_NOT_FOUND.format(name=self.name))
+                return ExchangeResult(False, message=error_msg, wait_time=1)
     
             else:
                 return ExchangeResult(True, res)
 
-        except Exception as ex:
-            return ExchangeResult(False, '', 'Error [{}]'.format(ex))
+        except:
+            debugger.exception('FATAL: Upbit, _private_api')
+            return ExchangeResult(False, message=WarningMsg.EXCEPTION_RAISED.format(name=self.name), wait_time=1)
 
     def fee_count(self):
         return 1
@@ -93,11 +96,11 @@ class BaseUpbit(BaseExchange):
         return 'Bearer {}'.format(jwt.encode(payload, self._secret, ).decode('utf8'))
     
     def get_ticker(self, market):
-        return self._public_api('/ticker', market)
+        return self._public_api(Urls.TICKER, market)
     
     def currencies(self):
         # using get_currencies, service_currencies
-        return self._public_api('/market/all')
+        return self._public_api(Urls.CURRENCY)
     
     def get_currencies(self, currencies):
         res = list()
@@ -108,11 +111,11 @@ class BaseUpbit(BaseExchange):
             self._subscriber.add_candle_symbol_set(coin)
             
             if not self.data_store.candle_queue:
-                return ExchangeResult(False, '', 'candle data is not yet stored', 1)
+                return ExchangeResult(False, message=WarningMsg.CANDLE_NOT_STORED.format(name=self.name), wait_time=1)
             
             result_dict = self.data_store.candle_queue
             
-            return ExchangeResult(True, result_dict, '', 0)
+            return ExchangeResult(True, result_dict)
         
     def service_currencies(self, currencies):
         # using deposit_addrs
@@ -120,7 +123,7 @@ class BaseUpbit(BaseExchange):
         return [res.append(data.split('-')[1]) for data in currencies if currencies['market'].split('-')[1] not in res]
     
     def get_order_history(self, uuid):
-        return self._private_api('get', '/order', {'uuid': uuid})
+        return self._private_api(Consts.GET, Urls.ORDER, {'uuid': uuid})
     
     def withdraw(self, coin, amount, to_address, payment_id=None):
         params = {
@@ -132,11 +135,10 @@ class BaseUpbit(BaseExchange):
         if payment_id:
             params.update({'secondary_address': payment_id})
         
-        return self._private_api('post', '/withdraws/coin', params)
+        return self._private_api(Consts.POST, Urls.WITHDRAW, params)
     
     def buy(self, coin, amount, price=None):
-        order_type = 'price' if price is None else 'limit'
-        
+        order_type = Consts.MARKET if price is not None else Consts.LIMIT
         amount, price = map(str, (amount, price))
         
         params = {
@@ -147,10 +149,10 @@ class BaseUpbit(BaseExchange):
             'ord_type': order_type
         }
         
-        return self._private_api('POST', '/orders', params)
+        return self._private_api(Consts.POST, Urls.ORDER, params)
     
     def sell(self, coin, amount, price=None):
-        order_type = 'market' if price is None else 'limit'
+        order_type = Consts.MARKET if price is not None else Consts.LIMIT
 
         amount, price = map(str, (amount, price))
         
@@ -162,7 +164,7 @@ class BaseUpbit(BaseExchange):
             'ord_type': order_type
         }
         
-        return self._private_api('POST', '/orders', params)
+        return self._private_api(Consts.POST, Urls.ORDER, params)
     
     def base_to_alt(self, currency_pair, btc_amount, alt_amount, td_fee, tx_fee):
         alt_amount *= 1 - decimal.Decimal(td_fee)
@@ -171,41 +173,28 @@ class BaseUpbit(BaseExchange):
         
         return ExchangeResult(True, alt_amount)
     
-    # def alt_to_base(self, currency_pair, btc_amount, alt_amount):
-    #     # after self.sell()
-    #     if suc:
-    #         upbit_logger.info('AltToBase 성공')
-    #
-    #         return True, '', data, 0
-    #
-    #     else:
-    #         upbit_logger.info(msg)
-    #
-    #         if '부족합니다.' in msg:
-    #             alt_amount -= Decimal(0.0001).quantize(Decimal(10) ** -4)
-    #             continue
-    
     async def async_public_api(self, path, extra=None):
         if extra is None:
             extra = dict()
         try:
             async with aiohttp.ClientSession() as s:
-                path = self._base_url + path
-                rq = await s.get(path, json=extra)
+                url = Urls.BASE + path
+                rq = await s.get(url, json=extra)
                 
                 res = json.loads(await rq.text())
                 
                 if 'error' in res:
                     error_msg = res.get('error', dict()).get('message',
-                                                             'Fail, but message is not found.')
+                                                             WarningMsg.MESSAGE_NOT_FOUND.format(name=self.name))
     
-                    return ExchangeResult(False, '', error_msg)
+                    return ExchangeResult(False, message=error_msg, wait_time=1)
                 
                 else:
-                    return True, res, ''
-        except Exception as ex:
-            return ExchangeResult(False, '', 'Error [{}]'.format(ex))
-    
+                    return ExchangeResult(True, res)
+        except:
+            debugger.exception('FATAL: Upbit, _async_public_api')
+            return ExchangeResult(False, message=WarningMsg.EXCEPTION_RAISED.format(name=self.name), wait_time=1)
+
     async def async_private_api(self, method, path, extra=None):
         payload = {
             'access_key': self._key,
@@ -217,34 +206,35 @@ class BaseUpbit(BaseExchange):
         header = self.get_jwt_token(payload)
         try:
             async with aiohttp.ClientSession() as s:
-                path = self._base_url + path
-                rq = await s.post(path, headers=header, data=extra)
+                url = Urls.BASE + path
+                rq = await s.post(url, headers=header, data=extra)
         
                 res = json.loads(await rq.text())
         
                 if 'error' in res:
                     error_msg = res.get('error', dict()).get('message',
-                                                             'Fail, but message is not found.')
+                                                             WarningMsg.MESSAGE_NOT_FOUND.format(name=self.name))
     
-                    return ExchangeResult(False, '', error_msg)
+                    return ExchangeResult(False, message=error_msg, wait_time=1)
         
                 else:
                     return ExchangeResult(True, res)
-        except Exception as ex:
-            return ExchangeResult(False, '', 'Error [{}]'.format(ex))
-    
+        except:
+            debugger.exception('FATAL: Upbit, _public_api')
+            return ExchangeResult(False, message=WarningMsg.EXCEPTION_RAISED.format(name=self.name), wait_time=1)
+
     async def get_deposit_addrs(self, coin_list=None):
-        return self.async_public_api('/v1/deposits/coin_addresses')
+        return self.async_public_api(Urls.DEPOSIT_ADDRESS)
     
     async def get_balance(self):
-        return self._private_api('get', '/accounts')
+        return self._private_api(Consts.GET, Urls.ACCOUNT)
     
     async def get_detail_balance(self, data):
         # bal = self.get_balance()
         return {bal['currency']: bal['balance'] for bal in data}
     
     async def get_orderbook(self, market):
-        return self.async_public_api('/orderbook', {'markets': market})
+        return self.async_public_api(Urls.ORDERBOOK, {'markets': market})
     
     async def get_btc_orderbook(self, btc_sum):
         return await self.get_orderbook('KRW-BTC')
@@ -255,11 +245,11 @@ class BaseUpbit(BaseExchange):
             data_dic = self.data_store.orderbook_queue
             
             if not self.data_store.orderbook_queue:
-                return ExchangeResult(False, '', 'orderbook data is not yet stored')
+                return ExchangeResult(False, message=WarningMsg.ORDERBOOK_NOT_STORED.format(name=self.name), wait_time=1)
             
             avg_order_book = dict()
             for pair, item in data_dic.items():
-                sai_symbol = self._upbit_to_sai_symbol_converter(pair)
+                sai_symbol = upbit_to_sai_symbol_converter(pair)
                 avg_order_book[sai_symbol] = dict()
                 
                 for type_ in ['ask', 'bid']:
@@ -289,17 +279,18 @@ class BaseUpbit(BaseExchange):
         if u_suc and o_suc:
             m_to_s = dict()
             for currency_pair in coins:
-                m_ask = u_orderbook[currency_pair]['asks']
-                s_bid = o_orderbook[currency_pair]['bids']
+                m_ask = u_orderbook[currency_pair][Consts.ASKS]
+                s_bid = o_orderbook[currency_pair][Consts.BIDS]
                 m_to_s[currency_pair] = float(((s_bid - m_ask) / m_ask))
             
             s_to_m = dict()
             for currency_pair in coins:
-                m_bid = u_orderbook[currency_pair]['bids']
-                s_ask = o_orderbook[currency_pair]['asks']
+                m_bid = u_orderbook[currency_pair][Consts.BIDS]
+                s_ask = o_orderbook[currency_pair][Consts.ASKS]
                 s_to_m[currency_pair] = float(((m_bid - s_ask) / s_ask))
-            
-            res = u_orderbook, o_orderbook, {'m_to_s': m_to_s, 's_to_m': s_to_m}
-            
-            return ExchangeResult(True, res)
-
+            result = (
+                u_orderbook,
+                o_orderbook,
+                {Consts.PRIMARY_TO_SECONDARY: m_to_s, Consts.SECONDARY_TO_PRIMARY: s_to_m}
+            )
+            return ExchangeResult(True, result)
