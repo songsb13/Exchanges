@@ -14,7 +14,7 @@ from urllib.parse import urlencode
 
 from Util.pyinstaller_patch import debugger
 
-from Exchanges.bithumb.setting import Urls
+from Exchanges.bithumb.setting import Urls, AVAILABLE_COINS
 
 from Exchanges.settings import Consts
 from Exchanges.messages import WarningMessage as WarningMsg
@@ -215,8 +215,6 @@ class BaseBithumb(BaseExchange):
         return ExchangeResult(True, str())
 
     def withdraw(self, coin, amount, to_address, payment_id=None):
-        debugger.debug('[Bithumb]Parameters=[{}, {}, {}], function name=[withdraw]'.format(coin, amount, to_address, payment_id))
-
         params = {
             'currency': coin,
             'units': amount,
@@ -228,54 +226,40 @@ class BaseBithumb(BaseExchange):
         return self._private_api(Consts.POST, Urls.WITHDRAW, params)
 
     def get_available_coin(self):
-        available_coin = [
-            'BTC_ETH',
-            'BTC_DASH',
-            'BTC_LTC',
-            'BTC_ETC',
-            'BTC_XRP',
-            'BTC_BCH',
-            'BTC_XMR',
-            'BTC_ZEC',
-            'BTC_QTUM',
-            'BTC_BTG',
-            'BTC_EOS'
-        ]
-
-        return ExchangeResult(True, available_coin)
+        return ExchangeResult(True, AVAILABLE_COINS)
 
     def get_precision(self, pair=None):
         return ExchangeResult(True, (-8, -8))
 
     async def _async_private_api(self, method, path, extra=None):
-            extra = dict() if extra is None else extra
+        extra = dict() if extra is None else extra
 
-            nonce = str(int(time.time() * 1000))
-            data = urlencode(extra)
-            signature = self._sign_generator(extra, data, path, nonce)
-            header = {
-                'Content-Type': 'application/x-www-form-urlencoded',
-                'Api-Key': self._key,
-                'Api-Sign': signature,
-                'Api-Nonce': nonce
-            }
+        nonce = str(int(time.time() * 1000))
+        data = urlencode(extra)
+        signature = self._sign_generator(extra, data, path, nonce)
+        header = {
+            'Content-Type': 'application/x-www-form-urlencoded',
+            'Api-Key': self._key,
+            'Api-Sign': signature,
+            'Api-Nonce': nonce
+        }
 
-            async with aiohttp.ClientSession(headers=header) as session:
-                try:
-                    rq = await session.post(Urls.BASE + path, data=data)
+        async with aiohttp.ClientSession(headers=header) as session:
+            try:
+                rq = await session.post(Urls.BASE + path, data=data)
 
-                    response = json.loads(await rq.text())
+                response = json.loads(await rq.text())
 
-                    status = response.get('status')
+                status = response.get('status')
 
-                    if status and status == '0000':
-                        return ExchangeResult(True, response)
-                    else:
-                        message = response.get('message', WarningMsg.MESSAGE_NOT_FOUND.format(name=self.name))
-                        return ExchangeResult(False, message=message, wait_time=1)
-                except:
-                    debugger.exception('FATAL: Bithumb, _async_private_api')
-                    return ExchangeResult(False, message=WarningMsg.EXCEPTION_RAISED.format(name=self.name), wait_time=1)
+                if status and status == '0000':
+                    return ExchangeResult(True, response)
+                else:
+                    message = response.get('message', WarningMsg.MESSAGE_NOT_FOUND.format(name=self.name))
+                    return ExchangeResult(False, message=message, wait_time=1)
+            except:
+                debugger.exception('FATAL: Bithumb, _async_private_api')
+                return ExchangeResult(False, message=WarningMsg.EXCEPTION_RAISED.format(name=self.name), wait_time=1)
 
     async def _get_deposit_addrs(self, currency):
         for _ in range(3):
@@ -358,14 +342,13 @@ class BaseBithumb(BaseExchange):
 
             self.transaction_fee = ret_data if ret_data else self.transaction_fee
 
-            result = (False, '', 'ERROR_BODY=[트랜젝션 수수료 없음 에러]', 5) if ret_data is dict() \
-                else (True, ret_data, '', 0)
-
-        except Exception as ex:
-            result = (False, '', 'ERROR_BODY=[{}]'.format(ex), 5) if self.transaction_fee is None \
-                else (True, self.transaction_fee, '', 0)
-
-        return ExchangeResult(*result)
+            if ret_data is dict():
+                return ExchangeResult(False, message=WarningMsg.TRANSACTION_FAILED.format(name=self.name), wait_time=5)
+            else:
+                return ExchangeResult(True, ret_data)
+        except:
+            debugger.exception('FATAL: Bithumb, get_transaction_fee')
+            return ExchangeResult(False, message=WarningMsg.EXCEPTION_RAISED.format(name=self.name), wait_time=1)
 
     async def get_deposit_addrs(self, coin_list=None):
         ret_data = dict()
@@ -441,8 +424,7 @@ class BaseBithumb(BaseExchange):
                         break
 
                 avg_orderbook[sai_coin][order_type] = (total_price / total_amount).quantize(Decimal(10) ** -8)
-        result = (True, avg_orderbook, '', 0)
-        return ExchangeResult(*result)
+        return ExchangeResult(True, avg_orderbook)
 
     async def compare_orderbook(self, other, coins, default_btc=1):
         currency_pairs = coins
