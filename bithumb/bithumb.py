@@ -17,6 +17,7 @@ from Util.pyinstaller_patch import debugger
 from Exchanges.bithumb.setting import Urls
 
 from Exchanges.settings import Consts
+from Exchanges.messages import WarningMessage as WarningMsg
 from Exchanges.abstracts import BaseExchange
 from Exchanges.objects import ExchangeResult, DataStore
 
@@ -48,7 +49,6 @@ class BaseBithumb(BaseExchange):
     def __init__(self, key, secret):
         self._key = key
         self._secret = secret
-        self._base_url = 'https://api.bithumb.com'
 
     def _sign_generator(self, *args):
         extra, data, path, nonce = args
@@ -60,27 +60,23 @@ class BaseBithumb(BaseExchange):
         return signature
 
     def _public_api(self, path, extra=None):
-        debugger.debug('[Bithumb]Parameters=[ {}, {}], function name=[_public_api]'.format(path, extra))
-
         try:
             extra = dict() if extra is None else urlencode(extra)
-
             rq = requests.get(Urls.BASE + path, data=extra)
-
             response = rq.json()
+            status = response.get('status')
 
-            error_message = None if response['status'] == '0000' else 'ERROR_BODY=[{}], URL=[{}], PARAMETER=[{}]'.\
-                format(response['message'], path, extra)
+            if status and status == '0000':
+                return ExchangeResult(True, response)
+            else:
+                message = response.get('message', WarningMsg.MESSAGE_NOT_FOUND.format(name=self.name))
+                return ExchangeResult(False, message=message, wait_time=1)
 
-        except Exception as ex:
-            error_message = 'ERROR_BODY=[{}], URL=[{}], PARAMETER=[{}]'.format(ex, path, extra)
-
-        result = (True, response, '', 0) if error_message is None else (False, '', error_message, 1)
-        return ExchangeResult(*result)
+        except:
+            debugger.exception('FATAL: Bithumb, _public_api')
+            return ExchangeResult(False, message=WarningMsg.EXCEPTION_RAISED.format(name=self.name), wait_time=1)
 
     def _private_api(self, method, path, extra=None):
-        debugger.debug('[Bithumb]Parameters=[{}, {}], function name=[_private_api]'.format(path, extra))
-
         try:
             extra = dict() if extra is None else extra
 
@@ -101,14 +97,17 @@ class BaseBithumb(BaseExchange):
 
             response = rq.json()
 
-            error_message = None if response['status'] == '0000' else 'ERROR_BODY=[{}], URL=[{}], PARAMETER=[{}]'. \
-                format(response['message'], path, extra)
+            status = response.get('status')
 
-        except Exception as ex:
-            error_message = 'ERROR_BODY=[{}], URL=[{}], PARAMETER=[{}]'.format(ex, path, extra)
+            if status and status == '0000':
+                return ExchangeResult(True, response)
+            else:
+                message = response.get('message', WarningMsg.MESSAGE_NOT_FOUND.format(name=self.name))
+                return ExchangeResult(False, message=message, wait_time=1)
 
-        result = (True, response, '', 0) if error_message is None else (False, '', error_message, 1)
-        return ExchangeResult(*result)
+        except:
+            debugger.exception('FATAL: Bithumb, _private_api')
+            return ExchangeResult(False, message=WarningMsg.EXCEPTION_RAISED.format(name=self.name), wait_time=1)
 
     def fee_count(self):
         return 2
@@ -146,8 +145,6 @@ class BaseBithumb(BaseExchange):
         return self._private_api(Consts.POST, Urls.ORDER, params)
 
     def buy(self, coin, amount, price=None):
-        debugger.debug('[Bithumb]Parameters=[{}, {}, {}], function name=[buy]'.format(coin, amount, price))
-
         params = {
             'currency': coin,
             'units': amount
@@ -159,8 +156,6 @@ class BaseBithumb(BaseExchange):
         return self._private_api(Consts.POST, Urls.MARKET_BUY, params)
 
     def sell(self, coin, amount, price=None):
-        debugger.debug('[Bithumb]Parameters=[{}, {}, {}], function name=[sell]'.format(coin, amount, price))
-
         params = {
             'currency': coin,
             'units': amount
@@ -196,9 +191,7 @@ class BaseBithumb(BaseExchange):
         alt -= Decimal(tx_fee[currency_pair.split('_')[1]])
         alt = alt.quantize(Decimal(10) ** -4, rounding=ROUND_DOWN)
 
-        result = (True, alt)
-
-        return ExchangeResult(*result)
+        return ExchangeResult(True, alt)
 
     def alt_to_base(self, currency_pair, btc_amount, alt_amount):
         currency_pair = currency_pair.split('_')[1]
@@ -219,9 +212,7 @@ class BaseBithumb(BaseExchange):
         else:
             return buy_result_object
 
-        result = (True, )
-
-        return ExchangeResult(*result)
+        return ExchangeResult(True, str())
 
     def withdraw(self, coin, amount, to_address, payment_id=None):
         debugger.debug('[Bithumb]Parameters=[{}, {}, {}], function name=[withdraw]'.format(coin, amount, to_address, payment_id))
@@ -251,16 +242,12 @@ class BaseBithumb(BaseExchange):
             'BTC_EOS'
         ]
 
-        result = (True, available_coin)
-
-        return ExchangeResult(*result)
+        return ExchangeResult(True, available_coin)
 
     def get_precision(self, pair=None):
         return ExchangeResult(True, (-8, -8))
 
     async def _async_private_api(self, method, path, extra=None):
-        debugger.debug('[Bithumb]Parameters=[{}, {}, {}], function name=[_async_private_api]'.format(method, path, extra))
-        try:
             extra = dict() if extra is None else extra
 
             nonce = str(int(time.time() * 1000))
@@ -274,19 +261,21 @@ class BaseBithumb(BaseExchange):
             }
 
             async with aiohttp.ClientSession(headers=header) as session:
-                rq = await session.post(Urls.BASE + path, data=data)
+                try:
+                    rq = await session.post(Urls.BASE + path, data=data)
 
-                response = json.loads(await rq.text())
+                    response = json.loads(await rq.text())
 
-                error_message = None if response['status'] == '0000' else 'ERROR_BODY=[{}], URL=[{}], PARAMETER=[{}]'.\
-                    format(response['message'], path, extra)
+                    status = response.get('status')
 
-        except Exception as ex:
-            error_message = ' ERROR_BODY=[{}], URL=[{}], PARAMETER=[{}]'.format(ex, path, extra)
-
-        result = (True, response, '', 0) if error_message is None else (False, '', error_message, 1)
-
-        return ExchangeResult
+                    if status and status == '0000':
+                        return ExchangeResult(True, response)
+                    else:
+                        message = response.get('message', WarningMsg.MESSAGE_NOT_FOUND.format(name=self.name))
+                        return ExchangeResult(False, message=message, wait_time=1)
+                except:
+                    debugger.exception('FATAL: Bithumb, _async_private_api')
+                    return ExchangeResult(False, message=WarningMsg.EXCEPTION_RAISED.format(name=self.name), wait_time=1)
 
     async def _get_deposit_addrs(self, currency):
         for _ in range(3):
@@ -391,7 +380,7 @@ class BaseBithumb(BaseExchange):
             deposit_result_object = await self._get_deposit_addrs(currency)
             if deposit_result_object.success:
                 data = deposit_result_object.data
-                if currency in settings.SUB_ADDRESS_COIN_LIST:
+                if currency in ['XRP', 'XMR']:
                     try:
                         address, tag = data['data']['wallet_address'].split('&dt=')
                         ret_data[currency + 'TAG'] = tag
@@ -477,14 +466,11 @@ class BaseBithumb(BaseExchange):
                 orderbooks = (bithumb_result_object.data, other_result_object.data,
                               {Consts.PRIMARY_TO_SECONDARY: m_to_s, Consts.SECONDARY_TO_PRIMARY: s_to_m})
 
-                result = (True, orderbooks, '', 0)
-                break
+                return ExchangeResult(True, orderbooks)
 
             else:
                 await asyncio.sleep(max(bithumb_result_object.wait_time, other_result_object.wait_time))
         else:
             error_message = bithumb_result_object.message + '\n' + other_result_object.message
 
-            result = (False, '', error_message, 1)
-
-        return ExchangeResult(*result)
+            return ExchangeResult(False, message=error_message, wait_time=1)
