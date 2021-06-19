@@ -90,7 +90,7 @@ class BaseBithumb(BaseExchange):
             signature = self._sign_generator(extra, data, path, nonce)
 
             headers = {
-                'Content-Type': settings.CONTENT_TYPE,
+                'Content-Type': 'application/x-www-form-urlencoded',
                 'Api-Key': self._key,
                 'Api-Sign': signature,
                 'Api-Nonce': nonce
