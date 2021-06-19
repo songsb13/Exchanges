@@ -44,6 +44,7 @@ class RequestError(Exception):
 
 class BaseBithumb(BaseExchange):
     name = 'Bithumb'
+
     def __init__(self, key, secret):
         self._key = key
         self._secret = secret
@@ -77,7 +78,7 @@ class BaseBithumb(BaseExchange):
         result = (True, response, '', 0) if error_message is None else (False, '', error_message, 1)
         return ExchangeResult(*result)
 
-    def _private_api(self, path, extra=None):
+    def _private_api(self, method, path, extra=None):
         debugger.debug('[Bithumb]Parameters=[{}, {}], function name=[_private_api]'.format(path, extra))
 
         try:
@@ -131,7 +132,7 @@ class BaseBithumb(BaseExchange):
             'type': 'bid'
         }
 
-        return self._private_api(Urls.ORDER, params)
+        return self._private_api(Consts.POST, Urls.ORDER, params)
 
     def limit_sell(self, coin, amount, price):
         params = {
@@ -142,7 +143,7 @@ class BaseBithumb(BaseExchange):
             'type': 'ask'
         }
 
-        return self._private_api(Urls.ORDER, params)
+        return self._private_api(Consts.POST, Urls.ORDER, params)
 
     def buy(self, coin, amount, price=None):
         debugger.debug('[Bithumb]Parameters=[{}, {}, {}], function name=[buy]'.format(coin, amount, price))
@@ -155,7 +156,7 @@ class BaseBithumb(BaseExchange):
         if price:
             return self.limit_buy(coin, amount, price)
 
-        return self._private_api(Urls.MARKET_BUY, params)
+        return self._private_api(Consts.POST, Urls.MARKET_BUY, params)
 
     def sell(self, coin, amount, price=None):
         debugger.debug('[Bithumb]Parameters=[{}, {}, {}], function name=[sell]'.format(coin, amount, price))
@@ -168,7 +169,7 @@ class BaseBithumb(BaseExchange):
         if price:
             return self.limit_sell(coin, amount, price)
 
-        return self._private_api(Urls.MARKET_SELL, params)
+        return self._private_api(Consts.POST, Urls.MARKET_SELL, params)
 
     def base_to_alt(self, currency_pair, btc_amount, alt_amount, td_fee, tx_fee):
         alt = Decimal(alt_amount).quantize(Decimal(10) ** -8)
@@ -233,7 +234,7 @@ class BaseBithumb(BaseExchange):
         if payment_id:
             params.update({'destination': payment_id})
 
-        return self._private_api(Urls.WITHDRAW, params)
+        return self._private_api(Consts.POST, Urls.WITHDRAW, params)
 
     def get_available_coin(self):
         available_coin = [
