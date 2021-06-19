@@ -12,7 +12,13 @@ from lxml import html as lh
 from decimal import Decimal, ROUND_DOWN
 from urllib.parse import urlencode
 
-from base_exchange import BaseExchange, ExchangeResult
+from Util.pyinstaller_patch import debugger
+
+from Exchanges.bithumb.setting import Urls
+
+from Exchanges.settings import Consts
+from Exchanges.abstracts import BaseExchange
+from Exchanges.objects import ExchangeResult, DataStore
 
 
 class RequestError(Exception):
@@ -37,12 +43,11 @@ class RequestError(Exception):
 
 
 class BaseBithumb(BaseExchange):
+    name = 'Bithumb'
     def __init__(self, key, secret):
         self._key = key
         self._secret = secret
         self._base_url = 'https://api.bithumb.com'
-
-        ExchangeResult.set_exchange_name = 'Bithumb'
 
     def _sign_generator(self, *args):
         extra, data, path, nonce = args
@@ -59,7 +64,7 @@ class BaseBithumb(BaseExchange):
         try:
             extra = dict() if extra is None else urlencode(extra)
 
-            rq = requests.get(self._base_url + path, data=extra)
+            rq = requests.get(Urls.BASE + path, data=extra)
 
             response = rq.json()
 
@@ -91,7 +96,7 @@ class BaseBithumb(BaseExchange):
                 'Api-Nonce': nonce
             }
 
-            rq = requests.post(self._base_url + path, headers=headers, data=extra)
+            rq = requests.post(Urls.BASE + path, headers=headers, data=extra)
 
             response = rq.json()
 
@@ -109,7 +114,7 @@ class BaseBithumb(BaseExchange):
 
     def get_ticker(self, market):
         for _ in range(3):
-            result_object = self._public_api('/public/ticker/{}'.format(market))
+            result_object = self._public_api(Urls.TICKER.format(market))
             if result_object:
                 break
 
@@ -126,7 +131,7 @@ class BaseBithumb(BaseExchange):
             'type': 'bid'
         }
 
-        return self._private_api('/trade/place', params)
+        return self._private_api(Urls.ORDER, params)
 
     def limit_sell(self, coin, amount, price):
         params = {
@@ -137,7 +142,7 @@ class BaseBithumb(BaseExchange):
             'type': 'ask'
         }
 
-        return self._private_api('/trade/place', params)
+        return self._private_api(Urls.ORDER, params)
 
     def buy(self, coin, amount, price=None):
         debugger.debug('[Bithumb]Parameters=[{}, {}, {}], function name=[buy]'.format(coin, amount, price))
@@ -150,7 +155,7 @@ class BaseBithumb(BaseExchange):
         if price:
             return self.limit_buy(coin, amount, price)
 
-        return self._private_api('/trade/market_buy', params)
+        return self._private_api(Urls.MARKET_BUY, params)
 
     def sell(self, coin, amount, price=None):
         debugger.debug('[Bithumb]Parameters=[{}, {}, {}], function name=[sell]'.format(coin, amount, price))
@@ -163,7 +168,7 @@ class BaseBithumb(BaseExchange):
         if price:
             return self.limit_sell(coin, amount, price)
 
-        return self._private_api('/trade/market_sell', params)
+        return self._private_api(Urls.MARKET_SELL, params)
 
     def base_to_alt(self, currency_pair, btc_amount, alt_amount, td_fee, tx_fee):
         alt = Decimal(alt_amount).quantize(Decimal(10) ** -8)
@@ -228,7 +233,7 @@ class BaseBithumb(BaseExchange):
         if payment_id:
             params.update({'destination': payment_id})
 
-        return self._private_api('/trade/btc_withdrawal', params)
+        return self._private_api(Urls.WITHDRAW, params)
 
     def get_available_coin(self):
         available_coin = [
@@ -268,7 +273,7 @@ class BaseBithumb(BaseExchange):
             }
 
             async with aiohttp.ClientSession(headers=header) as session:
-                rq = await session.post(self._base_url + path, data=data)
+                rq = await session.post(Urls.BASE + path, data=data)
 
                 response = json.loads(await rq.text())
 
@@ -284,8 +289,7 @@ class BaseBithumb(BaseExchange):
 
     async def _get_deposit_addrs(self, currency):
         for _ in range(3):
-            result_object = await self._async_private_api('POST', '/info/wallet_address',
-                                                                          {'currency': currency})
+            result_object = await self._async_private_api(Consts.POST, Urls.DEPOSIT_ADDRESS, {'currency': currency})
 
             if result_object.success:
                 break
@@ -295,7 +299,7 @@ class BaseBithumb(BaseExchange):
 
     async def _get_orderbook(self, symbol):
         for _ in range(3):
-            result_object = self._public_api('/public/orderbook/{}'.format(symbol))
+            result_object = self._public_api(Urls.ORDERBOOK.format(symbol))
             if result_object.success:
                 break
 
@@ -305,7 +309,7 @@ class BaseBithumb(BaseExchange):
 
     async def _get_balance(self):
         for _ in range(3):
-            result_object = await self._async_private_api('POST', '/info/balance', {'currency': 'ALL'})
+            result_object = await self._async_private_api(Consts.POST, Urls.BALANCE, {'currency': 'ALL'})
             if result_object.success:
                 break
 
@@ -315,7 +319,7 @@ class BaseBithumb(BaseExchange):
 
     async def _get_trading_fee(self, symbol):
         for _ in range(3):
-            result_object = await self._async_private_api('POST', '/info/account', {'currency': symbol})
+            result_object = await self._async_private_api(Consts.POST, Urls.ACCOUNT, {'currency': symbol})
             if result_object.success:
                 break
 
@@ -345,7 +349,7 @@ class BaseBithumb(BaseExchange):
     async def get_transaction_fee(self):
         # 현철이 레거시
         try:
-            ret = requests.get('https://www.bithumb.com/u1/US138', timeout=60)
+            ret = requests.get(Urls.PAGE_BASE + Urls.TRANSACTION_FEE, timeout=60)
             #   API 사용이 아니다.
             doc = lh.fromstring(ret.text)
             tags = doc.cssselect('table.g_tb_normal.fee_in_out tr')
@@ -411,7 +415,7 @@ class BaseBithumb(BaseExchange):
             return orderbook_result_object
 
         data = orderbook_result_object.data['data']
-        for order_type in ['bids', 'asks']:
+        for order_type in [Consts.BIDS, Consts.ASKS]:
             rows = data['BTC'][order_type]
             total_price = Decimal(0.0)
             total_amount = Decimal(0.0)
@@ -432,15 +436,15 @@ class BaseBithumb(BaseExchange):
                 #   parameter 로 들어온 페어가 아닌 경우에는 제외
                 continue
             avg_orderbook[sai_coin] = {}
-            for order_type in ['bids', 'asks']:
+            for order_type in [Consts.BIDS, Consts.ASKS]:
                 rows = data[c][order_type]
                 total_price = Decimal(0.0)
                 total_amount = Decimal(0.0)
                 for row in rows:
-                    if order_type == 'bids':
-                        total_price += Decimal(row['price']) / btc_average['asks'] * Decimal(row['quantity'])
+                    if order_type == Consts.BIDS:
+                        total_price += Decimal(row['price']) / btc_average[Consts.ASKS] * Decimal(row['quantity'])
                     else:
-                        total_price += Decimal(row['price']) / btc_average['bids'] * Decimal(row['quantity'])
+                        total_price += Decimal(row['price']) / btc_average[Consts.BIDS] * Decimal(row['quantity'])
                     total_amount += Decimal(row['quantity'])
 
                     if total_price >= default_btc:
@@ -461,15 +465,16 @@ class BaseBithumb(BaseExchange):
             if success:
                 m_to_s, s_to_m = (dict() for _ in range(2))
                 for currency_pair in currency_pairs:
-                    m_ask = bithumb_result_object.data[currency_pair]['asks']
-                    s_bid = other_result_object.data[currency_pair]['bids']
+                    m_ask = bithumb_result_object.data[currency_pair][Consts.ASKS]
+                    s_bid = other_result_object.data[currency_pair][Consts.BIDS]
                     m_to_s[currency_pair] = float(((s_bid - m_ask) / m_ask).quantize(Decimal(10) ** -8))
 
-                    m_bid = bithumb_result_object.data[currency_pair]['bids']
-                    s_ask = other_result_object.data[currency_pair]['asks']
+                    m_bid = bithumb_result_object.data[currency_pair][Consts.BIDS]
+                    s_ask = other_result_object.data[currency_pair][Consts.ASKS]
                     s_to_m[currency_pair] = float(((m_bid - s_ask) / s_ask).quantize(Decimal(10) ** -8))
 
-                orderbooks = (bithumb_result_object.data, other_result_object.data, {'m_to_s': m_to_s, 's_to_m': s_to_m})
+                orderbooks = (bithumb_result_object.data, other_result_object.data,
+                              {Consts.PRIMARY_TO_SECONDARY: m_to_s, Consts.SECONDARY_TO_PRIMARY: s_to_m})
 
                 result = (True, orderbooks, '', 0)
                 break
