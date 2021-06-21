@@ -21,12 +21,6 @@ class TestNotification(unittest.TestCase):
         self.assertIn('BTC_XRP', result.data)
         print(result.data)
 
-    def test_get_candle(self):
-        result = self.exchange.get_candle(self.symbol_set, 1)
-        self.assertTrue(result.success)
-        print(result.data)
-        self.assertEqual(len(result.data['timestamp']), 20)
-
     def test_get_orderbook(self):
         loop = asyncio.get_event_loop()
         result = loop.run_until_complete(self.exchange.get_curr_avg_orderbook(self.symbol_set))
@@ -55,13 +49,6 @@ class TestNotification(unittest.TestCase):
         self.assertIn('BTC', balance_result.data)
         print(balance_result.data)
 
-    def test_get_avg_price(self):
-        loop = asyncio.get_event_loop()
-        result = loop.run_until_complete(self.exchange.get_avg_price(self.symbol_set))
-        self.assertTrue(result.success)
-        self.assertIn('BTC', result.data)
-        print(result.data)
-
     def test_market_trade(self):
         buy_result = self.exchange.buy(self.symbol, 5)
         if buy_result.success:
@@ -76,7 +63,3 @@ class TestNotification(unittest.TestCase):
         else:
             print(sell_result.message)
         self.assertTrue(sell_result.success)
-
-    def test_servertime(self):
-        servertime_result = self.exchange
-        print(time.time() - float(servertime_result.data))
