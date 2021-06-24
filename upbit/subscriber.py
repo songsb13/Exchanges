@@ -39,10 +39,6 @@ class UpbitSubscriber(websocket.WebSocketApp):
         
         self.subscribe_set = dict()
     
-    @property
-    def candle_symbol_set(self):
-        return self.candle_symbol_set
-    
     def add_candle_symbol_set(self, value):
         reset = False
         if isinstance(list, value):
@@ -53,14 +49,10 @@ class UpbitSubscriber(websocket.WebSocketApp):
             if value not in self._candle_symbol_set:
                 self._candle_symbol_set.add(value)
                 reset = True
-        
+    
         if reset is True:
             self.unsubscribe_candle()
             self.subscribe_candle()
-
-    @property
-    def orderbook_symbol_set(self):
-        return self.orderbook_symbol_set
 
     def add_orderbook_symbol_set(self, value):
         reset = False
@@ -143,9 +135,10 @@ class UpbitSubscriber(websocket.WebSocketApp):
                         high=data['high_price'],
                         low=data['low_price']
                     )
-                
-                    self.data_store.candle_queue[market] = candle
-                    debugger.debug(self.data_store.candle_queue[market])
+                    self._temp_candle_store[market].append(candle)
+                    if len(self._temp_orderbook_store[market]) >= 100:
+                        self.data_store.candle_queue[market] = self._temp_candle_store[market]
+                        self._temp_candle_store[market] = list()
         except WebSocketConnectionClosedException:
             debugger.debug('Disconnected orderbook websocket.')
             self.stop_flag = True
