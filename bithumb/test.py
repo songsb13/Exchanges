@@ -11,8 +11,8 @@ class TestNotification(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.exchange = bithumb.BaseBithumb(
-            '905625ffb96b24994b6ea693a03cfb6c',
-            'cb524ad78932701a13fb2636580e9cf0'
+            '',
+            ''
         )
 
     def test_get_available_coin(self):
