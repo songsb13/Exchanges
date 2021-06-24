@@ -27,12 +27,9 @@ decimal.getcontext().prec = 8
 class Binance(BaseExchange):
     name = 'Binance'
 
-    def __init__(self, key, secret, coin_list, time_):
+    def __init__(self, key, secret):
         self._key = key
         self._secret = secret
-        
-        self._coin_list = coin_list
-        self._candle_time = time_
         
         self.exchange_info = None
         self._get_exchange_info()
@@ -42,26 +39,9 @@ class Binance(BaseExchange):
         
         self._subscriber = BinanceSubscriber(self.data_store, self._lock_dic)
         
-        self._websocket_candle_settings()
-        self._websocket_orderbook_settings()
-
-    def _websocket_candle_settings(self):
-        time_str = '{}m'.format(self._candle_time) if self._candle_time < 60 else '{}h'.format(self._candle_time // 60)
-        if not self._subscriber.candle_symbol_set:
-            pairs = [binance_to_sai_converter(pair).lower()
-                     for pair in self._coin_list]
-            setattr(self._subscriber, 'candle_symbol_set', pairs)
-
-        if self._subscriber.candle_receiver is None or not self._subscriber.candle_receiver.isAlive():
-            self._subscriber.subscribe_candle(time_str)
-    
-    def _websocket_orderbook_settings(self):
-        if not self._subscriber.orderbook_symbol_set:
-            pairs = [binance_to_sai_converter(pair).lower() for pair in self._coin_list]
-            setattr(self._subscriber, 'orderbook_symbol_set', pairs)
-    
-        if self._subscriber.orderbook_receiver is None or not self._subscriber.orderbook_receiver.isAlive():
-            self._subscriber.subscribe_orderbook()
+    def start_socket_thread(self):
+        self.subscribe_thread = threading.Thread(target=self._subscriber.run_forever, daemon=True)
+        self.subscribe_thread.start()
 
     def _public_api(self, path, extra=None):
         if extra is None:
@@ -262,8 +242,9 @@ class Binance(BaseExchange):
 
         return self._private_api(Consts.POST, Urls.WITHDRAW, params)
 
-    def get_candle(self):
+    def get_candle(self, coin):
         with self._lock_dic['candle']:
+            self._subscriber.add_candle_symbol_set(coin)
             candle_dict = self.data_store.candle_queue
         
             if not candle_dict:

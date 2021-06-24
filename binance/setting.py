@@ -33,4 +33,5 @@ class Urls(object):
 
         SELECTED_BOOK_TICKER = '{symbol}@bookTicker'
         ALL_BOOK_TICKER = '!bookTicker'
-
+        
+        CANDLE = '{symbol}@kline_{interval}'
