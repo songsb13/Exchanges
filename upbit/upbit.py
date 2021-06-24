@@ -106,7 +106,7 @@ class BaseUpbit(BaseExchange):
         res = list()
         return [res.append(data['market']) for data in currencies if not currencies['market'] in res]
     
-    def get_candle(self, coin, unit, count):
+    def get_candle(self, coin):
         with self._lock_dic['candle']:
             self._subscriber.add_candle_symbol_set(coin)
             
