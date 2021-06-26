@@ -71,85 +71,82 @@ class BinanceSubscriber(websocket.WebSocketApp):
         """
         debugger.debug('BinanceSubscriber::: start')
         
-        url = 'wss://stream.binance.com:9443'
-        super(BinanceSubscriber, self).__init__(url, on_message=self.on_message)
+        super(BinanceSubscriber, self).__init__(Urls.Websocket.BASE, on_message=self.on_message)
         
+        websocket.enableTrace(True)
         self.data_store = data_store
         self.name = 'binance_subscriber'
-        self.time = '1m'
+        self.time = '30m'
         self._default_socket_id = 1
+        self._unsub_id = 2
         self.stop_flag = False
         self._lock_dic = lock_dic
         
-        self.symbol_set = set()
+        self.subscribe_set = set()
+        self.unsubscribe_set = set()
         self._temp_orderbook_store = dict()
-        self._temp_candle_store = list()
-
-    def add_candle_symbol_set(self, value):
-        reset = False
-        if isinstance(list, value):
-            if not value.difference(set(self._candle_symbol_set)):
-                self._candle_symbol_set = self._candle_symbol_set.union(set(value))
-                reset = True
-        elif isinstance(str, value):
-            if value not in self._candle_symbol_set:
-                self._candle_symbol_set.add(value)
-                reset = True
-    
-        if reset is True:
-            self.set_subscribe()
-
-    def add_symbol_set(self, value):
-        reset = False
-        if isinstance(list, value):
-            if not value.difference(set(self.symbol_set)):
-                self.symbol_set = self.symbol_set.union(set(value))
-                reset = True
-        elif isinstance(str, value):
-            if value not in self.symbol_set:
-                self.symbol_set.add(value)
-                reset = True
-    
-        if reset is True:
-            self.set_subscribe()
+        self._temp_candle_store = dict()
 
     def stop(self):
         self.stop_flag = True
-
-    def set_subscribe(self):
-        set_to_list = list(self.symbol_set)
+    
+    def switching_parameters(self, stream, is_subscribe=True):
+        try:
+            if is_subscribe:
+                self.subscribe_set.add(stream)
+                self.unsubscribe_set.remove(stream)
+            else:
+                self.subscribe_set.remove(stream)
+                self.unsubscribe_set.add(stream)
+        except Exception as ex:
+            print(ex)
+        return
+        
+    def subscribe(self):
+        set_to_list = list(self.subscribe_set)
         data = json.dumps({"method": "SUBSCRIBE", "params": set_to_list, 'id': self._default_socket_id})
         self.send(data)
+    
+    def unsubscribe(self):
+        set_to_list = list(self.unsubscribe_set)
+        data = json.dumps({"method": "UNSUBSCRIBE", "params": set_to_list, 'id': self._unsub_id})
+        self.send(data)
+        
+    def subscribe_orderbook(self, symbol):
+        debugger.debug('BinanceSubscriber::: subscribe_orderbook')
+        stream = Urls.Websocket.SELECTED_BOOK_TICKER.format(symbol=symbol)
 
-    def unsubscribe_orderbook(self):
+        self.switching_parameters(stream, is_subscribe=True)
+
+        self.subscribe()
+
+    def unsubscribe_orderbook(self, symbol):
         debugger.debug('BinanceSubscriber::: unsubscribe_orderbook')
-        self.symbol_set.remove(Urls.Websocket.ALL_BOOK_TICKER)
+        stream = Urls.Websocket.SELECTED_BOOK_TICKER.format(symbol=symbol)
+        self.switching_parameters(stream, is_subscribe=False)
 
-        self.set_subscribe()
+        self.unsubscribe()
 
     def unsubscribe_candle(self, symbol):
         debugger.debug('BinanceSubscriber::: unsubscribe_candle')
         stream = Urls.Websocket.CANDLE.format(symbol=symbol, interval=self.time)
-        self._candle_symbol_set.remove(stream)
-        self.set_subscribe()
-
-    def subscribe_orderbook(self):
-        debugger.debug('BinanceSubscriber::: subscribe_orderbook')
-        self.symbol_set.add(Urls.Websocket.ALL_BOOK_TICKER)
-    
-        self.set_subscribe()
+        self.switching_parameters(stream, is_subscribe=False)
+        
+        self.unsubscribe()
 
     def subscribe_candle(self, symbol):
         debugger.debug('BinanceSubscriber::: subscribe_candle')
         stream = Urls.Websocket.CANDLE.format(symbol=symbol, interval=self.time)
-        self._candle_symbol_set.add(stream)
-        self.set_subscribe()
+        self.switching_parameters(stream, is_subscribe=True)
+        
+        self.subscribe()
 
     def on_message(self, message):
         try:
-            data = json.loads(message.decode())
+            print(message)
+            data = json.loads(message)
             if 'result' not in data:
-                if data in 'orderbook':
+                if 'b' in data and 'B' in data:
                     self.orderbook_receiver(data)
                 else:
                     self.candle_receiver(data)
@@ -158,8 +155,8 @@ class BinanceSubscriber(websocket.WebSocketApp):
 
     def orderbook_receiver(self, data):
         with self._lock_dic['orderbook']:
-            data = data.get('data', None)
             symbol = data['s']
+            self._temp_orderbook_store.setdefault(symbol, list())
         
             self._temp_orderbook_store[symbol].append(dict(
                 bids=dict(price=data['b'], amount=data['B']),
@@ -172,9 +169,9 @@ class BinanceSubscriber(websocket.WebSocketApp):
 
     def candle_receiver(self, data):
         with self._lock_dic['orderbook']:
-            data = data.get('data', None)
-            symbol = data['s']
             kline = data['k']
+            symbol = kline['s']
+            self._temp_candle_store.setdefault(symbol, list())
             self._temp_candle_store[symbol].append(dict(
                 high=kline['h'],
                 low=kline['l'],
@@ -183,7 +180,7 @@ class BinanceSubscriber(websocket.WebSocketApp):
                 timestamp=kline['t'],
                 volume=kline['v']
             ))
-            if len(self._temp_orderbook_store[symbol]) >= 100:
+            if len(self._temp_candle_store[symbol]) >= 100:
                 self.data_store.candle_queue[symbol] = self._temp_candle_store[symbol]
                 self._temp_candle_store[symbol] = list()
 

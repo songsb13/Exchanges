@@ -1,6 +1,9 @@
-import unittest
 from Exchanges.binance import binance
+from Exchanges.objects import DataStore
+
+import unittest
 import asyncio
+import threading
 import time
 
 
@@ -89,3 +92,35 @@ class TestNotification(unittest.TestCase):
     def test_servertime(self):
         servertime_result = self.exchange
         print(time.time() - float(servertime_result.data))
+
+
+class BinanceSocketTest(unittest.TestCase):
+    symbol_set = ['ethbtc', 'xrpbtc']
+    symbol = 'btcusdt'
+    
+    @classmethod
+    def setUpClass(cls):
+        cls.exchange = binance.BinanceSubscriber(
+            DataStore(),
+            dict(orderbook=threading.Lock(), candle=threading.Lock())
+        )
+        
+    def test_subscribe_orderbook(self):
+        self.orderbook_subscriber = threading.Thread(target=self.exchange.run_forever, daemon=True)
+        self.orderbook_subscriber.start()
+        time.sleep(1)
+        self.exchange.subscribe_orderbook(self.symbol)
+        time.sleep(10)
+        self.exchange.unsubscribe_orderbook(self.symbol)
+        
+        for _ in range(60):
+            time.sleep(1)
+            
+    def test_subscribe_candle(self):
+        self.candle_subscriber = threading.Thread(target=self.exchange.run_forever, daemon=True)
+        self.candle_subscriber.start()
+        time.sleep(1)
+        self.exchange.subscribe_candle(self.symbol)
+
+        for _ in range(60):
+            time.sleep(1)
