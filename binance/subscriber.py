@@ -10,59 +10,6 @@ from Util.pyinstaller_patch import *
 from Exchanges.binance.setting import Urls
 
 
-# class Receiver(threading.Thread):
-#     def __init__(self, store_queue, params, _id, symbol_set, lock):
-#         super(Receiver, self).__init__()
-#         self.store_queue = store_queue
-#         self._temp_queue = {symbol.upper(): list() for symbol in symbol_set}
-#         self._params = params
-#         self.lock = lock
-#
-#         path = Urls.Websocket.SINGLE if len(params) == 1 else Urls.Websocket.STREAMS
-#         self._url = Urls.Websocket.BASE + path + '/'.join(params)
-#
-#         self._id = _id
-#
-#         self.stop_flag = False
-#
-#         self._symbol_set = symbol_set
-#
-#         self.websocket_app = create_connection(self._url)
-#
-#     def subscribe(self):
-#         json_ = json.dumps({"method": "SUBSCRIBE", "params": self._params, 'id': self._id})
-#
-#         self.websocket_app.send(json_)
-#
-#     def unsubscribe(self, params=None):
-#         if params is None:
-#             # 차후 별개의 값들이 unsubscribe되어야 할 때
-#             json_ = {"method": "UNSUBSCRIBE", "params": self._params, 'id': self._id}
-#             self.websocket_app.send(json_)
-#
-#     def run(self):
-#         while not self.stop_flag:
-#             try:
-#                 if self._id == Tickets.ORDERBOOK.value:
-#                     self.orderbook_receiver()
-#                 elif self._id == Tickets.CANDLE.value:
-#                     self.candle_receiver()
-#
-#             except WebSocketConnectionClosedException:
-#                 debugger.debug('Disconnected orderbook websocket.')
-#                 self.stop()
-#                 raise WebSocketConnectionClosedException
-#
-#             except Exception as ex:
-#                 debugger.exception('Unexpected error from Websocket thread.')
-#                 self.stop()
-#                 raise ex
-#
-#     def stop(self):
-#         self.websocket_app.close()
-#         self.stop_flag = True
-#
-
 class BinanceSubscriber(websocket.WebSocketApp):
     def __init__(self, data_store, lock_dic):
         """

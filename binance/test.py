@@ -124,3 +124,16 @@ class BinanceSocketTest(unittest.TestCase):
 
         for _ in range(60):
             time.sleep(1)
+    
+    def test_subscribe_mix(self):
+        self.subscriber = threading.Thread(target=self.exchange.run_forever, daemon=True)
+        self.subscriber.start()
+        time.sleep(1)
+        self.exchange.subscribe_candle(self.symbol)
+        time.sleep(10)
+        
+        self.exchange.subscribe_orderbook(self.symbol)
+        
+        for _ in range(60):
+            time.sleep(1)
+
