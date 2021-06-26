@@ -4,6 +4,7 @@ import websocket
 from websocket import WebSocketConnectionClosedException
 from Util.pyinstaller_patch import *
 from enum import Enum
+from Exchanges.upbit.setting import UpbitConsts
 
 
 class Tickets(Enum):
@@ -32,10 +33,10 @@ class UpbitSubscriber(websocket.WebSocketApp):
         self.stop_flag = False
         self._lock_dic = lock_dic
     
-        self._candle_symbol_set = list()
-        self._orderbook_symbol_set = list()
+        self._candle_symbol_set = set()
+        self._orderbook_symbol_set = set()
         self._temp_orderbook_store = dict()
-        self._temp_candle_store = list()
+        self._temp_candle_store = dict()
         
         self.subscribe_set = dict()
     
@@ -54,71 +55,74 @@ class UpbitSubscriber(websocket.WebSocketApp):
             self.unsubscribe_candle()
             self.subscribe_candle()
 
-    def add_orderbook_symbol_set(self, value):
-        reset = False
-        if isinstance(list, value):
-            if not value.difference(set(self._orderbook_symbol_set)):
-                self._orderbook_symbol_set += value
-                reset = True
-        elif isinstance(str, value):
-            if value not in self._orderbook_symbol_set:
-                self._orderbook_symbol_set.append(value)
-                reset = True
-                
-        if reset is True:
-            self.unsubscribe_orderbook()
-            self.subscribe_orderbook()
-        
     def stop(self):
         self.stop_flag = True
     
-    def set_subscribe(self):
+    def remove_contents(self, symbol, symbol_set, type_):
+        try:
+            symbol_set.remove(symbol)
+            if not symbol_set:
+                self.subscribe_set.pop(type_)
+        except Exception as ex:
+            print(ex)
+
+    def send_with_subscribe_set(self):
         data = list()
         for key, item in self.subscribe_set.items():
             data += self.subscribe_set[key]
         
         self.send(json.dumps(data))
-
-    def unsubscribe_orderbook(self):
-        debugger.debug('UpbitSubscriber::: unsubscribe_orderbook')
-
-        self.subscribe_set.pop('orderbook')
         
-        self.set_subscribe()
-
-    def unsubscribe_candle(self):
-        debugger.debug('UpbitSubscriber::: unsubscribe_candle')
-        self.subscribe_set.pop('candle')
-
-        self.set_subscribe()
-
-    def subscribe_orderbook(self):
+    def subscribe_orderbook(self, symbol):
         debugger.debug('UpbitSubscriber::: subscribe_orderbook')
-        self.subscribe_set['orderbook'] = [{"ticket": "{}".format(Tickets.ORDERBOOK.value)},
-                                           {"type": 'orderbook', "codes": self._orderbook_symbol_set, "isOnlyRealtime": True}]
+        self._orderbook_symbol_set.add(symbol)
         
-        self.set_subscribe()
+        self.subscribe_set.setdefault(UpbitConsts.ORDERBOOK, list())
+        
+        self.subscribe_set[UpbitConsts.ORDERBOOK] = [{"ticket": "{}".format(Tickets.ORDERBOOK.value)},
+                                                     {"type": UpbitConsts.ORDERBOOK,
+                                                      "codes": list(self._orderbook_symbol_set),
+                                                      "isOnlyRealtime": True}]
     
-    def subscribe_candle(self):
-        debugger.debug('UpbitSubscriber::: subscribe_candle')
-        self.subscribe_set['candle'] = [{"ticket": "{}".format(Tickets.CANDLE.value)},
-                                        {"type": 'ticker', "codes": self._candle_symbol_set}]
+        self.send_with_subscribe_set()
 
-        self.set_subscribe()
+    def unsubscribe_orderbook(self, symbol):
+        debugger.debug('UpbitSubscriber::: unsubscribe_orderbook')
+        
+        self.remove_contents(symbol, self._orderbook_symbol_set, UpbitConsts.ORDERBOOK)
+        self.send_with_subscribe_set()
+
+    def subscribe_candle(self, symbol):
+        debugger.debug('UpbitSubscriber::: subscribe_candle')
+        
+        self._candle_symbol_set.add(symbol)
+        self.subscribe_set.setdefault(UpbitConsts.CANDLE, list())
+
+        self.subscribe_set[UpbitConsts.CANDLE] = [{"ticket": "{}".format(Tickets.CANDLE.value)},
+                                                  {"type": UpbitConsts.TICKER, "codes": list(self._candle_symbol_set)}]
+
+        self.send_with_subscribe_set()
+
+    def unsubscribe_candle(self, symbol):
+        debugger.debug('UpbitSubscriber::: unsubscribe_candle')
+        
+        self.remove_contents(symbol, self._candle_symbol_set, UpbitConsts.CANDLE)
+        self.send_with_subscribe_set()
 
     def on_message(self, message):
         try:
+            print(message)
             data = json.loads(message.decode())
             market = data['code']
             type_ = data['type']
             debugger.debug('get message [{}], [{}]'.format(market, type_))
-            if type_ == 'orderbook':
-                with self._lock_dic['orderbook']:
+            if type_ == UpbitConsts.ORDERBOOK:
+                with self._lock_dic[UpbitConsts.ORDERBOOK]:
                     # 1. insert data to temp_orderbook_store if type_ is 'orderbook'
                     # 2. if more than 100 are filled, insert to orderbook_queue for using 'get_curr_avg_orderbook'
                     if market not in self._temp_orderbook_store:
                         self._temp_orderbook_store.setdefault(market, list())
-                        
+                    
                     self._temp_orderbook_store[market] += data['orderbook_units']
 
                     if len(self._temp_orderbook_store[market]) >= 100:
@@ -126,8 +130,8 @@ class UpbitSubscriber(websocket.WebSocketApp):
                         self._temp_orderbook_store[market] = list()
 
                     debugger.debug(self.data_store.orderbook_queue.get(market, None))
-            elif type_ == 'ticker':
-                with self._lock_dic['candle']:
+            elif type_ == UpbitConsts.TICKER:
+                with self._lock_dic[UpbitConsts.CANDLE]:
                     candle = dict(
                         timestamp=data['trade_timestamp'],
                         open=data['opening_price'],
@@ -135,8 +139,10 @@ class UpbitSubscriber(websocket.WebSocketApp):
                         high=data['high_price'],
                         low=data['low_price']
                     )
+                    if market not in self._temp_candle_store:
+                        self._temp_candle_store.setdefault(market, list())
                     self._temp_candle_store[market].append(candle)
-                    if len(self._temp_orderbook_store[market]) >= 100:
+                    if len(self._temp_candle_store[market]) >= 100:
                         self.data_store.candle_queue[market] = self._temp_candle_store[market]
                         self._temp_candle_store[market] = list()
         except WebSocketConnectionClosedException:
