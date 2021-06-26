@@ -90,7 +90,6 @@ class BinanceSubscriber(websocket.WebSocketApp):
 
     def on_message(self, message):
         try:
-            print(message)
             data = json.loads(message)
             if 'result' not in data:
                 if 'b' in data and 'B' in data:
@@ -130,5 +129,3 @@ class BinanceSubscriber(websocket.WebSocketApp):
             if len(self._temp_candle_store[symbol]) >= 100:
                 self.data_store.candle_queue[symbol] = self._temp_candle_store[symbol]
                 self._temp_candle_store[symbol] = list()
-
-
