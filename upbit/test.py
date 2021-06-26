@@ -1,5 +1,8 @@
-import unittest
 from Exchanges.upbit import upbit
+from Exchanges.objects import DataStore
+
+import threading
+import unittest
 import asyncio
 import time
 
@@ -80,3 +83,50 @@ class TestNotification(unittest.TestCase):
     def test_servertime(self):
         servertime_result = self.exchange
         print(time.time() - float(servertime_result.data))
+
+
+class UpbitSocketTest(unittest.TestCase):
+    symbol_set = ['BTC-ETH', 'BTC-XPR']
+    symbol = 'BTC-ETH'
+    
+    @classmethod
+    def setUpClass(cls):
+        cls.exchange = upbit.UpbitSubscriber(
+            DataStore(),
+            dict(orderbook=threading.Lock(), candle=threading.Lock())
+        )
+    
+    def test_subscribe_orderbook(self):
+        self.orderbook_subscriber = threading.Thread(target=self.exchange.run_forever, daemon=True)
+        self.orderbook_subscriber.start()
+        time.sleep(1)
+        self.exchange.subscribe_orderbook(self.symbol)
+        time.sleep(10)
+        self.exchange.unsubscribe_orderbook(self.symbol)
+        
+        for _ in range(60):
+            time.sleep(1)
+    
+    def test_subscribe_candle(self):
+        self.candle_subscriber = threading.Thread(target=self.exchange.run_forever, daemon=True)
+        self.candle_subscriber.start()
+        time.sleep(1)
+        self.exchange.subscribe_candle(self.symbol)
+        time.sleep(10)
+        self.exchange.unsubscribe_candle(self.symbol)
+        
+        for _ in range(60):
+            time.sleep(1)
+    
+    def test_subscribe_mix(self):
+        self.subscriber = threading.Thread(target=self.exchange.run_forever, daemon=True)
+        self.subscriber.start()
+        time.sleep(1)
+        self.exchange.subscribe_candle(self.symbol)
+        time.sleep(30)
+        
+        self.exchange.subscribe_orderbook(self.symbol)
+        
+        for _ in range(60):
+            time.sleep(1)
+

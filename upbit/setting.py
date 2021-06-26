@@ -19,3 +19,9 @@ class Urls(object):
     ACCOUNT = '/accounts'
     ORDERBOOK = '/orderbook'
     DEPOSIT_ADDRESS = '/v1/deposits/coin_addresses'
+    
+
+class UpbitConsts(object):
+    CANDLE = 'candle'
+    ORDERBOOK = 'orderbook'
+    TICKER = 'ticker'
