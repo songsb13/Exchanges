@@ -106,20 +106,34 @@ class BaseUpbit(BaseExchange):
         res = list()
         return [res.append(data['market']) for data in currencies if not currencies['market'] in res]
 
+    def set_subscribe_candle(self, symbol):
+        """
+            subscribe candle.
+            symbol: it can be list or string, [BTC-XRP, BTC-ETH] or 'BTC-XRP'
+        """
+        with self._lock_dic['candle']:
+            self._subscriber.subscribe_candle(symbol)
+
+            return True
+
+    def set_subscribe_orderbook(self, symbol):
+        """
+            subscribe orderbook.
+            symbol: it can be list or string, [BTC-XRP, BTC-ETH] or 'BTC-XRP'
+        """
+        with self._lock_dic['orderbook']:
+            self._subscriber.subscribe_orderbook(symbol)
+
     def get_candle(self, coin):
         with self._lock_dic['candle']:
             if not self.data_store.candle_queue:
                 return ExchangeResult(False, message=WarningMsg.CANDLE_NOT_STORED.format(name=self.name), wait_time=1)
 
             result = self.data_store.candle_queue.get(coin, None)
-
             if result is None:
-                self._subscriber.subscribe_candle(coin)
+                return ExchangeResult(False, message=WarningMsg.CANDLE_NOT_STORED.format(name=self.name), wait_time=1)
+            return ExchangeResult(True, result)
 
-            result_dict = self.data_store.candle_queue
-            
-            return ExchangeResult(True, result_dict)
-        
     def service_currencies(self, currencies):
         # using deposit_addrs
         res = list()
