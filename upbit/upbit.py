@@ -105,14 +105,17 @@ class BaseUpbit(BaseExchange):
     def get_currencies(self, currencies):
         res = list()
         return [res.append(data['market']) for data in currencies if not currencies['market'] in res]
-    
+
     def get_candle(self, coin):
         with self._lock_dic['candle']:
-            self._subscriber.add_candle_symbol_set(coin)
-            
             if not self.data_store.candle_queue:
                 return ExchangeResult(False, message=WarningMsg.CANDLE_NOT_STORED.format(name=self.name), wait_time=1)
-            
+
+            result = self.data_store.candle_queue.get(coin, None)
+
+            if result is None:
+                self._subscriber.subscribe_candle(coin)
+
             result_dict = self.data_store.candle_queue
             
             return ExchangeResult(True, result_dict)

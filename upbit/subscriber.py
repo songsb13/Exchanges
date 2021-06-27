@@ -58,11 +58,15 @@ class UpbitSubscriber(websocket.WebSocketApp):
         
         self.send(json.dumps(data))
         
-    def subscribe_orderbook(self, symbol):
+    def subscribe_orderbook(self, value):
         debugger.debug('UpbitSubscriber::: subscribe_orderbook')
-        self._orderbook_symbol_set.add(symbol)
-        
-        self.subscribe_set.setdefault(UpbitConsts.ORDERBOOK, list())
+        if isinstance(list, value):
+            self._orderbook_symbol_set.union(set(value))
+        elif isinstance(str, value):
+            self._orderbook_symbol_set.add(value)
+
+        if UpbitConsts.ORDERBOOK not in self.subscribe_set:
+            self.subscribe_set.setdefault(UpbitConsts.ORDERBOOK, list())
         
         self.subscribe_set[UpbitConsts.ORDERBOOK] = [{"ticket": "{}".format(Tickets.ORDERBOOK.value)},
                                                      {"type": UpbitConsts.ORDERBOOK,
@@ -77,11 +81,15 @@ class UpbitSubscriber(websocket.WebSocketApp):
         self.remove_contents(symbol, self._orderbook_symbol_set, UpbitConsts.ORDERBOOK)
         self.send_with_subscribe_set()
 
-    def subscribe_candle(self, symbol):
+    def subscribe_candle(self, value):
         debugger.debug('UpbitSubscriber::: subscribe_candle')
-        
-        self._candle_symbol_set.add(symbol)
-        self.subscribe_set.setdefault(UpbitConsts.CANDLE, list())
+        if isinstance(list, value):
+            self._candle_symbol_set.union(set(value))
+        elif isinstance(str, value):
+            self._candle_symbol_set.add(value)
+
+        if UpbitConsts.CANDLE not in self.subscribe_set:
+            self.subscribe_set.setdefault(UpbitConsts.CANDLE, list())
 
         self.subscribe_set[UpbitConsts.CANDLE] = [{"ticket": "{}".format(Tickets.CANDLE.value)},
                                                   {"type": UpbitConsts.TICKER, "codes": list(self._candle_symbol_set)}]
