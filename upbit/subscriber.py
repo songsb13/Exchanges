@@ -39,21 +39,6 @@ class UpbitSubscriber(websocket.WebSocketApp):
         self._temp_candle_store = dict()
         
         self.subscribe_set = dict()
-    
-    def add_candle_symbol_set(self, value):
-        reset = False
-        if isinstance(list, value):
-            if not value.difference(set(self._candle_symbol_set)):
-                self._candle_symbol_set = self._candle_symbol_set.union(set(value))
-                reset = True
-        elif isinstance(str, value):
-            if value not in self._candle_symbol_set:
-                self._candle_symbol_set.add(value)
-                reset = True
-    
-        if reset is True:
-            self.unsubscribe_candle()
-            self.subscribe_candle()
 
     def stop(self):
         self.stop_flag = True
