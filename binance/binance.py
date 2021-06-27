@@ -242,9 +242,24 @@ class Binance(BaseExchange):
 
         return self._private_api(Consts.POST, Urls.WITHDRAW, params)
 
+    def set_subscribe_candle(self, coin):
+        """
+            subscribe candle.
+            coin: it can be list or string, [BTC-XRP, BTC-ETH] or 'BTC-XRP'
+        """
+        with self._lock_dic['candle']:
+            self._subscriber.subscribe_candle(coin)
+
+    def set_subscribe_orderbook(self, coin):
+        """
+            subscribe candle.
+            coin: it can be list or string, [BTC-XRP, BTC-ETH] or 'BTC-XRP'
+        """
+        with self._lock_dic['orderbook']:
+            self._subscriber.subscribe_orderbook(coin)
+
     def get_candle(self, coin):
         with self._lock_dic['candle']:
-            self._subscriber.add_candle_symbol_set(coin)
             candle_dict = self.data_store.candle_queue
         
             if not candle_dict:

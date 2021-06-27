@@ -59,11 +59,15 @@ class BinanceSubscriber(websocket.WebSocketApp):
         data = json.dumps({"method": "UNSUBSCRIBE", "params": set_to_list, 'id': self._unsub_id})
         self.send(data)
         
-    def subscribe_orderbook(self, symbol):
+    def subscribe_orderbook(self, value):
         debugger.debug('BinanceSubscriber::: subscribe_orderbook')
-        stream = Urls.Websocket.SELECTED_BOOK_TICKER.format(symbol=symbol)
-
-        self.switching_parameters(stream, is_subscribe=True)
+        if isinstance(list, value):
+            for val in value:
+                stream = Urls.Websocket.SELECTED_BOOK_TICKER.format(symbol=val)
+                self.switching_parameters(stream, is_subscribe=True)
+        elif isinstance(str, value):
+            stream = Urls.Websocket.SELECTED_BOOK_TICKER.format(symbol=value)
+            self.switching_parameters(stream, is_subscribe=True)
 
         self.subscribe()
 
@@ -74,19 +78,24 @@ class BinanceSubscriber(websocket.WebSocketApp):
 
         self.unsubscribe()
 
+    def subscribe_candle(self, value):
+        debugger.debug('BinanceSubscriber::: subscribe_candle')
+        if isinstance(list, value):
+            for val in value:
+                stream = Urls.Websocket.CANDLE.format(symbol=val, interval=self.time)
+                self.switching_parameters(stream, is_subscribe=True)
+        elif isinstance(str, value):
+            stream = Urls.Websocket.CANDLE.format(symbol=value, interval=self.time)
+            self.switching_parameters(stream, is_subscribe=True)
+
+        self.subscribe()
+
     def unsubscribe_candle(self, symbol):
         debugger.debug('BinanceSubscriber::: unsubscribe_candle')
         stream = Urls.Websocket.CANDLE.format(symbol=symbol, interval=self.time)
         self.switching_parameters(stream, is_subscribe=False)
         
         self.unsubscribe()
-
-    def subscribe_candle(self, symbol):
-        debugger.debug('BinanceSubscriber::: subscribe_candle')
-        stream = Urls.Websocket.CANDLE.format(symbol=symbol, interval=self.time)
-        self.switching_parameters(stream, is_subscribe=True)
-        
-        self.subscribe()
 
     def on_message(self, message):
         try:
