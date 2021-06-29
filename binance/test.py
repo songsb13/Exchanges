@@ -109,7 +109,7 @@ class BinanceSocketTest(unittest.TestCase):
         self.orderbook_subscriber = threading.Thread(target=self.exchange.run_forever, daemon=True)
         self.orderbook_subscriber.start()
         time.sleep(1)
-        self.exchange.subscribe_orderbook(self.symbol)
+        self.exchange.subscribe_orderbook(self.symbol_set)
         time.sleep(10)
         self.exchange.unsubscribe_orderbook(self.symbol)
         
@@ -120,7 +120,7 @@ class BinanceSocketTest(unittest.TestCase):
         self.candle_subscriber = threading.Thread(target=self.exchange.run_forever, daemon=True)
         self.candle_subscriber.start()
         time.sleep(1)
-        self.exchange.subscribe_candle(self.symbol)
+        self.exchange.subscribe_candle(self.symbol_set)
 
         for _ in range(60):
             time.sleep(1)
@@ -129,10 +129,8 @@ class BinanceSocketTest(unittest.TestCase):
         self.subscriber = threading.Thread(target=self.exchange.run_forever, daemon=True)
         self.subscriber.start()
         time.sleep(1)
-        self.exchange.subscribe_candle(self.symbol)
+        self.exchange.subscribe_candle(self.symbol_set)
         time.sleep(10)
-        
-        self.exchange.subscribe_orderbook(self.symbol)
         
         for _ in range(60):
             time.sleep(1)

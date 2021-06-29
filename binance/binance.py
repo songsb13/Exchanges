@@ -245,28 +245,27 @@ class Binance(BaseExchange):
     def set_subscribe_candle(self, coin):
         """
             subscribe candle.
-            coin: it can be list or string, [BTC-XRP, BTC-ETH] or 'BTC-XRP'
+            coin: it can be list or string, [xrpbtc, ethbtc] or 'xrpbtc'
         """
         with self._lock_dic['candle']:
             self._subscriber.subscribe_candle(coin)
 
     def set_subscribe_orderbook(self, coin):
         """
-            subscribe candle.
-            coin: it can be list or string, [BTC-XRP, BTC-ETH] or 'BTC-XRP'
+            subscribe orderbook.
+            coin: it can be list or string, [xrpbtc, ethbtc] or 'xrpbtc'
         """
         with self._lock_dic['orderbook']:
             self._subscriber.subscribe_orderbook(coin)
 
     def get_candle(self, coin):
         with self._lock_dic['candle']:
-            candle_dict = self.data_store.candle_queue
+            candle_dict = self.data_store.candle_queue.get(coin, None)
         
             if not candle_dict:
                 return ExchangeResult(False, message=WarningMessage.CANDLE_NOT_STORED.format(name=self.name), wait_time=1)
-        
+            
             rows = ['timestamp', 'open', 'close', 'high', 'low', 'volume']
-        
             result_dict = dict()
             for symbol, candle_list in candle_dict.items():
                 history = {key_: list() for key_ in rows}
@@ -497,7 +496,7 @@ class Binance(BaseExchange):
     async def get_curr_avg_orderbook(self, coin_list, btc_sum=1):
         try:
             pairs = [(self._symbol_localizing(pair.split('_')[1]) + pair.split('_')[0]).lower()
-                     for pair in self._coin_list]
+                     for pair in coin_list]
                 
             if not self.data_store.orderbook_queue:
                 return ExchangeResult(False, message=WarningMessage.ORDERBOOK_NOT_STORED.format(name=self.name), wait_time=1)

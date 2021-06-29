@@ -61,11 +61,11 @@ class BinanceSubscriber(websocket.WebSocketApp):
         
     def subscribe_orderbook(self, value):
         debugger.debug('BinanceSubscriber::: subscribe_orderbook')
-        if isinstance(list, value):
+        if isinstance(value, list):
             for val in value:
                 stream = Urls.Websocket.SELECTED_BOOK_TICKER.format(symbol=val)
                 self.switching_parameters(stream, is_subscribe=True)
-        elif isinstance(str, value):
+        elif isinstance(value, str):
             stream = Urls.Websocket.SELECTED_BOOK_TICKER.format(symbol=value)
             self.switching_parameters(stream, is_subscribe=True)
 
@@ -80,11 +80,11 @@ class BinanceSubscriber(websocket.WebSocketApp):
 
     def subscribe_candle(self, value):
         debugger.debug('BinanceSubscriber::: subscribe_candle')
-        if isinstance(list, value):
+        if isinstance(value, list):
             for val in value:
                 stream = Urls.Websocket.CANDLE.format(symbol=val, interval=self.time)
                 self.switching_parameters(stream, is_subscribe=True)
-        elif isinstance(str, value):
+        elif isinstance(value, str):
             stream = Urls.Websocket.CANDLE.format(symbol=value, interval=self.time)
             self.switching_parameters(stream, is_subscribe=True)
 
@@ -99,6 +99,7 @@ class BinanceSubscriber(websocket.WebSocketApp):
 
     def on_message(self, message):
         try:
+            print(message)
             data = json.loads(message)
             if 'result' not in data:
                 if 'b' in data and 'B' in data:
