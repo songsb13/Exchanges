@@ -20,6 +20,9 @@ class Urls(object):
     ORDERBOOK = '/orderbook'
     DEPOSIT_ADDRESS = '/v1/deposits/coin_addresses'
     
+    class Websocket(object):
+        BASE = 'wss://api.upbit.com/websocket/v1'
+        
 
 class UpbitConsts(object):
     CANDLE = 'candle'

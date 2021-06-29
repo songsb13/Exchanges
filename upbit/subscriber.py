@@ -4,7 +4,7 @@ import websocket
 from websocket import WebSocketConnectionClosedException
 from Util.pyinstaller_patch import *
 from enum import Enum
-from Exchanges.upbit.setting import UpbitConsts
+from Exchanges.upbit.setting import UpbitConsts, Urls
 
 
 class Tickets(Enum):
@@ -25,8 +25,7 @@ class UpbitSubscriber(websocket.WebSocketApp):
         """
         debugger.debug('UpbitSubscriber::: start')
 
-        url = 'wss://api.upbit.com/websocket/v1'
-        super(UpbitSubscriber, self).__init__(url, on_message=self.on_message)
+        super(UpbitSubscriber, self).__init__(Urls.Websocket.BASE, on_message=self.on_message)
         
         self.data_store = data_store
         self.name = 'upbit_subscriber'
