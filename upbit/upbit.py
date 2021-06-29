@@ -126,9 +126,6 @@ class BaseUpbit(BaseExchange):
 
     def get_candle(self, coin):
         with self._lock_dic['candle']:
-            if not self.data_store.candle_queue:
-                return ExchangeResult(False, message=WarningMsg.CANDLE_NOT_STORED.format(name=self.name), wait_time=1)
-
             result = self.data_store.candle_queue.get(coin, None)
             if result is None:
                 return ExchangeResult(False, message=WarningMsg.CANDLE_NOT_STORED.format(name=self.name), wait_time=1)
@@ -258,7 +255,6 @@ class BaseUpbit(BaseExchange):
     
     async def get_curr_avg_orderbook(self, coin_list, btc_sum=1):
         with self._lock_dic['orderbook']:
-            self._subscriber.add_orderbook_symbol_set(coin_list)
             data_dic = self.data_store.orderbook_queue
             
             if not self.data_store.orderbook_queue:
