@@ -86,47 +86,38 @@ class TestNotification(unittest.TestCase):
 
 
 class UpbitSocketTest(unittest.TestCase):
-    symbol_set = ['BTC-ETH', 'BTC-XPR']
-    symbol = 'BTC-ETH'
+    symbol_set = ['BTC_ETH', 'BTC_XRP']
+    symbol = 'BTC_ETH'
     
     @classmethod
     def setUpClass(cls):
-        cls.exchange = upbit.UpbitSubscriber(
-            DataStore(),
-            dict(orderbook=threading.Lock(), candle=threading.Lock())
+        cls.exchange = upbit.BaseUpbit(
+            key='qfbl7FNHhPbXgGhJVSDaoJMxXcJnphhDoDLnugNk4QI ',
+            secret='wIvD1OOUYMxXONNB7biRjUtltTDY9hcD1BlFO6IqVx6'
         )
-    
+
     def test_subscribe_orderbook(self):
-        self.orderbook_subscriber = threading.Thread(target=self.exchange.run_forever, daemon=True)
-        self.orderbook_subscriber.start()
         time.sleep(1)
-        self.exchange.subscribe_orderbook(self.symbol)
-        time.sleep(10)
-        self.exchange.unsubscribe_orderbook(self.symbol)
-        
-        for _ in range(60):
+
+        self.exchange.set_subscribe_orderbook(self.symbol)
+
+        for _ in range(20):
             time.sleep(1)
-    
+
     def test_subscribe_candle(self):
-        self.candle_subscriber = threading.Thread(target=self.exchange.run_forever, daemon=True)
-        self.candle_subscriber.start()
         time.sleep(1)
-        self.exchange.subscribe_candle(self.symbol)
-        time.sleep(10)
-        self.exchange.unsubscribe_candle(self.symbol)
-        
-        for _ in range(60):
+
+        self.exchange.set_subscribe_candle(self.symbol_set)
+
+        for _ in range(20):
             time.sleep(1)
     
     def test_subscribe_mix(self):
-        self.subscriber = threading.Thread(target=self.exchange.run_forever, daemon=True)
-        self.subscriber.start()
         time.sleep(1)
-        self.exchange.subscribe_candle(self.symbol)
-        time.sleep(30)
-        
-        self.exchange.subscribe_orderbook(self.symbol)
-        
-        for _ in range(60):
+
+        self.exchange.set_subscribe_orderbook(self.symbol_set)
+        time.sleep(1)
+        self.exchange.set_subscribe_candle(self.symbol)
+        for _ in range(20):
             time.sleep(1)
 
