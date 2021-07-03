@@ -5,6 +5,7 @@ from websocket import WebSocketConnectionClosedException
 from Util.pyinstaller_patch import *
 from enum import Enum
 from Exchanges.upbit.setting import UpbitConsts, Urls
+from Exchanges.settings import Consts
 
 
 class Tickets(Enum):
@@ -125,7 +126,7 @@ class UpbitSubscriber(websocket.WebSocketApp):
                     
                     self._temp_orderbook_store[market] += data['orderbook_units']
 
-                    if len(self._temp_orderbook_store[market]) >= 100:
+                    if len(self._temp_orderbook_store[market]) >= Consts.ORDERBOOK_LIMITATION:
                         self.data_store.orderbook_queue[market] = self._temp_orderbook_store
                         self._temp_orderbook_store[market] = list()
 
@@ -142,7 +143,7 @@ class UpbitSubscriber(websocket.WebSocketApp):
                     if market not in self._temp_candle_store:
                         self._temp_candle_store.setdefault(market, list())
                     self._temp_candle_store[market].append(candle)
-                    if len(self._temp_candle_store[market]) >= 100:
+                    if len(self._temp_candle_store[market]) >= Consts.CANDLE_LIMITATION:
                         self.data_store.candle_queue[market] = self._temp_candle_store[market]
                         self._temp_candle_store[market] = list()
         except WebSocketConnectionClosedException:

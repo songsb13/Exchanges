@@ -8,6 +8,7 @@ import websocket
 
 from Util.pyinstaller_patch import *
 from Exchanges.binance.setting import Urls
+from Exchanges.settings import Consts
 
 
 class BinanceSubscriber(websocket.WebSocketApp):
@@ -126,7 +127,7 @@ class BinanceSubscriber(websocket.WebSocketApp):
                 asks=dict(price=data['a'], amount=data['A'])
             ))
         
-            if len(self._temp_orderbook_store[symbol]) >= 20:
+            if len(self._temp_orderbook_store[symbol]) >= Consts.ORDERBOOK_LIMITATION:
                 self.data_store.orderbook_queue[symbol] = self._temp_orderbook_store[symbol]
                 self._temp_orderbook_store[symbol] = list()
 
@@ -143,6 +144,6 @@ class BinanceSubscriber(websocket.WebSocketApp):
                 timestamp=kline['t'],
                 volume=kline['v']
             ))
-            if len(self._temp_candle_store[symbol]) >= 100:
+            if len(self._temp_candle_store[symbol]) >= Consts.CANDLE_LIMITATION:
                 self.data_store.candle_queue[symbol] = self._temp_candle_store[symbol]
                 self._temp_candle_store[symbol] = list()
