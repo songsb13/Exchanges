@@ -36,10 +36,6 @@ class BaseUpbit(BaseExchange):
         self._lock_dic = dict(orderbook=threading.Lock(), candle=threading.Lock())
         
         self._subscriber = UpbitSubscriber(self.data_store, self._lock_dic)
-    
-    def start_socket_thread(self):
-        self.subscribe_thread = threading.Thread(target=self._subscriber.run_forever, daemon=True)
-        self.subscribe_thread.start()
 
     def _public_api(self, path, extra=None):
         if extra is None:
@@ -111,8 +107,10 @@ class BaseUpbit(BaseExchange):
             subscribe candle.
             symbol: it can be list or string, [BTC-XRP, BTC-ETH] or 'BTC-XRP'
         """
+        result = list(map(sai_to_upbit_symbol_converter, symbol)) if isinstance(symbol, list) \
+            else sai_to_upbit_symbol_converter(symbol)
         with self._lock_dic['candle']:
-            self._subscriber.subscribe_candle(symbol)
+            self._subscriber.subscribe_candle(result)
 
             return True
 
@@ -121,8 +119,12 @@ class BaseUpbit(BaseExchange):
             subscribe orderbook.
             symbol: it can be list or string, [BTC-XRP, BTC-ETH] or 'BTC-XRP'
         """
+        result = list(map(sai_to_upbit_symbol_converter, symbol)) if isinstance(symbol, list) \
+            else sai_to_upbit_symbol_converter(symbol)
         with self._lock_dic['orderbook']:
-            self._subscriber.subscribe_orderbook(symbol)
+            self._subscriber.subscribe_orderbook(result)
+
+            return True
 
     def get_candle(self, coin):
         with self._lock_dic['candle']:
