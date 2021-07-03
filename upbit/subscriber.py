@@ -49,11 +49,9 @@ class UpbitSubscriber(websocket.WebSocketApp):
     def stop(self):
         self.stop_flag = True
     
-    def remove_contents(self, symbol, symbol_set, type_):
+    def remove_contents(self, symbol, symbol_set):
         try:
             symbol_set.remove(symbol)
-            if not symbol_set:
-                self.subscribe_set.pop(type_)
         except Exception as ex:
             print(ex)
 
@@ -84,8 +82,8 @@ class UpbitSubscriber(websocket.WebSocketApp):
     def unsubscribe_orderbook(self, symbol):
         debugger.debug('UpbitSubscriber::: unsubscribe_orderbook')
         
-        self.remove_contents(symbol, self._orderbook_symbol_set, UpbitConsts.ORDERBOOK)
-        self.send_with_subscribe_set()
+        self.remove_contents(symbol, self._orderbook_symbol_set)
+        self.subscribe_orderbook(symbol)
 
     def subscribe_candle(self, value):
         debugger.debug('UpbitSubscriber::: subscribe_candle')
@@ -105,8 +103,8 @@ class UpbitSubscriber(websocket.WebSocketApp):
     def unsubscribe_candle(self, symbol):
         debugger.debug('UpbitSubscriber::: unsubscribe_candle')
         
-        self.remove_contents(symbol, self._candle_symbol_set, UpbitConsts.CANDLE)
-        self.send_with_subscribe_set()
+        self.remove_contents(symbol, self._candle_symbol_set)
+        self.subscribe_candle(symbol)
 
     def on_message(self, *args):
         print(*args)
