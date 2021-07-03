@@ -95,43 +95,33 @@ class TestNotification(unittest.TestCase):
 
 
 class BinanceSocketTest(unittest.TestCase):
-    symbol_set = ['ethbtc', 'xrpbtc']
-    symbol = 'btcusdt'
+    symbol_set = ['BTC_XRP', 'BTC_ETH']
+    symbol = 'BTC_ADA'
     
     @classmethod
     def setUpClass(cls):
-        cls.exchange = binance.BinanceSubscriber(
-            DataStore(),
-            dict(orderbook=threading.Lock(), candle=threading.Lock())
+        cls.exchange = binance.Binance(
+            'oYQYru6IvzCgxSFaCRdRQyKCHfpUQEEujZAxJsCw5LEjuR7D2F8S7pIGxrN9u2lB ',
+            '4WcKtsR88UqGMyYUuKVb7XZlo0adfr8z3eOtZZm4mRWaWTfJTc4prLcZ29Ti8zXl'
         )
-        
+
     def test_subscribe_orderbook(self):
-        self.orderbook_subscriber = threading.Thread(target=self.exchange.run_forever, daemon=True)
-        self.orderbook_subscriber.start()
-        time.sleep(1)
-        self.exchange.subscribe_orderbook(self.symbol_set)
-        time.sleep(10)
-        self.exchange.unsubscribe_orderbook(self.symbol)
-        
+        self.exchange.set_subscribe_orderbook(self.symbol)
         for _ in range(60):
             time.sleep(1)
             
     def test_subscribe_candle(self):
-        self.candle_subscriber = threading.Thread(target=self.exchange.run_forever, daemon=True)
+        self.candle_subscriber = threading.Thread(target=self.binance_server.run_forever, daemon=True)
         self.candle_subscriber.start()
         time.sleep(1)
-        self.exchange.subscribe_candle(self.symbol_set)
 
         for _ in range(60):
             time.sleep(1)
     
     def test_subscribe_mix(self):
-        self.subscriber = threading.Thread(target=self.exchange.run_forever, daemon=True)
+        self.subscriber = threading.Thread(target=self.binance_server.run_forever, daemon=True)
         self.subscriber.start()
         time.sleep(1)
-        self.exchange.subscribe_candle(self.symbol_set)
-        time.sleep(10)
-        
         for _ in range(60):
             time.sleep(1)
 
