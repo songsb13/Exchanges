@@ -34,6 +34,13 @@ class BinanceSubscriber(websocket.WebSocketApp):
         self._temp_orderbook_store = dict()
         self._temp_candle_store = dict()
 
+        self.start_run_forever_thread()
+
+    def start_run_forever_thread(self):
+        debugger.debug('start binance run forever')
+        self.subscribe_thread = threading.Thread(target=self.run_forever, daemon=True)
+        self.subscribe_thread.start()
+
     def stop(self):
         self.stop_flag = True
     
@@ -97,9 +104,9 @@ class BinanceSubscriber(websocket.WebSocketApp):
         
         self.unsubscribe()
 
-    def on_message(self, message):
+    def on_message(self, *args):
+        obj_, message = args
         try:
-            print(message)
             data = json.loads(message)
             if 'result' not in data:
                 if 'b' in data and 'B' in data:
