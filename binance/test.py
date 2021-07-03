@@ -95,7 +95,7 @@ class TestNotification(unittest.TestCase):
 
 
 class BinanceSocketTest(unittest.TestCase):
-    symbol_set = ['BTC_XRP', 'BTC_ETH']
+    symbol_set = ['BTC_XRP', 'BTC_ETH', 'BTC_ADA']
     symbol = 'BTC_ADA'
     
     @classmethod

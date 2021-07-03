@@ -37,7 +37,7 @@ class BinanceSubscriber(websocket.WebSocketApp):
         self.start_run_forever_thread()
 
     def start_run_forever_thread(self):
-        debugger.debug('start binance run forever')
+        debugger.debug('BinanceSubscriber::: start_run_forever_thread')
         self.subscribe_thread = threading.Thread(target=self.run_forever, daemon=True)
         self.subscribe_thread.start()
 
