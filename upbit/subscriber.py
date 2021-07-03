@@ -39,6 +39,13 @@ class UpbitSubscriber(websocket.WebSocketApp):
         
         self.subscribe_set = dict()
 
+        self.start_run_forever_thread()
+
+    def start_run_forever_thread(self):
+        debugger.debug('start upbit run forever')
+        self.subscribe_thread = threading.Thread(target=self.run_forever, daemon=True)
+        self.subscribe_thread.start()
+
     def stop(self):
         self.stop_flag = True
     
@@ -60,7 +67,7 @@ class UpbitSubscriber(websocket.WebSocketApp):
     def subscribe_orderbook(self, value):
         debugger.debug('UpbitSubscriber::: subscribe_orderbook')
         if isinstance(value, list):
-            self._orderbook_symbol_set.union(set(value))
+            self._orderbook_symbol_set = self._orderbook_symbol_set.union(set(value))
         elif isinstance(value, str):
             self._orderbook_symbol_set.add(value)
 
@@ -83,7 +90,7 @@ class UpbitSubscriber(websocket.WebSocketApp):
     def subscribe_candle(self, value):
         debugger.debug('UpbitSubscriber::: subscribe_candle')
         if isinstance(value, list):
-            self._candle_symbol_set.union(set(value))
+            self._candle_symbol_set = self._candle_symbol_set.union(set(value))
         elif isinstance(value, str):
             self._candle_symbol_set.add(value)
 
@@ -101,7 +108,10 @@ class UpbitSubscriber(websocket.WebSocketApp):
         self.remove_contents(symbol, self._candle_symbol_set, UpbitConsts.CANDLE)
         self.send_with_subscribe_set()
 
-    def on_message(self, message):
+    def on_message(self, *args):
+        print(*args)
+
+        obj_, message = args
         try:
             print(message)
             data = json.loads(message.decode())
