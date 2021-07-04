@@ -54,7 +54,7 @@ class UpbitSubscriber(websocket.WebSocketApp):
         try:
             symbol_set.remove(symbol)
         except Exception as ex:
-            print(ex)
+            debugger.debug('UpbitSubscriber::: remove error, [{}]'.format(ex))
 
     def send_with_subscribe_set(self):
         data = list()

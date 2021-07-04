@@ -54,7 +54,7 @@ class BinanceSubscriber(websocket.WebSocketApp):
                 self.subscribe_set.remove(stream)
                 self.unsubscribe_set.add(stream)
         except Exception as ex:
-            print(ex)
+            debugger.debug('BinanceSubscriber::: switching_parameters error, [{}]'.format(ex))
         return
         
     def subscribe(self):
@@ -115,7 +115,7 @@ class BinanceSubscriber(websocket.WebSocketApp):
                 else:
                     self.candle_receiver(data)
         except Exception as ex:
-            print(ex)
+            debugger.debug('BinanceSubscriber::: on_message error, [{}]'.format(ex))
 
     def orderbook_receiver(self, data):
         with self._lock_dic['orderbook']:
