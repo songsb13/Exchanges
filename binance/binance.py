@@ -243,10 +243,10 @@ class Binance(BaseExchange):
             subscribe candle.
             coin: it can be list or string, [xrpbtc, ethbtc] or 'xrpbtc'
         """
-        result = list(map(sai_to_binance_converter, coin)) if isinstance(coin, list) \
+        coin = list(map(sai_to_binance_converter, coin)) if isinstance(coin, list) \
             else sai_to_binance_converter(coin)
         with self._lock_dic['candle']:
-            self._subscriber.subscribe_candle(result)
+            self._subscriber.subscribe_candle(coin)
 
         return True
 
@@ -256,10 +256,10 @@ class Binance(BaseExchange):
             coin: it can be list or string, [xrpbtc, ethbtc] or 'xrpbtc'
         """
 
-        result = list(map(sai_to_binance_converter, coin)) if isinstance(coin, list) \
+        coin = list(map(sai_to_binance_converter, coin)) if isinstance(coin, list) \
             else sai_to_binance_converter(coin)
         with self._lock_dic['orderbook']:
-            self._subscriber.subscribe_orderbook(result)
+            self._subscriber.subscribe_orderbook(coin)
 
         return True
 

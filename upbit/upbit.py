@@ -107,10 +107,10 @@ class BaseUpbit(BaseExchange):
             subscribe candle.
             symbol: it can be list or string, [BTC-XRP, BTC-ETH] or 'BTC-XRP'
         """
-        result = list(map(sai_to_upbit_symbol_converter, symbol)) if isinstance(symbol, list) \
+        coin = list(map(sai_to_upbit_symbol_converter, symbol)) if isinstance(symbol, list) \
             else sai_to_upbit_symbol_converter(symbol)
         with self._lock_dic['candle']:
-            self._subscriber.subscribe_candle(result)
+            self._subscriber.subscribe_candle(coin)
 
         return True
 
@@ -119,10 +119,10 @@ class BaseUpbit(BaseExchange):
             subscribe orderbook.
             symbol: it can be list or string, [BTC-XRP, BTC-ETH] or 'BTC-XRP'
         """
-        result = list(map(sai_to_upbit_symbol_converter, symbol)) if isinstance(symbol, list) \
+        coin = list(map(sai_to_upbit_symbol_converter, symbol)) if isinstance(symbol, list) \
             else sai_to_upbit_symbol_converter(symbol)
         with self._lock_dic['orderbook']:
-            self._subscriber.subscribe_orderbook(result)
+            self._subscriber.subscribe_orderbook(coin)
 
         return True
 
