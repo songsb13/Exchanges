@@ -112,7 +112,7 @@ class BaseUpbit(BaseExchange):
         with self._lock_dic['candle']:
             self._subscriber.subscribe_candle(result)
 
-            return True
+        return True
 
     def set_subscribe_orderbook(self, symbol):
         """
@@ -124,7 +124,7 @@ class BaseUpbit(BaseExchange):
         with self._lock_dic['orderbook']:
             self._subscriber.subscribe_orderbook(result)
 
-            return True
+        return True
 
     def get_candle(self, coin):
         with self._lock_dic['candle']:
