@@ -4,7 +4,7 @@ import websocket
 from websocket import WebSocketConnectionClosedException
 from Util.pyinstaller_patch import *
 from enum import Enum
-from Exchanges.upbit.setting import UpbitConsts, Urls
+from Exchanges.upbit.setting import Urls
 from Exchanges.settings import Consts
 
 
@@ -70,11 +70,11 @@ class UpbitSubscriber(websocket.WebSocketApp):
         elif isinstance(value, str):
             self._orderbook_symbol_set.add(value)
 
-        if UpbitConsts.ORDERBOOK not in self.subscribe_set:
-            self.subscribe_set.setdefault(UpbitConsts.ORDERBOOK, list())
+        if Consts.ORDERBOOK not in self.subscribe_set:
+            self.subscribe_set.setdefault(Consts.ORDERBOOK, list())
         
-        self.subscribe_set[UpbitConsts.ORDERBOOK] = [{"ticket": "{}".format(Tickets.ORDERBOOK.value)},
-                                                     {"type": UpbitConsts.ORDERBOOK,
+        self.subscribe_set[Consts.ORDERBOOK] = [{"ticket": "{}".format(Tickets.ORDERBOOK.value)},
+                                                     {"type": Consts.ORDERBOOK,
                                                       "codes": list(self._orderbook_symbol_set),
                                                       "isOnlyRealtime": True}]
     
@@ -93,11 +93,11 @@ class UpbitSubscriber(websocket.WebSocketApp):
         elif isinstance(value, str):
             self._candle_symbol_set.add(value)
 
-        if UpbitConsts.CANDLE not in self.subscribe_set:
-            self.subscribe_set.setdefault(UpbitConsts.CANDLE, list())
+        if Consts.CANDLE not in self.subscribe_set:
+            self.subscribe_set.setdefault(Consts.CANDLE, list())
 
-        self.subscribe_set[UpbitConsts.CANDLE] = [{"ticket": "{}".format(Tickets.CANDLE.value)},
-                                                  {"type": UpbitConsts.TICKER, "codes": list(self._candle_symbol_set)}]
+        self.subscribe_set[Consts.CANDLE] = [{"ticket": "{}".format(Tickets.CANDLE.value)},
+                                                  {"type": Consts.TICKER, "codes": list(self._candle_symbol_set)}]
 
         self._send_with_subscribe_set()
 
@@ -112,9 +112,9 @@ class UpbitSubscriber(websocket.WebSocketApp):
         try:
             data = json.loads(message.decode())
             type_ = data['type']
-            if type_ == UpbitConsts.ORDERBOOK:
+            if type_ == Consts.ORDERBOOK:
                 self.orderbook_receiver(data)
-            elif type_ == UpbitConsts.TICKER:
+            elif type_ == Consts.TICKER:
                 self.candle_receiver(data)
         except WebSocketConnectionClosedException:
             debugger.debug('Disconnected orderbook websocket.')
@@ -127,7 +127,7 @@ class UpbitSubscriber(websocket.WebSocketApp):
             raise ex
 
     def orderbook_receiver(self, data):
-        with self._lock_dic[UpbitConsts.ORDERBOOK]:
+        with self._lock_dic[Consts.ORDERBOOK]:
             market = data['code']
             # 1. insert data to temp_orderbook_store if type_ is 'orderbook'
             # 2. if more than 100 are filled, insert to orderbook_queue for using 'get_curr_avg_orderbook'
@@ -141,7 +141,7 @@ class UpbitSubscriber(websocket.WebSocketApp):
                 self._temp_orderbook_store[market] = list()
     
     def candle_receiver(self, data):
-        with self._lock_dic[UpbitConsts.CANDLE]:
+        with self._lock_dic[Consts.CANDLE]:
             market = data['code']
             candle = dict(
                 timestamp=data['trade_timestamp'],

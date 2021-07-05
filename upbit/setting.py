@@ -22,9 +22,3 @@ class Urls(object):
     
     class Websocket(object):
         BASE = 'wss://api.upbit.com/websocket/v1'
-        
-
-class UpbitConsts(object):
-    CANDLE = 'candle'
-    ORDERBOOK = 'orderbook'
-    TICKER = 'ticker'

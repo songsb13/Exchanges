@@ -21,3 +21,7 @@ class Consts(object):
     
     CANDLE_LIMITATION = 100
     ORDERBOOK_LIMITATION = 20
+    
+    CANDLE = 'candle'
+    ORDERBOOK = 'orderbook'
+    TICKER = 'ticker'
