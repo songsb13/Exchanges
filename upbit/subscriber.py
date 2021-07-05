@@ -50,13 +50,13 @@ class UpbitSubscriber(websocket.WebSocketApp):
     def stop(self):
         self.stop_flag = True
     
-    def remove_contents(self, symbol, symbol_set):
+    def _remove_contents(self, symbol, symbol_set):
         try:
             symbol_set.remove(symbol)
         except Exception as ex:
             debugger.debug('UpbitSubscriber::: remove error, [{}]'.format(ex))
 
-    def send_with_subscribe_set(self):
+    def _send_with_subscribe_set(self):
         data = list()
         for key, item in self.subscribe_set.items():
             data += self.subscribe_set[key]
@@ -78,12 +78,12 @@ class UpbitSubscriber(websocket.WebSocketApp):
                                                       "codes": list(self._orderbook_symbol_set),
                                                       "isOnlyRealtime": True}]
     
-        self.send_with_subscribe_set()
+        self._send_with_subscribe_set()
 
     def unsubscribe_orderbook(self, symbol):
         debugger.debug('UpbitSubscriber::: unsubscribe_orderbook')
         
-        self.remove_contents(symbol, self._orderbook_symbol_set)
+        self._remove_contents(symbol, self._orderbook_symbol_set)
         self.subscribe_orderbook(symbol)
 
     def subscribe_candle(self, value):
@@ -99,12 +99,12 @@ class UpbitSubscriber(websocket.WebSocketApp):
         self.subscribe_set[UpbitConsts.CANDLE] = [{"ticket": "{}".format(Tickets.CANDLE.value)},
                                                   {"type": UpbitConsts.TICKER, "codes": list(self._candle_symbol_set)}]
 
-        self.send_with_subscribe_set()
+        self._send_with_subscribe_set()
 
     def unsubscribe_candle(self, symbol):
         debugger.debug('UpbitSubscriber::: unsubscribe_candle')
         
-        self.remove_contents(symbol, self._candle_symbol_set)
+        self._remove_contents(symbol, self._candle_symbol_set)
         self.subscribe_candle(symbol)
 
     def on_message(self, *args):

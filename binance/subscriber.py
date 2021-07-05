@@ -45,7 +45,7 @@ class BinanceSubscriber(websocket.WebSocketApp):
     def stop(self):
         self.stop_flag = True
     
-    def switching_parameters(self, stream, is_subscribe=True):
+    def _switching_parameters(self, stream, is_subscribe=True):
         try:
             if is_subscribe:
                 self.subscribe_set.add(stream)
@@ -54,7 +54,7 @@ class BinanceSubscriber(websocket.WebSocketApp):
                 self.subscribe_set.remove(stream)
                 self.unsubscribe_set.add(stream)
         except Exception as ex:
-            debugger.debug('BinanceSubscriber::: switching_parameters error, [{}]'.format(ex))
+            debugger.debug('BinanceSubscriber::: _switching_parameters error, [{}]'.format(ex))
         return
         
     def subscribe(self):
@@ -72,17 +72,17 @@ class BinanceSubscriber(websocket.WebSocketApp):
         if isinstance(value, list):
             for val in value:
                 stream = Urls.Websocket.SELECTED_BOOK_TICKER.format(symbol=val)
-                self.switching_parameters(stream, is_subscribe=True)
+                self._switching_parameters(stream, is_subscribe=True)
         elif isinstance(value, str):
             stream = Urls.Websocket.SELECTED_BOOK_TICKER.format(symbol=value)
-            self.switching_parameters(stream, is_subscribe=True)
+            self._switching_parameters(stream, is_subscribe=True)
 
         self.subscribe()
 
     def unsubscribe_orderbook(self, symbol):
         debugger.debug('BinanceSubscriber::: unsubscribe_orderbook')
         stream = Urls.Websocket.SELECTED_BOOK_TICKER.format(symbol=symbol)
-        self.switching_parameters(stream, is_subscribe=False)
+        self._switching_parameters(stream, is_subscribe=False)
 
         self.unsubscribe()
 
@@ -91,17 +91,17 @@ class BinanceSubscriber(websocket.WebSocketApp):
         if isinstance(value, list):
             for val in value:
                 stream = Urls.Websocket.CANDLE.format(symbol=val, interval=self.time)
-                self.switching_parameters(stream, is_subscribe=True)
+                self._switching_parameters(stream, is_subscribe=True)
         elif isinstance(value, str):
             stream = Urls.Websocket.CANDLE.format(symbol=value, interval=self.time)
-            self.switching_parameters(stream, is_subscribe=True)
+            self._switching_parameters(stream, is_subscribe=True)
 
         self.subscribe()
 
     def unsubscribe_candle(self, symbol):
         debugger.debug('BinanceSubscriber::: unsubscribe_candle')
         stream = Urls.Websocket.CANDLE.format(symbol=symbol, interval=self.time)
-        self.switching_parameters(stream, is_subscribe=False)
+        self._switching_parameters(stream, is_subscribe=False)
         
         self.unsubscribe()
 
