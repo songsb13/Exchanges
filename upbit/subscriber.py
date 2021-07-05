@@ -65,7 +65,7 @@ class UpbitSubscriber(websocket.WebSocketApp):
     
     def subscribe_orderbook(self, value):
         debugger.debug('UpbitSubscriber::: subscribe_orderbook')
-        if isinstance(value, list):
+        if isinstance(value, (list, tuple, set)):
             self._orderbook_symbol_set = self._orderbook_symbol_set.union(set(value))
         elif isinstance(value, str):
             self._orderbook_symbol_set.add(value)
@@ -88,7 +88,7 @@ class UpbitSubscriber(websocket.WebSocketApp):
 
     def subscribe_candle(self, value):
         debugger.debug('UpbitSubscriber::: subscribe_candle')
-        if isinstance(value, list):
+        if isinstance(value, (list, tuple, set)):
             self._candle_symbol_set = self._candle_symbol_set.union(set(value))
         elif isinstance(value, str):
             self._candle_symbol_set.add(value)
