@@ -33,7 +33,10 @@ class BaseUpbit(BaseExchange):
         self._secret = secret
         self.data_store = DataStore()
         
-        self._lock_dic = dict(orderbook=threading.Lock(), candle=threading.Lock())
+        self._lock_dic = {
+            Consts.ORDERBOOK: threading.Lock(),
+            Consts.CANDLE: threading.Lock()
+        }
         
         self._subscriber = UpbitSubscriber(self.data_store, self._lock_dic)
 

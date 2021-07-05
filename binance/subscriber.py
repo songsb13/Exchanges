@@ -118,7 +118,7 @@ class BinanceSubscriber(websocket.WebSocketApp):
             debugger.debug('BinanceSubscriber::: on_message error, [{}]'.format(ex))
 
     def orderbook_receiver(self, data):
-        with self._lock_dic['orderbook']:
+        with self._lock_dic[Consts.ORDERBOOK]:
             symbol = data['s']
             self._temp_orderbook_store.setdefault(symbol, list())
         
@@ -132,7 +132,7 @@ class BinanceSubscriber(websocket.WebSocketApp):
                 self._temp_orderbook_store[symbol] = list()
 
     def candle_receiver(self, data):
-        with self._lock_dic['orderbook']:
+        with self._lock_dic[Consts.CANDLE]:
             kline = data['k']
             symbol = kline['s']
             self._temp_candle_store.setdefault(symbol, list())

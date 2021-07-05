@@ -35,7 +35,10 @@ class Binance(BaseExchange):
         self._get_exchange_info()
         self.data_store = DataStore()
         
-        self._lock_dic = dict(orderbook=threading.Lock(), candle=threading.Lock())
+        self._lock_dic = {
+            Consts.ORDERBOOK: threading.Lock(),
+            Consts.CANDLE: threading.Lock()
+        }
         
         self._subscriber = BinanceSubscriber(self.data_store, self._lock_dic)
 
