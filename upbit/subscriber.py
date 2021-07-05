@@ -42,14 +42,6 @@ class UpbitSubscriber(websocket.WebSocketApp):
 
         self.start_run_forever_thread()
 
-    def start_run_forever_thread(self):
-        debugger.debug('UpbitSubscriber::: start_run_forever_thread')
-        self.subscribe_thread = threading.Thread(target=self.run_forever, daemon=True)
-        self.subscribe_thread.start()
-
-    def stop(self):
-        self.stop_flag = True
-    
     def _remove_contents(self, symbol, symbol_set):
         try:
             symbol_set.remove(symbol)
@@ -60,9 +52,17 @@ class UpbitSubscriber(websocket.WebSocketApp):
         data = list()
         for key, item in self.subscribe_set.items():
             data += self.subscribe_set[key]
-        
+    
         self.send(json.dumps(data))
-        
+
+    def start_run_forever_thread(self):
+        debugger.debug('UpbitSubscriber::: start_run_forever_thread')
+        self.subscribe_thread = threading.Thread(target=self.run_forever, daemon=True)
+        self.subscribe_thread.start()
+
+    def stop(self):
+        self.stop_flag = True
+    
     def subscribe_orderbook(self, value):
         debugger.debug('UpbitSubscriber::: subscribe_orderbook')
         if isinstance(value, list):
@@ -108,44 +108,14 @@ class UpbitSubscriber(websocket.WebSocketApp):
         self.subscribe_candle(symbol)
 
     def on_message(self, *args):
-        print(*args)
-
         obj_, message = args
         try:
-            print(message)
             data = json.loads(message.decode())
-            market = data['code']
             type_ = data['type']
-            debugger.debug('get message [{}], [{}]'.format(market, type_))
             if type_ == UpbitConsts.ORDERBOOK:
-                with self._lock_dic[UpbitConsts.ORDERBOOK]:
-                    # 1. insert data to temp_orderbook_store if type_ is 'orderbook'
-                    # 2. if more than 100 are filled, insert to orderbook_queue for using 'get_curr_avg_orderbook'
-                    if market not in self._temp_orderbook_store:
-                        self._temp_orderbook_store.setdefault(market, list())
-                    
-                    self._temp_orderbook_store[market] += data['orderbook_units']
-
-                    if len(self._temp_orderbook_store[market]) >= Consts.ORDERBOOK_LIMITATION:
-                        self.data_store.orderbook_queue[market] = self._temp_orderbook_store
-                        self._temp_orderbook_store[market] = list()
-
-                    debugger.debug(self.data_store.orderbook_queue.get(market, None))
+                self.orderbook_receiver(data)
             elif type_ == UpbitConsts.TICKER:
-                with self._lock_dic[UpbitConsts.CANDLE]:
-                    candle = dict(
-                        timestamp=data['trade_timestamp'],
-                        open=data['opening_price'],
-                        close=data['trade_price'],
-                        high=data['high_price'],
-                        low=data['low_price']
-                    )
-                    if market not in self._temp_candle_store:
-                        self._temp_candle_store.setdefault(market, list())
-                    self._temp_candle_store[market].append(candle)
-                    if len(self._temp_candle_store[market]) >= Consts.CANDLE_LIMITATION:
-                        self.data_store.candle_queue[market] = self._temp_candle_store[market]
-                        self._temp_candle_store[market] = list()
+                self.candle_receiver(data)
         except WebSocketConnectionClosedException:
             debugger.debug('Disconnected orderbook websocket.')
             self.stop_flag = True
@@ -156,3 +126,33 @@ class UpbitSubscriber(websocket.WebSocketApp):
             self.stop_flag = True
             raise ex
 
+    def orderbook_receiver(self, data):
+        with self._lock_dic[UpbitConsts.ORDERBOOK]:
+            market = data['code']
+            # 1. insert data to temp_orderbook_store if type_ is 'orderbook'
+            # 2. if more than 100 are filled, insert to orderbook_queue for using 'get_curr_avg_orderbook'
+            if market not in self._temp_orderbook_store:
+                self._temp_orderbook_store.setdefault(market, list())
+        
+            self._temp_orderbook_store[market] += data['orderbook_units']
+        
+            if len(self._temp_orderbook_store[market]) >= Consts.ORDERBOOK_LIMITATION:
+                self.data_store.orderbook_queue[market] = self._temp_orderbook_store
+                self._temp_orderbook_store[market] = list()
+    
+    def candle_receiver(self, data):
+        with self._lock_dic[UpbitConsts.CANDLE]:
+            market = data['code']
+            candle = dict(
+                timestamp=data['trade_timestamp'],
+                open=data['opening_price'],
+                close=data['trade_price'],
+                high=data['high_price'],
+                low=data['low_price']
+            )
+            if market not in self._temp_candle_store:
+                self._temp_candle_store.setdefault(market, list())
+            self._temp_candle_store[market].append(candle)
+            if len(self._temp_candle_store[market]) >= Consts.CANDLE_LIMITATION:
+                self.data_store.candle_queue[market] = self._temp_candle_store[market]
+                self._temp_candle_store[market] = list()
