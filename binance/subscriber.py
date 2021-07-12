@@ -113,6 +113,8 @@ class BinanceSubscriber(websocket.WebSocketApp):
         try:
             data = json.loads(message)
             if 'result' not in data:
+                # b: orderbook's price
+                # B: orderbook's amount
                 if 'b' in data and 'B' in data:
                     self.orderbook_receiver(data)
                 else:
