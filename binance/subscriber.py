@@ -10,6 +10,8 @@ from Util.pyinstaller_patch import *
 from Exchanges.binance.setting import Urls
 from Exchanges.settings import Consts
 
+from threading import Event
+
 
 class BinanceSubscriber(websocket.WebSocketApp):
     def __init__(self, data_store, lock_dic):
@@ -27,7 +29,8 @@ class BinanceSubscriber(websocket.WebSocketApp):
         self.time = '30m'
         self._default_socket_id = 1
         self._unsub_id = 2
-        self.stop_flag = False
+        self._evt = Event()
+        self._evt.set()
         self._lock_dic = lock_dic
         
         self.subscribe_set = set()
@@ -65,7 +68,7 @@ class BinanceSubscriber(websocket.WebSocketApp):
         self.subscribe_thread.start()
 
     def stop(self):
-        self.stop_flag = True
+        self._evt.clear()
     
     def subscribe_orderbook(self, value):
         debugger.debug('BinanceSubscriber::: subscribe_orderbook')

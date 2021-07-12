@@ -7,6 +7,8 @@ from enum import Enum
 from Exchanges.upbit.setting import Urls
 from Exchanges.settings import Consts
 
+from threading import Event
+
 
 class Tickets(Enum):
     """
@@ -30,7 +32,8 @@ class UpbitSubscriber(websocket.WebSocketApp):
         
         self.data_store = data_store
         self.name = 'upbit_subscriber'
-        self.stop_flag = False
+        self._evt = Event()
+        self._evt.set()
         self._lock_dic = lock_dic
     
         self._candle_symbol_set = set()
@@ -61,7 +64,7 @@ class UpbitSubscriber(websocket.WebSocketApp):
         self.subscribe_thread.start()
 
     def stop(self):
-        self.stop_flag = True
+        self._evt.clear()
     
     def subscribe_orderbook(self, value):
         debugger.debug('UpbitSubscriber::: subscribe_orderbook')
@@ -118,12 +121,12 @@ class UpbitSubscriber(websocket.WebSocketApp):
                 self.candle_receiver(data)
         except WebSocketConnectionClosedException:
             debugger.debug('Disconnected orderbook websocket.')
-            self.stop_flag = True
+            self.stop()
             raise WebSocketConnectionClosedException
     
         except Exception as ex:
             debugger.exception('Unexpected error from Websocket thread.')
-            self.stop_flag = True
+            self.stop()
             raise ex
 
     def orderbook_receiver(self, data):
