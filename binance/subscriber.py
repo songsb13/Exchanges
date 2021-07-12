@@ -76,9 +76,6 @@ class BinanceSubscriber(websocket.WebSocketApp):
             for val in value:
                 stream = Urls.Websocket.SELECTED_BOOK_TICKER.format(symbol=val)
                 self._switching_parameters(stream, is_subscribe=True)
-        elif isinstance(value, str):
-            stream = Urls.Websocket.SELECTED_BOOK_TICKER.format(symbol=value)
-            self._switching_parameters(stream, is_subscribe=True)
 
         self._subscribe()
 
@@ -95,9 +92,6 @@ class BinanceSubscriber(websocket.WebSocketApp):
             for val in value:
                 stream = Urls.Websocket.CANDLE.format(symbol=val, interval=self.time)
                 self._switching_parameters(stream, is_subscribe=True)
-        elif isinstance(value, str):
-            stream = Urls.Websocket.CANDLE.format(symbol=value, interval=self.time)
-            self._switching_parameters(stream, is_subscribe=True)
 
         self._subscribe()
 
