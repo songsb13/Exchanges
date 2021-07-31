@@ -32,8 +32,6 @@ class UpbitSubscriber(websocket.WebSocketApp):
         
         self.data_store = data_store
         self.name = 'upbit_subscriber'
-        self._evt = Event()
-        self._evt.set()
         self._lock_dic = lock_dic
     
         self._candle_symbol_set = set()
@@ -64,12 +62,13 @@ class UpbitSubscriber(websocket.WebSocketApp):
         self.subscribe_thread.start()
 
     def stop(self):
-        self._evt.clear()
+        self._evt = Event()
+        self._evt.set()
     
-    def subscribe_orderbook(self, value):
+    def subscribe_orderbook(self, values):
         debugger.debug('UpbitSubscriber::: subscribe_orderbook')
-        if isinstance(value, (list, tuple, set)):
-            self._orderbook_symbol_set = self._orderbook_symbol_set.union(set(value))
+        if isinstance(values, (list, tuple, set)):
+            self._orderbook_symbol_set = self._orderbook_symbol_set.union(set(values))
 
         if Consts.ORDERBOOK not in self.subscribe_set:
             self.subscribe_set.setdefault(Consts.ORDERBOOK, list())
@@ -87,10 +86,10 @@ class UpbitSubscriber(websocket.WebSocketApp):
         self._remove_contents(symbol, self._orderbook_symbol_set)
         self.subscribe_orderbook(symbol)
 
-    def subscribe_candle(self, value):
+    def subscribe_candle(self, values):
         debugger.debug('UpbitSubscriber::: subscribe_candle')
-        if isinstance(value, (list, tuple, set)):
-            self._candle_symbol_set = self._candle_symbol_set.union(set(value))
+        if isinstance(values, (list, tuple, set)):
+            self._candle_symbol_set = self._candle_symbol_set.union(set(values))
 
         if Consts.CANDLE not in self.subscribe_set:
             self.subscribe_set.setdefault(Consts.CANDLE, list())
