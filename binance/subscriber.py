@@ -29,8 +29,6 @@ class BinanceSubscriber(websocket.WebSocketApp):
         self.time = '30m'
         self._default_socket_id = 1
         self._unsub_id = 2
-        self._evt = Event()
-        self._evt.set()
         self._lock_dic = lock_dic
         
         self.subscribe_set = set()
@@ -68,12 +66,13 @@ class BinanceSubscriber(websocket.WebSocketApp):
         self.subscribe_thread.start()
 
     def stop(self):
-        self._evt.clear()
-    
-    def subscribe_orderbook(self, value):
+        self._evt = Event()
+        self._evt.set()
+
+    def subscribe_orderbook(self, values):
         debugger.debug('BinanceSubscriber::: subscribe_orderbook')
-        if isinstance(value, (list, tuple, set)):
-            for val in value:
+        if isinstance(values, (list, tuple, set)):
+            for val in values:
                 stream = Urls.Websocket.SELECTED_BOOK_TICKER.format(symbol=val)
                 self._switching_parameters(stream, is_subscribe=True)
 
@@ -86,10 +85,10 @@ class BinanceSubscriber(websocket.WebSocketApp):
 
         self._unsubscribe()
 
-    def subscribe_candle(self, value):
+    def subscribe_candle(self, values):
         debugger.debug('BinanceSubscriber::: subscribe_candle')
-        if isinstance(value, (list, tuple, set)):
-            for val in value:
+        if isinstance(values, (list, tuple, set)):
+            for val in values:
                 stream = Urls.Websocket.CANDLE.format(symbol=val, interval=self.time)
                 self._switching_parameters(stream, is_subscribe=True)
 
