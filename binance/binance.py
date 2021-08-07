@@ -281,6 +281,21 @@ class Binance(BaseExchange):
     
         return ExchangeResult(True, result_dict)
 
+    def check_order(self, parameter):
+        symbol = parameter['symbol']
+        order_id = parameter['order_id']
+        result = self._private_api(Consts.GET, Urls.ORDER, dict(symbol=symbol, orderId=order_id))
+        data = result.data
+        dict_ = {
+            'side': data['side'],
+            'price': data['price'],
+            'symbol': data['symbol'],
+            'date_created': data['time'],
+            'volume': data['origQty']
+        }
+
+        return dict_
+
     async def _async_private_api(self, method, path, extra=None):
         if extra is None:
             extra = dict()
