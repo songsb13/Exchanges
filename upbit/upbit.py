@@ -172,7 +172,21 @@ class BaseUpbit(BaseExchange):
         alt_amount = alt_amount
         
         return ExchangeResult(True, alt_amount)
-    
+
+    def check_order(self, parameter):
+        uuid = parameter['uuid']
+        result = self._private_api(Consts.GET, Urls.ORDER, dict(uuid=uuid))
+        data = result.data
+        dict_ = {
+            'side': data['side'],
+            'price': data['price'],
+            'market': data['market'],
+            'date_created': data['created_at'],
+            'volume': data['volumne']
+        }
+
+        return dict_
+
     async def async_public_api(self, path, extra=None):
         if extra is None:
             extra = dict()
