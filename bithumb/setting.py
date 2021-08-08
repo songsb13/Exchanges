@@ -17,4 +17,5 @@ class Urls(object):
     ORDERBOOK = '/public/orderbook/{}'
     BALANCE = '/info/balance'
     ACCOUNT = '/info/account'
+    ORDER_DETAIL = '/info/order_detail'
     TRANSACTION_FEE = '/u1/US138'
