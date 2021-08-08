@@ -281,11 +281,8 @@ class Binance(BaseExchange):
     
         return ExchangeResult(True, result_dict)
 
-    def check_order(self, parameter):
-        symbol = parameter['symbol']
-        order_id = parameter['order_id']
-        result = self._private_api(Consts.GET, Urls.ORDER, dict(symbol=symbol, orderId=order_id))
-        data = result.data
+    def check_order(self, data):
+        # binance의 경우 response로 데이터 확인이 가능하다.
         dict_ = {
             'side': data['side'],
             'price': data['price'],
