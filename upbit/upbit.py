@@ -173,7 +173,7 @@ class BaseUpbit(BaseExchange):
         
         return ExchangeResult(True, alt_amount)
 
-    def check_order(self, data):
+    def check_order(self, data, profit_object):
         return data
         # uuid = parameter['uuid']
         # result = self._private_api(Consts.GET, Urls.ORDER, dict(uuid=uuid))
