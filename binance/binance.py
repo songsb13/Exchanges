@@ -282,16 +282,7 @@ class Binance(BaseExchange):
         return ExchangeResult(True, result_dict)
 
     def check_order(self, data):
-        # binance의 경우 response로 데이터 확인이 가능하다.
-        dict_ = {
-            'side': data['side'],
-            'price': data['price'],
-            'symbol': data['symbol'],
-            'date_created': data['time'],
-            'volume': data['origQty']
-        }
-
-        return dict_
+        return data
 
     async def _async_private_api(self, method, path, extra=None):
         if extra is None:
