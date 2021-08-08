@@ -173,10 +173,8 @@ class BaseUpbit(BaseExchange):
         
         return ExchangeResult(True, alt_amount)
 
-    def check_order(self, parameter):
-        uuid = parameter['uuid']
-        result = self._private_api(Consts.GET, Urls.ORDER, dict(uuid=uuid))
-        data = result.data
+    def check_order(self, data):
+        # upbit의 경우 response 값에 모든 데이터가 들어있음
         dict_ = {
             'side': data['side'],
             'price': data['price'],
