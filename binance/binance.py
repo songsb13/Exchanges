@@ -12,9 +12,9 @@ import decimal
 from urllib.parse import urlencode
 from decimal import Decimal, ROUND_DOWN, getcontext
 
-from Exchanges.settings import Consts
+from Exchanges.settings import Consts, BaseMarkets, BaseTradeType
 from Exchanges.messages import WarningMessage, MessageDebug
-from Exchanges.binance.util import sai_to_binance_converter, binance_to_sai_converter
+from Exchanges.binance.util import sai_to_binance_symbol_converter, binance_to_sai_symbol_converter, sai_to_binance_trade_type_converter
 from Exchanges.binance.setting import Urls
 from Exchanges.abstracts import BaseExchange
 from Exchanges.objects import ExchangeResult, DataStore
@@ -115,6 +115,7 @@ class Binance(BaseExchange):
         for _ in range(3):
             result_object = self._public_api(Urls.EXCHANGE_INFO)
             if result_object.success:
+                self.exchange_info = result_object.data
                 break
 
             time.sleep(result_object.wait_time)
@@ -122,22 +123,18 @@ class Binance(BaseExchange):
             return result_object
 
         step_size = dict()
-        for sym in result_object.data['symbols']:
-            symbol = sym['symbol']
-            market_coin = symbol[-3:]
 
-            if 'BTC' in market_coin:
-                trade_coin = symbol[:-3]
-                coin = market_coin + '_' + trade_coin
-
-                step_size.update({
-                    coin: sym['filters'][2]['stepSize']
-                })
+        for each in result_object.data['symbols']:
+            symbol = each['symbol']
+            sai_symbol = binance_to_sai_symbol_converter(symbol)
+            market, coin = sai_symbol.split('_')
+            step_size.update({
+                coin: each['filters'][2]['stepSize']
+            })
 
         self.exchange_info = step_size
-        result_object.data = self.exchange_info
 
-        return result_object
+        return True
 
     def _get_step_size(self, symbol):
         symbol = self._symbol_localizing(symbol)
