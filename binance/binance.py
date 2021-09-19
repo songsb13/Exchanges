@@ -143,6 +143,29 @@ class Binance(BaseExchange):
 
         return ExchangeResult(True, step_size, '', 0)
 
+    def set_lot_sizes(self):
+        lot_size_info = dict()
+        for each in self.exchange_info['symbols']:
+            symbol = each['symbol']
+            filter_data = each['filters']
+            lot_size_info.setdefault(symbol, dict())
+            for filter_ in filter_data:
+                filter_type = filter_['filterType']
+                if filter_type == 'LOT_SIZE':
+                    min_ = Decimal(filter_.get('minQty', int())).quantize(Decimal(10) ** -8)
+                    max_ = Decimal(filter_.get('maxQty', int())).quantize(Decimal(10) ** -8)
+                    step_size = Decimal(filter_.get('stepSize', int())).quantize(Decimal(10) ** -8)
+                    lot_size_info[symbol] = {
+                        'min_quantity': min_,
+                        'max_quantity': max_,
+                        'step_size': step_size
+                    }
+                    break
+        return lot_size_info
+
+    def set_subscriber(self):
+        self._subscriber = BinanceSubscriber(self.data_store, self._lock_dic)
+
     def get_precision(self, pair=None):
         pair = self._symbol_localizing(pair)
 
