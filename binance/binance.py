@@ -335,8 +335,25 @@ class Binance(BaseExchange):
     
         return ExchangeResult(True, result_dict)
 
-    def check_order(self, data, profit_object):
-        return data
+    def get_order_history(self, order_id, symbol):
+        debugger.debug('Binance, get_order_history::: {}, {}'.format(order_id, symbol))
+
+        result = self._private_api(Consts.GET, Urls.ORDER, {'symbol': symbol, 'orderId': order_id})
+
+        if result.success:
+            price_list, amount = list(), int()
+            for each in result.data['fills']:
+                total_price = float(each['price']) * float(each['qty'])
+                price_list.append(total_price)
+
+            avg_price = float(sum(price_list) / len(price_list))
+            additional = {'sai_status': result.data['status'],
+                          'sai_average_price': avg_price,
+                          'sai_amount': amount}
+
+            result.data = additional
+
+        return result
 
     async def _async_private_api(self, method, path, extra=None):
         if extra is None:
