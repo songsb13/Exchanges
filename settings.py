@@ -31,3 +31,9 @@ class BaseMarkets:
     BTC = 'BTC'
     ETH = 'ETH'
     USDT = 'USDT'
+
+
+class BaseTradeType:
+    MARKET = 'market'
+    LIMIT = 'limit'
+    PRICE = 'price'
