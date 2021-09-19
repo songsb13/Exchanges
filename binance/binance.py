@@ -176,27 +176,41 @@ class Binance(BaseExchange):
             return ExchangeResult(False, message=WarningMessage.PRECISION_NOT_FOUND.format(name=self.name), wait_time=60)
 
     def get_available_coin(self):
-        return ExchangeResult(True, list(self.exchange_info.keys()))
+        result = list()
+        for data in self.exchange_info['symbols']:
+            market = data.get('quoteAsset')
+            coin = data.get('baseAsset')
 
-    def buy(self, coin, amount, price=None):
+            if not market or not coin:
+                continue
+
+            result.append('{}_{}'.format(market, coin))
+
+        return result
+
+    def buy(self, symbol, amount, trade_type, price=None):
+        debugger.debug('Binance, buy::: {}, {}, {}'.format(symbol, amount, price))
         params = dict()
-        params['type'] = Consts.MARKET.upper() if price is None else Consts.LIMIT.upper()
 
+        binance_trade_type = sai_to_binance_trade_type_converter(trade_type)
+        binance_symbol = sai_to_binance_symbol_converter(symbol)
         params.update({
-                    'symbol': coin,
+                    'type': binance_trade_type,
+                    'symbol': binance_symbol,
                     'side': 'buy',
                     'quantity': '{0:4f}'.format(amount).strip(),
                   })
 
         return self._private_api(Consts.POST, Urls.ORDER, params)
 
-    def sell(self, coin, amount, price=None):
+    def sell(self, symbol, amount, trade_type, price=None):
+        debugger.debug('Binance, sell::: {}, {}, {}'.format(symbol, amount, price))
         params = dict()
-
-        params['type'] = Consts.MARKET.upper() if price is None else Consts.LIMIT.upper()
-
+        binance_trade_type = sai_to_binance_trade_type_converter(trade_type)
+        binance_symbol = sai_to_binance_symbol_converter(symbol)
         params.update({
-                    'symbol': coin,
+                    'type': binance_trade_type,
+                    'symbol': binance_symbol,
                     'side': 'sell',
                     'quantity': '{}'.format(amount),
                   })
@@ -210,11 +224,10 @@ class Binance(BaseExchange):
         binance_qtz = self._get_step_size(symbol).data[1]
         return Decimal(10) ** -4 if binance_qtz < Decimal(10) ** -4 else binance_qtz
 
-    def base_to_alt(self, currency_pair, btc_amount, alt_amount, td_fee, tx_fee):
-        coin = currency_pair.split('_')[1]
-
-        symbol = binance_to_sai_converter(currency_pair)
-        result_object = self.buy(symbol, alt_amount)
+    def base_to_alt(self, symbol, btc_amount, alt_amount, td_fee, tx_fee):
+        coin = symbol.split('_')[1]
+        binance_symbol = sai_to_binance_symbol_converter(symbol)
+        result_object = self.buy(binance_symbol, alt_amount, BaseTradeType.MARKET)
 
         if result_object.success:
             alt_amount *= 1 - Decimal(td_fee)
@@ -225,10 +238,10 @@ class Binance(BaseExchange):
 
         return result_object
 
-    def alt_to_base(self, currency_pair, btc_amount, alt_amount):
-        symbol = binance_to_sai_converter(currency_pair)
+    def alt_to_base(self, symbol, btc_amount, alt_amount):
+        binance_symbol = binance_to_sai_symbol_converter(symbol)
         for _ in range(10):
-            result_object = self.sell(symbol, alt_amount)
+            result_object = self.sell(binance_symbol, alt_amount, BaseTradeType.MARKET)
 
             if result_object.success:
                 break
