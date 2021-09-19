@@ -221,7 +221,8 @@ class Binance(BaseExchange):
         return 1
 
     def bnc_btm_quantizer(self, symbol):
-        binance_qtz = self._get_step_size(symbol).data[1]
+        binance_symbol = sai_to_binance_symbol_converter(symbol)
+        binance_qtz = self._get_step_size(binance_symbol).data[1]
         return Decimal(10) ** -4 if binance_qtz < Decimal(10) ** -4 else binance_qtz
 
     def base_to_alt(self, symbol, btc_amount, alt_amount, td_fee, tx_fee):
@@ -249,11 +250,12 @@ class Binance(BaseExchange):
 
         return result_object
 
-    def get_ticker(self, market):
-        symbol = binance_to_sai_converter(market)
+    def get_ticker(self, symbol):
+        binance_symbol = binance_to_sai_symbol_converter(symbol)
         for _ in range(3):
-            result_object = self._public_api(Urls.TICKER, {'symbol': symbol})
+            result_object = self._public_api(Urls.TICKER, {'symbol': binance_symbol})
             if result_object.success:
+                result_object.data = {'sai_price': result_object.data[0]['trade_price']}
                 break
         time.sleep(result_object.wait_time)
 
@@ -409,25 +411,21 @@ class Binance(BaseExchange):
 
         return result_object
 
-    async def _get_orderbook(self, symbol):
-        for _ in range(3):
-            result_object = await self._async_public_api(Urls.ORDERBOOK, {'symbol': symbol})
-            if result_object.success:
-                break
-            time.sleep(result_object.wait_time)
+    async def get_deposit_addrs(self, symbol_list=None):
+        debugger.debug('Binance::: get_deposit_addrs')
 
-        return result_object
+        if symbol_list is None:
+            symbol_list = list(self.exchange_info.keys())
 
-    async def get_deposit_addrs(self, coin_list=None):
-        if coin_list is None:
-            coin_list = list(self.exchange_info.keys())
-            
+        for data in self.exchange_info['symbols']:
+            if data['baseAsset'] not in symbol_list:
+                if data['status'] == 'TRADING':
+                    symbol_list.append(data['baseAsset'])
+
         try:
             result_message = str()
             return_deposit_dict = dict()
-            coin_list.append('BTC_BTC')
-
-            for symbol in coin_list:
+            for symbol in symbol_list:
                 base_, coin = symbol.split('_')
                 coin = self._symbol_customizing(coin)
 
@@ -441,10 +439,13 @@ class Binance(BaseExchange):
                     result_message += '[{}]해당 코인은 점검 중입니다.\n'.format(coin)
                     continue
                 
-                return_deposit_dict[coin] = get_deposit_result_object.data['address']
+                address = get_deposit_result_object.data.get('address')
+                if address:
+                    return_deposit_dict[coin] = address
 
+                address_tag = get_deposit_result_object.data.get('tag')
                 if 'addressTag' in get_deposit_result_object.data:
-                    return_deposit_dict[coin + 'TAG'] = get_deposit_result_object.data['addressTag']
+                    return_deposit_dict[coin + 'TAG'] = address_tag
             return ExchangeResult(True, return_deposit_dict, result_message)
 
         except Exception as ex:
