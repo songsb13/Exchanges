@@ -25,3 +25,9 @@ class Consts(object):
     CANDLE = 'candle'
     ORDERBOOK = 'orderbook'
     TICKER = 'ticker'
+
+
+class BaseMarkets:
+    BTC = 'BTC'
+    ETH = 'ETH'
+    USDT = 'USDT'
