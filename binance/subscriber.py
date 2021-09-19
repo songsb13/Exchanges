@@ -30,7 +30,10 @@ class BinanceSubscriber(websocket.WebSocketApp):
         self._default_socket_id = 1
         self._unsub_id = 2
         self._lock_dic = lock_dic
-        
+
+        self._evt = Event()
+        self._evt.set()
+
         self.subscribe_set = set()
         self.unsubscribe_set = set()
         self._temp_orderbook_store = dict()
@@ -66,8 +69,7 @@ class BinanceSubscriber(websocket.WebSocketApp):
         self.subscribe_thread.start()
 
     def stop(self):
-        self._evt = Event()
-        self._evt.set()
+        self._evt.clear()
 
     def subscribe_orderbook(self, values):
         debugger.debug('BinanceSubscriber::: subscribe_orderbook')
