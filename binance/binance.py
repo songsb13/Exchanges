@@ -93,9 +93,6 @@ class Binance(BaseExchange):
             debugger.exception('FATAL: Binance, _priavet_api')
             return ExchangeResult(False, message=WarningMessage.EXCEPTION_RAISED.format(name=self.name), wait_time=1)
 
-    def _get_server_time(self):
-        return self._public_api(Urls.SERVER_TIME)
-
     def _sign_generator(self, *args):
         params, *_ = args
         if params is None:
