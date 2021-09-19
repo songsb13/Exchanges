@@ -1,6 +1,9 @@
-import unittest
 from Exchanges.binance import binance
+from Exchanges.objects import DataStore
+
+import unittest
 import asyncio
+import threading
 import time
 
 
@@ -89,3 +92,38 @@ class TestNotification(unittest.TestCase):
     def test_servertime(self):
         servertime_result = self.exchange
         print(time.time() - float(servertime_result.data))
+
+
+class BinanceSocketTest(unittest.TestCase):
+    symbol_set = ['BTC_XRP', 'BTC_ETH', 'BTC_ADA']
+    symbol = 'BTC_ADA'
+    
+    @classmethod
+    def setUpClass(cls):
+        cls.exchange = binance.Binance(
+            'oYQYru6IvzCgxSFaCRdRQyKCHfpUQEEujZAxJsCw5LEjuR7D2F8S7pIGxrN9u2lB ',
+            '4WcKtsR88UqGMyYUuKVb7XZlo0adfr8z3eOtZZm4mRWaWTfJTc4prLcZ29Ti8zXl'
+        )
+
+    def test_subscribe_orderbook(self):
+        time.sleep(1)
+        self.exchange.set_subscribe_orderbook(self.symbol)
+        for _ in range(20):
+            time.sleep(1)
+            
+    def test_subscribe_candle(self):
+        time.sleep(1)
+        self.exchange.set_subscribe_candle(self.symbol_set)
+        time.sleep(1)
+
+        for _ in range(20):
+            time.sleep(1)
+    
+    def test_subscribe_mix(self):
+        time.sleep(1)
+        self.exchange.set_subscribe_orderbook(self.symbol)
+        time.sleep(1)
+        self.exchange.set_subscribe_candle(self.symbol_set)
+        for _ in range(20):
+            time.sleep(1)
+

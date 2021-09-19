@@ -33,13 +33,12 @@ class BaseUpbit(BaseExchange):
         self._secret = secret
         self.data_store = DataStore()
         
-        self._lock_dic = dict(orderbook=threading.Lock(), candle=threading.Lock())
+        self._lock_dic = {
+            Consts.ORDERBOOK: threading.Lock(),
+            Consts.CANDLE: threading.Lock()
+        }
         
         self._subscriber = UpbitSubscriber(self.data_store, self._lock_dic)
-    
-    def start_socket_thread(self):
-        self.subscribe_thread = threading.Thread(target=self._subscriber.run_forever, daemon=True)
-        self.subscribe_thread.start()
 
     def _public_api(self, path, extra=None):
         if extra is None:
@@ -105,18 +104,38 @@ class BaseUpbit(BaseExchange):
     def get_currencies(self, currencies):
         res = list()
         return [res.append(data['market']) for data in currencies if not currencies['market'] in res]
-    
-    def get_candle(self, coin, unit, count):
+
+    def set_subscribe_candle(self, symbol):
+        """
+            subscribe candle.
+            symbol: it can be list or string, [BTC-XRP, BTC-ETH] or 'BTC-XRP'
+        """
+        coin = list(map(sai_to_upbit_symbol_converter, symbol)) if isinstance(symbol, list) \
+            else sai_to_upbit_symbol_converter(symbol)
         with self._lock_dic['candle']:
-            self._subscriber.add_candle_symbol_set(coin)
-            
-            if not self.data_store.candle_queue:
+            self._subscriber.subscribe_candle(coin)
+
+        return True
+
+    def set_subscribe_orderbook(self, symbol):
+        """
+            subscribe orderbook.
+            symbol: it can be list or string, [BTC-XRP, BTC-ETH] or 'BTC-XRP'
+        """
+        coin = list(map(sai_to_upbit_symbol_converter, symbol)) if isinstance(symbol, list) \
+            else sai_to_upbit_symbol_converter(symbol)
+        with self._lock_dic['orderbook']:
+            self._subscriber.subscribe_orderbook(coin)
+
+        return True
+
+    def get_candle(self, coin):
+        with self._lock_dic['candle']:
+            result = self.data_store.candle_queue.get(coin, None)
+            if result is None:
                 return ExchangeResult(False, message=WarningMsg.CANDLE_NOT_STORED.format(name=self.name), wait_time=1)
-            
-            result_dict = self.data_store.candle_queue
-            
-            return ExchangeResult(True, result_dict)
-        
+            return ExchangeResult(True, result)
+
     def service_currencies(self, currencies):
         # using deposit_addrs
         res = list()
@@ -241,7 +260,6 @@ class BaseUpbit(BaseExchange):
     
     async def get_curr_avg_orderbook(self, coin_list, btc_sum=1):
         with self._lock_dic['orderbook']:
-            self._subscriber.add_orderbook_symbol_set(coin_list)
             data_dic = self.data_store.orderbook_queue
             
             if not self.data_store.orderbook_queue:

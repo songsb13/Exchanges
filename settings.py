@@ -18,3 +18,10 @@ class Consts(object):
 
     # Selling the ALT from primary, Selling the BTc from secondary
     SECONDARY_TO_PRIMARY = 'secondary_to_primary'
+    
+    CANDLE_LIMITATION = 100
+    ORDERBOOK_LIMITATION = 20
+    
+    CANDLE = 'candle'
+    ORDERBOOK = 'orderbook'
+    TICKER = 'ticker'

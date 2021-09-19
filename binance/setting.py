@@ -27,10 +27,16 @@ class Urls(object):
     TRANSACTION_FEE = '/assetWithdraw/getAllAsset.html'
 
     class Websocket(object):
-        BASE = 'wss://stream.binance.com:9443'
+        BASE = 'wss://stream.binance.com:9443/ws'
         SINGLE = '/ws'
         STREAMS = '/stream'
 
         SELECTED_BOOK_TICKER = '{symbol}@bookTicker'
         ALL_BOOK_TICKER = '!bookTicker'
+        
+        CANDLE = '{symbol}@kline_{interval}'
 
+
+class BinanceConsts(object):
+    SUBSCRIBE = 'SUBSCRIBE'
+    UNSUBSCRIBE = 'UNSUBSCRIBE'
