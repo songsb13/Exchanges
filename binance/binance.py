@@ -284,6 +284,9 @@ class Binance(BaseExchange):
     
         return ExchangeResult(True, result_dict)
 
+    def check_order(self, data, profit_object):
+        return data
+
     async def _async_private_api(self, method, path, extra=None):
         if extra is None:
             extra = dict()
