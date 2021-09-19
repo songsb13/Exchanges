@@ -262,42 +262,58 @@ class Binance(BaseExchange):
     def withdraw(self, coin, amount, to_address, payment_id=None):
         coin = self._symbol_localizing(coin)
         params = {
-                    'asset': coin,
-                    'address': to_address,
-                    'amount': '{}'.format(amount),
-                    'name': 'SAICDiffTrader'
-                }
+            'currency': coin,
+            'address': to_address,
+            'amount': str(amount),
+        }
 
         if payment_id:
-            tag_dic = {'addressTag': payment_id}
-            params.update(tag_dic)
+            params.update({'secondary_address': payment_id})
 
         return self._private_api(Consts.POST, Urls.WITHDRAW, params)
 
-    def set_subscribe_candle(self, coin):
+    def set_subscribe_candle(self, symbol):
         """
             subscribe candle.
             coin: it can be list or string, [xrpbtc, ethbtc] or 'xrpbtc'
         """
-        coin = list(map(sai_to_binance_converter, coin)) if isinstance(coin, list) \
-            else sai_to_binance_converter(coin)
+        for _ in range(10):
+            time.sleep(1)
+            if self._subscriber.keep_running:
+                break
+
+        symbol_list = list(map(sai_to_binance_symbol_converter, symbol)) if isinstance(symbol, list) \
+            else sai_to_binance_symbol_converter(symbol)
         with self._lock_dic['candle']:
-            self._subscriber.subscribe_candle(coin)
+            self._subscriber.subscribe_candle(symbol_list)
 
         return True
 
-    def set_subscribe_orderbook(self, coin):
+    def set_subscribe_orderbook(self, symbol):
         """
             subscribe orderbook.
             coin: it can be list or string, [xrpbtc, ethbtc] or 'xrpbtc'
         """
+        for _ in range(10):
+            time.sleep(1)
+            if self._subscriber.keep_running:
+                break
 
-        coin = list(map(sai_to_binance_converter, coin)) if isinstance(coin, list) \
-            else sai_to_binance_converter(coin)
+        symbol_list = list(map(sai_to_binance_symbol_converter, symbol)) if isinstance(symbol, list) \
+            else sai_to_binance_symbol_converter(symbol)
         with self._lock_dic['orderbook']:
-            self._subscriber.subscribe_orderbook(coin)
+            self._subscriber.subscribe_orderbook(symbol_list)
 
         return True
+
+    def get_orderbook(self):
+        with self._lock_dic['orderbook']:
+            data_dic = self.data_store.orderbook_queue
+            if not self.data_store.orderbook_queue:
+                return ExchangeResult(False, message=WarningMessage.ORDERBOOK_NOT_STORED.format(name=self.name),
+                                    wait_time=1)
+
+            return ExchangeResult(True, data_dic)
 
     def get_candle(self, coin):
         with self._lock_dic['candle']:
