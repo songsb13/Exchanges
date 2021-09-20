@@ -172,7 +172,7 @@ class Binance(BaseExchange):
         else:
             return ExchangeResult(False, message=WarningMessage.PRECISION_NOT_FOUND.format(name=self.name), wait_time=60)
 
-    def get_available_coin(self):
+    def get_available_symbols(self):
         result = list()
         for data in self.exchange_info['symbols']:
             market = data.get('quoteAsset')
@@ -281,10 +281,10 @@ class Binance(BaseExchange):
             if self._subscriber.keep_running:
                 break
 
-        symbol_list = list(map(sai_to_binance_symbol_converter, symbol)) if isinstance(symbol, list) \
+        binance_symbol_list = list(map(sai_to_binance_symbol_converter, symbol)) if isinstance(symbol, list) \
             else sai_to_binance_symbol_converter(symbol)
         with self._lock_dic['candle']:
-            self._subscriber.subscribe_candle(symbol_list)
+            self._subscriber.subscribe_candle(binance_symbol_list)
 
         return True
 
@@ -298,10 +298,10 @@ class Binance(BaseExchange):
             if self._subscriber.keep_running:
                 break
 
-        symbol_list = list(map(sai_to_binance_symbol_converter, symbol)) if isinstance(symbol, list) \
+        binance_symbol_list = list(map(sai_to_binance_symbol_converter, symbol)) if isinstance(symbol, list) \
             else sai_to_binance_symbol_converter(symbol)
         with self._lock_dic['orderbook']:
-            self._subscriber.subscribe_orderbook(symbol_list)
+            self._subscriber.subscribe_orderbook(binance_symbol_list)
 
         return True
 
@@ -314,9 +314,10 @@ class Binance(BaseExchange):
 
             return ExchangeResult(True, data_dic)
 
-    def get_candle(self, coin):
+    def get_candle(self, symbol):
+        binance_symbol = sai_to_binance_symbol_converter(symbol)
         with self._lock_dic['candle']:
-            candle_dict = self.data_store.candle_queue.get(coin, None)
+            candle_dict = self.data_store.candle_queue.get(binance_symbol, None)
         
             if not candle_dict:
                 return ExchangeResult(False, message=WarningMessage.CANDLE_NOT_STORED.format(name=self.name), wait_time=1)
@@ -334,8 +335,8 @@ class Binance(BaseExchange):
 
     def get_order_history(self, order_id, symbol):
         debugger.debug('Binance, get_order_history::: {}, {}'.format(order_id, symbol))
-
-        result = self._private_api(Consts.GET, Urls.ORDER, {'symbol': symbol, 'orderId': order_id})
+        binance_symbol = sai_to_binance_symbol_converter(symbol)
+        result = self._private_api(Consts.GET, Urls.ORDER, {'symbol': binance_symbol, 'orderId': order_id})
 
         if result.success:
             price_list, amount = list(), int()
@@ -425,22 +426,18 @@ class Binance(BaseExchange):
 
         return result_object
 
-    async def get_deposit_addrs(self, symbol_list=None):
+    async def get_deposit_addrs(self):
         debugger.debug('Binance::: get_deposit_addrs')
 
-        if symbol_list is None:
-            symbol_list = list(self.exchange_info.keys())
-
+        able_to_trading_coin_list = list()
         for data in self.exchange_info['symbols']:
-            if data['baseAsset'] not in symbol_list:
-                if data['status'] == 'TRADING':
-                    symbol_list.append(data['baseAsset'])
+            if data['status'] == 'TRADING':
+                able_to_trading_coin_list.append(data['baseAsset'])
 
         try:
             result_message = str()
             return_deposit_dict = dict()
-            for symbol in symbol_list:
-                base_, coin = symbol.split('_')
+            for coin in able_to_trading_coin_list:
                 coin = self._symbol_customizing(coin)
 
                 get_deposit_result_object = await self._get_deposit_addrs(coin)
@@ -543,8 +540,8 @@ class Binance(BaseExchange):
                         continue
 
                 for f in data_list:
-                    symbol = self._symbol_customizing(f['assetCode'])
-                    fees[symbol] = Decimal(f['transactionFee']).quantize(Decimal(10)**-8)
+                    coin = self._symbol_customizing(f['assetCode'])
+                    fees[coin] = Decimal(f['transactionFee']).quantize(Decimal(10)**-8)
 
                 return ExchangeResult(True, fees)
             else:
@@ -560,33 +557,27 @@ class Binance(BaseExchange):
         if result_object.success:
             balance = dict()
             for bal in result_object.data['balances']:
-                symbol = self._symbol_customizing(bal['asset'])
+                coin = self._symbol_customizing(bal['asset'])
                 if float(bal['free']) > 0:
-                    balance[symbol.upper()] = Decimal(bal['free']).quantize(Decimal(10)**-8)
+                    balance[coin.upper()] = Decimal(bal['free']).quantize(Decimal(10)**-8)
 
             result_object.data = balance
 
         return result_object
     
-    async def get_curr_avg_orderbook(self, coin_list, btc_sum=1):
+    async def get_curr_avg_orderbook(self, symbol_list, btc_sum=1):
         try:
-            pairs = [(self._symbol_localizing(pair.split('_')[1]) + pair.split('_')[0]).lower()
-                     for pair in coin_list]
-                
             if not self.data_store.orderbook_queue:
                 return ExchangeResult(False, message=WarningMessage.ORDERBOOK_NOT_STORED.format(name=self.name), wait_time=1)
 
             avg_orderbook = dict()
-            for pair in pairs:
-                pair = pair.upper()
-                if pair == 'BTCBTC':
-                    continue
+            for symbol in symbol_list:
+                binance_symbol = sai_to_binance_symbol_converter(symbol)
+
                 with self._lock_dic['orderbook']:
-                    orderbook_list = self.data_store.orderbook_queue.get(pair, None)
-                    
+                    orderbook_list = self.data_store.orderbook_queue.get(binance_symbol, None)
                     if orderbook_list is None:
                         continue
-                    
                     data_dict = dict(bids=list(),
                                      asks=list())
                     
@@ -594,7 +585,7 @@ class Binance(BaseExchange):
                         data_dict[Consts.BIDS].append(data[Consts.BIDS])
                         data_dict[Consts.ASKS].append(data[Consts.ASKS])
     
-                    avg_orderbook[pair] = dict()
+                    avg_orderbook[symbol] = dict()
                     
                     for order_type in [Consts.ASKS, Consts.BIDS]:
                         sum_ = Decimal(0.0)
@@ -606,7 +597,7 @@ class Binance(BaseExchange):
                             total_coin_num += Decimal(alt_coin_num)
                             if sum_ > btc_sum:
                                 break
-                        avg_orderbook[pair][order_type] = (sum_ / total_coin_num).quantize(
+                        avg_orderbook[symbol][order_type] = (sum_ / total_coin_num).quantize(
                             Decimal(10) ** -8)
 
             return ExchangeResult(True, avg_orderbook)
@@ -615,31 +606,26 @@ class Binance(BaseExchange):
             debugger.exception('FATAL: Binance, get_curr_avg_orderbook')
             return ExchangeResult(False, message=WarningMessage.EXCEPTION_RAISED.format(name=self.name), wait_time=1)
 
-    async def compare_orderbook(self, other, coins, default_btc=1):
+    async def compare_orderbook(self, other_exchange, symbol_list, default_btc=1):
         for _ in range(3):
             binance_result_object, other_result_object = await asyncio.gather(
-                self.get_curr_avg_orderbook(coins, default_btc),
-                other.get_curr_avg_orderbook(coins, default_btc)
+                self.get_curr_avg_orderbook(symbol_list, default_btc),
+                other_exchange.get_curr_avg_orderbook(symbol_list, default_btc)
             )
-
-            if 'BTC' in coins:
-                # 나중에 점검
-                coins.remove('BTC')
 
             success = (binance_result_object.success and other_result_object.success)
             wait_time = max(binance_result_object.wait_time, other_result_object.wait_time)
 
             if success:
-                m_to_s, s_to_m = (dict() for _ in range(2))
+                m_to_s, s_to_m = dict(), dict()
+                for symbol in symbol_list:
+                    m_ask = binance_result_object.data[symbol][Consts.ASKS]
+                    s_bid = other_result_object.data[symbol][Consts.BIDS]
+                    m_to_s[symbol] = float(((s_bid - m_ask) / m_ask).quantize(Decimal(10) ** -8))
 
-                for currency_pair in coins:
-                    m_ask = binance_result_object.data[currency_pair][Consts.ASKS]
-                    s_bid = other_result_object.data[currency_pair][Consts.BIDS]
-                    m_to_s[currency_pair] = float(((s_bid - m_ask) / m_ask).quantize(Decimal(10) ** -8))
-
-                    m_bid = binance_result_object.data[currency_pair][Consts.BIDS]
-                    s_ask = other_result_object.data[currency_pair][Consts.ASKS]
-                    s_to_m[currency_pair] = float(((m_bid - s_ask) / s_ask).quantize(Decimal(10) ** -8))
+                    m_bid = binance_result_object.data[symbol][Consts.BIDS]
+                    s_ask = other_result_object.data[symbol][Consts.ASKS]
+                    s_to_m[symbol] = float(((m_bid - s_ask) / s_ask).quantize(Decimal(10) ** -8))
 
                 res = binance_result_object.data, other_result_object.data, {Consts.PRIMARY_TO_SECONDARY: m_to_s,
                                                                              Consts.SECONDARY_TO_PRIMARY: s_to_m}
