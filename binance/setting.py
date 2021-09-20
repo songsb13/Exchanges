@@ -23,7 +23,7 @@ class Urls(object):
     ORDERBOOK = '/api/v3/depth'
     ALL_ORDERS = '/api/v3/allOrders'
     DEPOSITS = '/sapi/v1/capital/deposit/address'
-    WITHDRAW = '/wapi/v3/withdraw.html'
+    WITHDRAW = '/sapi/v1/capital/withdraw/apply'
     TRANSACTION_FEE = '/assetWithdraw/getAllAsset.html'
 
     class Websocket(object):

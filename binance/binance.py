@@ -261,13 +261,15 @@ class Binance(BaseExchange):
     def withdraw(self, coin, amount, to_address, payment_id=None):
         coin = self._symbol_localizing(coin)
         params = {
-            'currency': coin,
+            'coin': coin,
             'address': to_address,
-            'amount': str(amount),
+            'amount': '{}'.format(amount),
+            'name': 'SAICDiffTrader'
         }
 
         if payment_id:
-            params.update({'secondary_address': payment_id})
+            tag_dic = {'addressTag': payment_id}
+            params.update(tag_dic)
 
         return self._private_api(Consts.POST, Urls.WITHDRAW, params)
 
