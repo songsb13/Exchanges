@@ -18,12 +18,18 @@ def _symbol_customizing(symbol):
 
 def sai_to_binance_symbol_converter(symbol):
     # BTC_XRP -> xrpbtc
+    if '_' not in symbol:
+        return symbol
+
     market, trade = symbol.split('_')
     return '{}{}'.format(_symbol_localizing(trade), market).lower()
 
 
 def binance_to_sai_symbol_converter(symbol):
     # xrpbtc -> BTC_XRP
+    if '_' in symbol:
+        return symbol
+    
     if symbol.endswith(BaseMarkets.BTC):
         market = BaseMarkets.BTC
         coin = symbol.replace(market)
