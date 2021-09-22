@@ -29,7 +29,7 @@ def binance_to_sai_symbol_converter(symbol):
     # xrpbtc -> BTC_XRP
     if '_' in symbol:
         return symbol
-    
+
     if symbol.endswith(BaseMarkets.BTC):
         market = BaseMarkets.BTC
         coin = symbol.replace(market)
@@ -47,8 +47,10 @@ def binance_to_sai_symbol_converter(symbol):
 
 def sai_to_binance_trade_type_converter(trade_type):
     actual_trade_type = dict(
-        MARKET='market',
-        LIMIT='limit'
+        BUY_MARKET='market',
+        BUY_LIMIT='limit',
+        SELL_MARKET='market',
+        SELL_LIMIT='limit',
     )
 
     return actual_trade_type.get(trade_type, trade_type)
