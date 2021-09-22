@@ -45,7 +45,7 @@ class BaseUpbit(BaseExchange):
             extra = dict()
         
         url = Urls.BASE + path
-        rq = requests.get(url, json=extra)
+        rq = requests.get(url, params=extra)
         try:
             res = rq.json()
             
@@ -203,7 +203,7 @@ class BaseUpbit(BaseExchange):
         try:
             async with aiohttp.ClientSession() as s:
                 url = Urls.BASE + path
-                rq = await s.get(url, json=extra)
+                rq = await s.get(url, params=extra)
                 
                 res = json.loads(await rq.text())
                 
