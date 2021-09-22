@@ -98,17 +98,29 @@ class BaseUpbit(BaseExchange):
     
     def get_jwt_token(self, payload):
         return 'Bearer {}'.format(jwt.encode(payload, self._secret, ).decode('utf8'))
-    
-    def get_ticker(self, market):
-        return self._public_api(Urls.TICKER, market)
-    
-    def currencies(self):
-        # using get_currencies, service_currencies
-        return self._public_api(Urls.CURRENCY)
-    
-    def get_currencies(self, currencies):
-        res = list()
-        return [res.append(data['market']) for data in currencies if not currencies['market'] in res]
+
+    def get_ticker(self, symbol):
+        symbol = sai_to_upbit_symbol_converter(symbol)
+
+        result = self._public_api(Urls.TICKER, {'markets': symbol})
+
+        if result.success:
+            result.data = {'sai_price': result.data[0]['trade_price']}
+
+        return result
+
+    def get_available_symbols(self):
+        result = self._public_api(Urls.CURRENCY)
+
+        if result.success:
+            result_list = list()
+            for data in result.data:
+                symbol = data.get('market')
+                if symbol:
+                    converted = upbit_to_sai_symbol_converter(symbol)
+                    result_list.append(converted.replace('-', '_'))
+            else:
+                return result_list
 
     def set_subscribe_candle(self, symbol):
         """
