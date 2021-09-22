@@ -34,6 +34,8 @@ class BaseMarkets:
 
 
 class BaseTradeType:
-    MARKET = 'market'
-    LIMIT = 'limit'
-    PRICE = 'price'
+    BUY_MARKET = 'BUY_MARKET'
+    BUY_LIMIT = 'BUY_LIMIT'
+    SELL_MARKET = 'SELL_MARKET'
+    SELL_LIMIT = 'SELL_LIMIT'
+
