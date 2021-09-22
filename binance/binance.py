@@ -33,8 +33,9 @@ class Binance(BaseExchange):
         
         self.exchange_info = None
         self._get_exchange_info()
+        self._lot_sizes = self._set_lot_sizes()
         self.data_store = DataStore()
-        
+
         self._lock_dic = {
             Consts.ORDERBOOK: threading.Lock(),
             Consts.CANDLE: threading.Lock()
@@ -140,7 +141,7 @@ class Binance(BaseExchange):
 
         return ExchangeResult(True, step_size, '', 0)
 
-    def set_lot_sizes(self):
+    def _set_lot_sizes(self):
         lot_size_info = dict()
         for each in self.exchange_info['symbols']:
             symbol = each['symbol']
