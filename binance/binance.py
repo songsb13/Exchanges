@@ -195,28 +195,60 @@ class Binance(BaseExchange):
 
         binance_trade_type = sai_to_binance_trade_type_converter(trade_type)
         binance_symbol = sai_to_binance_symbol_converter(symbol)
+
+        step_size = self._lot_sizes[symbol]['step_size']
+        buy_size = (amount - Decimal(amount % step_size)).quantize(Decimal(10) ** - 8)
         params.update({
-                    'type': binance_trade_type,
                     'symbol': binance_symbol,
                     'side': 'buy',
-                    'quantity': '{0:4f}'.format(amount).strip(),
+                    'quantity': '{0:4f}'.format(buy_size).strip(),
+                    'type': binance_trade_type
                   })
 
-        return self._private_api(Consts.POST, Urls.ORDER, params)
+        result = self._private_api(Consts.POST, Urls.ORDER, params)
+
+        if result.success:
+            price = result.data['price']
+            amount = result.data['origQty']
+            result.data.update({
+                'sai_average_price': price,
+                'sai_amount': amount,
+                'sai_order_id': result.data['orderId']
+
+            })
+
+        return result
 
     def sell(self, symbol, amount, trade_type, price=None):
         debugger.debug('Binance, sell::: {}, {}, {}'.format(symbol, amount, price))
         params = dict()
+
         binance_trade_type = sai_to_binance_trade_type_converter(trade_type)
         binance_symbol = sai_to_binance_symbol_converter(symbol)
+
+        step_size = self._lot_sizes[symbol]['step_size']
+
+        sell_size = (amount - Decimal(amount % step_size)).quantize(Decimal(10) ** - 8)
+
         params.update({
                     'type': binance_trade_type,
                     'symbol': binance_symbol,
                     'side': 'sell',
-                    'quantity': '{}'.format(amount),
+                    'quantity': '{0:4f}'.format(sell_size).strip(),
                   })
 
-        return self._private_api(Consts.POST, Urls.ORDER, params)
+        result = self._private_api(Consts.POST, Urls.ORDER, params)
+
+        if result.success:
+            price = result.data['price']
+            amount = result.data['origQty']
+            result.data.update({
+                'sai_average_price': price,
+                'sai_amount': amount,
+                'sai_order_id': result.data['orderId']
+            })
+
+        return result
 
     def fee_count(self):
         return 1
