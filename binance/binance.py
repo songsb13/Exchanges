@@ -77,7 +77,10 @@ class Binance(BaseExchange):
             if method == Consts.GET:
                 rq = requests.get(Urls.BASE + path, params=query, headers={"X-MBX-APIKEY": self._key})
             else:
-                rq = requests.post(Urls.BASE + path, data=query, headers={"X-MBX-APIKEY": self._key})
+                if path == Urls.WITHDRAW:
+                    rq = requests.post(Urls.BASE + path, params=query, headers={"X-MBX-APIKEY": self._key})
+                else:
+                    rq = requests.post(Urls.BASE + path, data=query, headers={"X-MBX-APIKEY": self._key})
             response = rq.json()
 
             if 'msg' in response:
