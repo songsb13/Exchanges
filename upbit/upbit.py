@@ -69,10 +69,15 @@ class BaseUpbit(BaseExchange):
         if extra is not None:
             payload.update({'query': urlencode(extra)})
         
-        header = self.get_jwt_token(payload)
-        
+        authorization_token = self.get_jwt_token(payload)
+        header = {'Authorization': authorization_token}
         url = Urls.BASE + path
-        rq = requests.post(url, header=header, data=extra)
+
+        if method == Consts.POST:
+            rq = requests.post(url=url, headers=header, data=extra)
+
+        else:
+            rq = requests.get(url=url, headers=header, params=extra)
 
         try:
             res = rq.json()
@@ -227,11 +232,17 @@ class BaseUpbit(BaseExchange):
         
         if extra is not None:
             payload.update({'query': urlencode(extra)})
-        header = self.get_jwt_token(payload)
+
+        authorization_token = self.get_jwt_token(payload)
+        header = {'Authorization': authorization_token}
+        url = Urls.BASE + path
+
         try:
             async with aiohttp.ClientSession() as s:
-                url = Urls.BASE + path
-                rq = await s.post(url, headers=header, data=extra)
+                if method == Consts.GET:
+                    rq = await s.get(url, headers=header, data=extra)
+                else:
+                    rq = await s.post(url, headers=header, data=extra)
         
                 res = json.loads(await rq.text())
         
