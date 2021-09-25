@@ -14,7 +14,8 @@ from decimal import Decimal, ROUND_DOWN, getcontext
 
 from Exchanges.settings import Consts, BaseMarkets, BaseTradeType, SaiOrderStatus
 from Exchanges.messages import WarningMessage, MessageDebug
-from Exchanges.binance.util import sai_to_binance_symbol_converter, binance_to_sai_symbol_converter, sai_to_binance_trade_type_converter
+from Exchanges.binance.util import sai_to_binance_symbol_converter, binance_to_sai_symbol_converter, \
+    sai_to_binance_trade_type_converter, sai_to_binance_symbol_converter_in_subscriber
 from Exchanges.binance.setting import Urls, OrderStatus
 from Exchanges.abstracts import BaseExchange
 from Exchanges.objects import ExchangeResult, DataStore
@@ -340,8 +341,8 @@ class Binance(BaseExchange):
             if self._subscriber.keep_running:
                 break
 
-        binance_symbol_list = list(map(sai_to_binance_symbol_converter, symbol)) if isinstance(symbol, list) \
-            else sai_to_binance_symbol_converter(symbol)
+        binance_symbol_list = list(map(sai_to_binance_symbol_converter_in_subscriber, symbol)) if isinstance(symbol, list) \
+            else sai_to_binance_symbol_converter_in_subscriber(symbol)
         with self._lock_dic['candle']:
             self._subscriber.subscribe_candle(binance_symbol_list)
 
@@ -357,8 +358,8 @@ class Binance(BaseExchange):
             if self._subscriber.keep_running:
                 break
 
-        binance_symbol_list = list(map(sai_to_binance_symbol_converter, symbol)) if isinstance(symbol, list) \
-            else sai_to_binance_symbol_converter(symbol)
+        binance_symbol_list = list(map(sai_to_binance_symbol_converter_in_subscriber, symbol)) if isinstance(symbol, list) \
+            else sai_to_binance_symbol_converter_in_subscriber(symbol)
         with self._lock_dic['orderbook']:
             self._subscriber.subscribe_orderbook(binance_symbol_list)
 
@@ -391,26 +392,6 @@ class Binance(BaseExchange):
                 result_dict[symbol] = history
     
         return ExchangeResult(True, result_dict)
-
-    def get_order_history(self, order_id, symbol):
-        debugger.debug('Binance, get_order_history::: {}, {}'.format(order_id, symbol))
-        binance_symbol = sai_to_binance_symbol_converter(symbol)
-        result = self._private_api(Consts.GET, Urls.ORDER, {'symbol': binance_symbol, 'orderId': order_id})
-
-        if result.success:
-            price_list, amount = list(), int()
-            for each in result.data['fills']:
-                total_price = float(each['price']) * float(each['qty'])
-                price_list.append(total_price)
-
-            avg_price = float(sum(price_list) / len(price_list))
-            additional = {'sai_status': result.data['status'],
-                          'sai_average_price': avg_price,
-                          'sai_amount': amount}
-
-            result.data = additional
-
-        return result
 
     async def _async_private_api(self, method, path, extra=None):
         if extra is None:

@@ -22,6 +22,12 @@ def sai_to_binance_symbol_converter(symbol):
         return symbol
 
     market, trade = symbol.split('_')
+    return '{}{}'.format(_symbol_localizing(trade), market).upper()
+
+
+def sai_to_binance_symbol_converter_in_subscriber(pair):
+    # BTC_XRP -> xrpbtc
+    market, trade = pair.split('_')
     return '{}{}'.format(_symbol_localizing(trade), market).lower()
 
 
