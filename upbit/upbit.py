@@ -186,9 +186,6 @@ class BaseUpbit(BaseExchange):
         res = list()
         return [res.append(data.split('-')[1]) for data in currencies if currencies['market'].split('-')[1] not in res]
     
-    def get_order_history(self, uuid):
-        return self._private_api(Consts.GET, Urls.ORDER, {'uuid': uuid})
-    
     def withdraw(self, coin, amount, to_address, payment_id=None):
         params = {
             'currency': coin,
@@ -213,7 +210,7 @@ class BaseUpbit(BaseExchange):
             'ord_type': order_type
         }
         
-        return self._private_api(Consts.POST, Urls.ORDER, params)
+        return self._private_api(Consts.POST, Urls.ORDERS, params)
     
     def sell(self, coin, amount, price=None):
         order_type = Consts.MARKET if price is not None else Consts.LIMIT
@@ -228,7 +225,7 @@ class BaseUpbit(BaseExchange):
             'ord_type': order_type
         }
         
-        return self._private_api(Consts.POST, Urls.ORDER, params)
+        return self._private_api(Consts.POST, Urls.ORDERS, params)
     
     def base_to_alt(self, currency_pair, btc_amount, alt_amount, td_fee, tx_fee):
         alt_amount *= 1 - decimal.Decimal(td_fee)

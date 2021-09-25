@@ -14,6 +14,7 @@ class Urls(object):
     BASE = 'https://api.upbit.com/v1'
     TICKER = '/ticker'
     ORDER = '/order'
+    ORDERS = '/orders'
     CURRENCY = '/market/all'
     WITHDRAW = '/withdraws/coin'
     ACCOUNT = '/accounts'
