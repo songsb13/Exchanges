@@ -22,3 +22,12 @@ class Urls(object):
     
     class Websocket(object):
         BASE = 'wss://api.upbit.com/websocket/v1'
+
+
+class DepositStatus(object):
+    SUBMITTING = 'submitting'
+    SUBMITTED = 'submitted'
+    ALMOST_ACCEPTED = 'almost_accepted'
+    REJECTED = 'rejected'
+    ACCEPTED = 'accepted'
+    PROCESSING = 'processing'

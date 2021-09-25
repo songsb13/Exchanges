@@ -40,3 +40,9 @@ class Urls(object):
 class BinanceConsts(object):
     SUBSCRIBE = 'SUBSCRIBE'
     UNSUBSCRIBE = 'UNSUBSCRIBE'
+
+
+class DepositStatus(object):
+    PENDING = 0
+    CREDITED_BUT_CANNOT_WITHDRAW = 6
+    SUCCESS = 1
