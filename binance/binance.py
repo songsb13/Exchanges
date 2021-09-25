@@ -12,10 +12,10 @@ import decimal
 from urllib.parse import urlencode
 from decimal import Decimal, ROUND_DOWN, getcontext
 
-from Exchanges.settings import Consts, BaseMarkets, BaseTradeType
+from Exchanges.settings import Consts, BaseMarkets, BaseTradeType, SaiOrderStatus
 from Exchanges.messages import WarningMessage, MessageDebug
 from Exchanges.binance.util import sai_to_binance_symbol_converter, binance_to_sai_symbol_converter, sai_to_binance_trade_type_converter
-from Exchanges.binance.setting import Urls
+from Exchanges.binance.setting import Urls, OrderStatus
 from Exchanges.abstracts import BaseExchange
 from Exchanges.objects import ExchangeResult, DataStore
 from Exchanges.binance.subscriber import BinanceSubscriber
@@ -295,6 +295,29 @@ class Binance(BaseExchange):
         time.sleep(result_object.wait_time)
 
         return result_object
+
+    def get_order_history(self, order_id, additional):
+        debugger.debug('Binance, get_order_history::: {}, {}'.format(order_id, additional))
+
+        params = dict(orderId=order_id)
+        if additional:
+            if 'symbol' in additional:
+                additional['symbol'] = sai_to_binance_symbol_converter(additional['symbol'])
+            params.update(additional)
+
+        result = self._private_api(Consts.GET, Urls.ORDER, params)
+
+        if result.success:
+            cummulative_quote_qty = Decimal(result.data['cummulativeQuoteQty']).quantize(Decimal(10) ** -6,
+                                                                                         rounding=ROUND_DOWN)
+            origin_qty = Decimal(result.data['origQty']).quantize(Decimal(10) ** -6, rounding=ROUND_DOWN)
+            additional = {'sai_status': SaiOrderStatus.CLOSED if result.data['status'] == OrderStatus.FILLED else SaiOrderStatus.ON_TRADING,
+                          'sai_average_price': cummulative_quote_qty,
+                          'sai_amount': origin_qty}
+
+            result.data = additional
+
+        return result
 
     def withdraw(self, coin, amount, to_address, payment_id=None):
         coin = self._symbol_localizing(coin)

@@ -10,16 +10,17 @@ import threading
 from urllib.parse import urlencode
 from Util.pyinstaller_patch import debugger
 
-from Exchanges.settings import Consts
+from Exchanges.settings import Consts, SaiOrderStatus
 from Exchanges.messages import WarningMessage as WarningMsg
 
-from Exchanges.upbit.setting import Urls
+from Exchanges.upbit.setting import Urls, OrderStatus
 from Exchanges.upbit.subscriber import UpbitSubscriber
 from Exchanges.upbit.util import sai_to_upbit_symbol_converter, upbit_to_sai_symbol_converter
 
 from Exchanges.abstracts import BaseExchange
 from Exchanges.objects import DataStore, ExchangeResult
 
+from decimal import Decimal, ROUND_DOWN
 import decimal
 
 decimal.getcontext().prec = 8
@@ -106,6 +107,33 @@ class BaseUpbit(BaseExchange):
 
         if result.success:
             result.data = {'sai_price': result.data[0]['trade_price']}
+
+        return result
+
+    def get_order_history(self, uuid, additional_parameter):
+        params = dict(uuid=uuid)
+
+        result = self._private_api(Consts.GET, Urls.ORDER, params)
+
+        if result.success:
+            price_list, amount_list = list(), list()
+            for each in result.data['trades']:
+                total_price = float(each['price']) * float(each['volume'])
+                price_list.append(float(total_price))
+                amount_list.append(float(each['volume']))
+
+            if price_list:
+                avg_price = float(sum(price_list) / len(price_list))
+                total_amount = sum(amount_list)
+                additional = {
+                    'sai_status': SaiOrderStatus.CLOSED,
+                    'sai_average_price': Decimal(avg_price).quantize(Decimal(10) ** -6),
+                    'sai_amount': Decimal(total_amount).quantize(Decimal(10) ** -6, rounding=ROUND_DOWN)
+                }
+
+                result.data = additional
+            else:
+                result.success = False
 
         return result
 

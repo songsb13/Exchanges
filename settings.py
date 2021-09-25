@@ -40,7 +40,7 @@ class BaseTradeType(object):
     SELL_LIMIT = 'SELL_LIMIT'
 
 
-class OrderStatus(object):
+class SaiOrderStatus(object):
     OPEN = 'open'
     ON_TRADING = 'on_trading'
     CLOSED = 'closed'
