@@ -46,3 +46,11 @@ class DepositStatus(object):
     PENDING = 0
     CREDITED_BUT_CANNOT_WITHDRAW = 6
     SUCCESS = 1
+
+
+class OrderStatus(object):
+    NEW = 'NEW'
+    PARTIALLY_FILLED = 'PARTIALLY_FILLED'
+    FILLED = 'FILLED'
+    CANCELED = 'CANCELED'
+    EXPIRED = 'EXPIRED'

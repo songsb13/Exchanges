@@ -27,15 +27,20 @@ class Consts(object):
     TICKER = 'ticker'
 
 
-class BaseMarkets:
+class BaseMarkets(object):
     BTC = 'BTC'
     ETH = 'ETH'
     USDT = 'USDT'
 
 
-class BaseTradeType:
+class BaseTradeType(object):
     BUY_MARKET = 'BUY_MARKET'
     BUY_LIMIT = 'BUY_LIMIT'
     SELL_MARKET = 'SELL_MARKET'
     SELL_LIMIT = 'SELL_LIMIT'
 
+
+class OrderStatus(object):
+    OPEN = 'open'
+    ON_TRADING = 'on_trading'
+    CLOSED = 'closed'

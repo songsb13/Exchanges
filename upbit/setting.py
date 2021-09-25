@@ -31,3 +31,17 @@ class DepositStatus(object):
     REJECTED = 'rejected'
     ACCEPTED = 'accepted'
     PROCESSING = 'processing'
+
+
+class OrderStatus(object):
+    """
+        - wait : 체결 대기 (default)
+        - watch : 예약주문 대기
+        - done : 전체 체결 완료
+        - cancel : 주문 취소
+    """
+
+    WAIT = 'wait'
+    WATCH = 'watch'
+    DONE = 'done'
+    CANCEL = 'cancel'
