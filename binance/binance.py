@@ -197,7 +197,9 @@ class Binance(BaseExchange):
         binance_symbol = sai_to_binance_symbol_converter(symbol)
 
         step_size = self._lot_sizes[symbol]['step_size']
-        buy_size = (amount - Decimal(amount % step_size)).quantize(Decimal(10) ** - 8)
+
+        decimal_amount = Decimal(amount)
+        buy_size = (decimal_amount - Decimal(decimal_amount % step_size)).quantize(Decimal(10) ** - 8)
         params.update({
                     'symbol': binance_symbol,
                     'side': 'buy',
@@ -227,8 +229,8 @@ class Binance(BaseExchange):
         binance_symbol = sai_to_binance_symbol_converter(symbol)
 
         step_size = self._lot_sizes[symbol]['step_size']
-
-        sell_size = (amount - Decimal(amount % step_size)).quantize(Decimal(10) ** - 8)
+        decimal_amount = Decimal(amount)
+        sell_size = (decimal_amount - Decimal(decimal_amount % step_size)).quantize(Decimal(10) ** - 8)
 
         params.update({
                     'type': binance_trade_type,
@@ -296,12 +298,8 @@ class Binance(BaseExchange):
 
     def withdraw(self, coin, amount, to_address, payment_id=None):
         coin = self._symbol_localizing(coin)
-        params = {
-            'coin': coin,
-            'address': to_address,
-            'amount': '{}'.format(amount),
-            'name': 'SAICDiffTrader'
-        }
+        params = {'coin': coin, 'address': to_address,
+                  'amount': Decimal(amount).quantize(Decimal(10) ** - 8), 'name': 'SAICDiffTrader'}
 
         if payment_id:
             tag_dic = {'addressTag': payment_id}
