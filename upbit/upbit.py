@@ -313,10 +313,10 @@ class BaseUpbit(BaseExchange):
                 
                 return ExchangeResult(True, avg_order_book)
     
-    async def compare_orderbook(self, other, coins, default_btc=1):
+    async def compare_orderbook(self, other, symbol_list, default_btc=1):
         upbit_res, other_res = await asyncio.gather(
-            self.get_curr_avg_orderbook(coins, default_btc),
-            other.get_curr_avg_orderbook(coins, default_btc)
+            self.get_curr_avg_orderbook(symbol_list, default_btc),
+            other.get_curr_avg_orderbook(symbol_list, default_btc)
         )
         
         u_suc, u_orderbook, u_msg = upbit_res
@@ -324,13 +324,13 @@ class BaseUpbit(BaseExchange):
         
         if u_suc and o_suc:
             m_to_s = dict()
-            for currency_pair in coins:
+            for currency_pair in symbol_list:
                 m_ask = u_orderbook[currency_pair][Consts.ASKS]
                 s_bid = o_orderbook[currency_pair][Consts.BIDS]
                 m_to_s[currency_pair] = float(((s_bid - m_ask) / m_ask))
             
             s_to_m = dict()
-            for currency_pair in coins:
+            for currency_pair in symbol_list:
                 m_bid = u_orderbook[currency_pair][Consts.BIDS]
                 s_ask = o_orderbook[currency_pair][Consts.ASKS]
                 s_to_m[currency_pair] = float(((m_bid - s_ask) / s_ask))
