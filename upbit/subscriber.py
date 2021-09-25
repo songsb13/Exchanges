@@ -135,7 +135,7 @@ class UpbitSubscriber(websocket.WebSocketApp):
             self._temp_orderbook_store[market] += data['orderbook_units']
         
             if len(self._temp_orderbook_store[market]) >= Consts.ORDERBOOK_LIMITATION:
-                self.data_store.orderbook_queue[market] = self._temp_orderbook_store
+                self.data_store.orderbook_queue[market] = self._temp_orderbook_store[market]
                 self._temp_orderbook_store[market] = list()
     
     def candle_receiver(self, data):
