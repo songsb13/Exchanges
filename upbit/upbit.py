@@ -292,7 +292,7 @@ class BaseUpbit(BaseExchange):
                 else:
                     return ExchangeResult(True, res)
         except:
-            debugger.exception('FATAL: Upbit, _public_api')
+            debugger.exception('FATAL: Upbit, async_private_api')
             return ExchangeResult(False, message=WarningMsg.EXCEPTION_RAISED.format(name=self.name), wait_time=1)
 
     async def get_deposit_addrs(self, coin_list=None):
