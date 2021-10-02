@@ -24,6 +24,7 @@ class Urls(object):
     ALL_ORDERS = '/api/v3/allOrders'
     DEPOSITS = '/sapi/v1/capital/deposit/address'
     WITHDRAW = '/sapi/v1/capital/withdraw/apply'
+    GET_DEPOSIT_HISTORY = '/sapi/v1/capital/deposit/hisrec'
     GET_ALL_INFORMATION = '/sapi/v1/capital/config/getall'
 
     class Websocket(object):
