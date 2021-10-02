@@ -295,6 +295,24 @@ class BaseUpbit(BaseExchange):
             debugger.exception('FATAL: Upbit, async_private_api')
             return ExchangeResult(False, message=WarningMsg.EXCEPTION_RAISED.format(name=self.name), wait_time=1)
 
+    async def get_transaction_fee(self):
+        result = requests.get(Urls.Web.BASE + Urls.Web.TRANSACTION_FEE_PAGE)
+        raw_data = json.loads(result.text)
+
+        success = raw_data.get('success', False)
+        if not success:
+            return ExchangeResult(False, '', message=WarningMsg.TRANSACTION_FAILED.format(name=self.name))
+
+        data = json.loads(raw_data['data'])
+
+        fees = dict()
+        for each in data:
+            coin = each['currency']
+            fee = Decimal(each['withdrawFee']).quantize(Decimal(10) ** -6)
+            fees.update({coin: fee})
+
+        return ExchangeResult(True, fees)
+
     async def get_deposit_addrs(self, coin_list=None):
         return self.async_public_api(Urls.DEPOSIT_ADDRESS)
     

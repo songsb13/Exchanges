@@ -24,6 +24,10 @@ class Urls(object):
     class Websocket(object):
         BASE = 'wss://api.upbit.com/websocket/v1'
 
+    class Web(object):
+        BASE = 'https://api-manager.upbit.com/api/v1'
+        TRANSACTION_FEE_PAGE = '/kv/UPBIT_PC_COIN_DEPOSIT_AND_WITHDRAW_GUIDE'
+
 
 class DepositStatus(object):
     SUBMITTING = 'submitting'
