@@ -16,7 +16,7 @@ from Exchanges.settings import Consts, BaseMarkets, BaseTradeType, SaiOrderStatu
 from Exchanges.messages import WarningMessage, MessageDebug
 from Exchanges.binance.util import sai_to_binance_symbol_converter, binance_to_sai_symbol_converter, \
     sai_to_binance_trade_type_converter, sai_to_binance_symbol_converter_in_subscriber
-from Exchanges.binance.setting import Urls, OrderStatus
+from Exchanges.binance.setting import Urls, OrderStatus, DepositStatus
 from Exchanges.abstracts import BaseExchange
 from Exchanges.objects import ExchangeResult, DataStore
 from Exchanges.binance.subscriber import BinanceSubscriber
@@ -392,6 +392,25 @@ class Binance(BaseExchange):
                 result_dict[symbol] = history
     
         return ExchangeResult(True, result_dict)
+
+    def _get_deposit_history(self, params):
+        return self._private_api(Consts.GET, Urls.GET_DEPOSIT_HISTORY, params)
+
+    def get_deposit_history(self, coin):
+        params = dict(coin=coin, status=DepositStatus.SUCCESS)
+
+        result = self._get_deposit_history(params)
+
+        if result.success and result.data:
+            latest_data = result.data[0]
+            result_dict = dict(
+                sai_deposit_amount=latest_data['amount'],
+                sai_coin=latest_data['coin']
+            )
+
+            result.data = result_dict
+
+        return result
 
     async def _async_private_api(self, method, path, extra=None):
         if extra is None:
