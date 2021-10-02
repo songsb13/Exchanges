@@ -567,29 +567,23 @@ class Binance(BaseExchange):
         return ExchangeResult(True, 0.001)
 
     async def get_transaction_fee(self):
-        fees = dict()
-        try:
-            url = Urls.PAGE_BASE + Urls.TRANSACTION_FEE
-            for _ in range(3):
-                async with aiohttp.ClientSession() as session:
-                    rq = await session.get(url)
-                    data_list = json.loads(await rq.text())
+        result = self._private_api('GET', Urls.GET_ALL_INFORMATION)
 
-                    if not data_list:
-                        time.sleep(3)
-                        continue
+        if result.success:
+            fees = dict()
+            for each in result.data:
+                coin = each['coin']
+                for network_info in each['networkList']:
+                    network_coin = network_info['coin']
 
-                for f in data_list:
-                    coin = self._symbol_customizing(f['assetCode'])
-                    fees[coin] = Decimal(f['transactionFee']).quantize(Decimal(10)**-8)
+                    if coin == network_coin:
+                        withdraw_fee = network_info['withdrawFee']
+                        fees.update({coin: Decimal(withdraw_fee).quantize(Decimal(10) ** -8)})
+                        break
 
-                return ExchangeResult(True, fees)
-            else:
-                return ExchangeResult(False, message=WarningMessage.TRANSACTION_FAILED.format(name=self.name), wait_time=60)
+            result.data = fees
 
-        except:
-            debugger.exception('FATAL: Binance, get_transaction_fee')
-            return ExchangeResult(False, message=WarningMessage.EXCEPTION_RAISED.format(name=self.name), wait_time=60)
+        return result
 
     async def get_balance(self):
         result_object = await self._get_balance()
