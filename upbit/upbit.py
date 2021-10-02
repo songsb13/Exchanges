@@ -13,7 +13,7 @@ from Util.pyinstaller_patch import debugger
 from Exchanges.settings import Consts, SaiOrderStatus
 from Exchanges.messages import WarningMessage as WarningMsg
 
-from Exchanges.upbit.setting import Urls, OrderStatus
+from Exchanges.upbit.setting import Urls, OrderStatus, DepositStatus
 from Exchanges.upbit.subscriber import UpbitSubscriber
 from Exchanges.upbit.util import sai_to_upbit_symbol_converter, upbit_to_sai_symbol_converter
 
@@ -134,6 +134,23 @@ class BaseUpbit(BaseExchange):
                 result.data = additional
             else:
                 result.success = False
+
+        return result
+
+    def get_deposit_history(self, coin):
+        params = dict(
+            currency=coin,
+            state=DepositStatus.ACCEPTED
+        )
+        result = self._private_api(Consts.GET, Urls.GET_DEPOSIT_HISTORY, params)
+
+        if result.success:
+            latest_data = result.data[0]
+            result_dict = dict(
+                sai_deposit_amount=latest_data['amount'],
+                sai_coin=latest_data['currency']
+            )
+            result.data = result_dict
 
         return result
 
