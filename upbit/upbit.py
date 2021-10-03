@@ -94,7 +94,7 @@ class BaseUpbit(BaseExchange):
             debugger.exception('FATAL: Upbit, _private_api')
             return ExchangeResult(False, message=WarningMsg.EXCEPTION_RAISED.format(name=self.name), wait_time=1)
 
-    def _get_step_size(self, symbol, amount):
+    def _get_step_size(self, symbol, price):
         market, coin = symbol.split('-')
 
         if market in ['BTC', 'USDT']:
@@ -108,9 +108,9 @@ class BaseUpbit(BaseExchange):
 
         for price, unit in LocalConsts.STEP_SIZE[market]:
             if krw_price >= price:
-                decimal_amount = Decimal(amount)
-                stepped_amount = (decimal_amount - Decimal(decimal_amount % unit)).quantize(Decimal(10) ** - 8)
-                return ExchangeResult(True, stepped_amount)
+                decimal_price = Decimal(price)
+                stepped_price = (decimal_price - Decimal(decimal_price % unit)).quantize(Decimal(10) ** - 8)
+                return ExchangeResult(True, stepped_price)
         else:
             sai_symbol = upbit_to_sai_symbol_converter(symbol)  # for logging
             return ExchangeResult(False, message=WarningMsg.STEP_SIZE_NOT_FOUND.format(
