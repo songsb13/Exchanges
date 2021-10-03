@@ -51,3 +51,20 @@ class OrderStatus(object):
     WATCH = 'watch'
     DONE = 'done'
     CANCEL = 'cancel'
+
+
+class LocalConsts(object):
+    AVAILABLE_MARKETS = ['KRW', 'BTC', 'USDT']
+    LOT_SIZES = {
+        'KRW': {'minimum': 5000, 'maximum': 1000000000},
+        'BTC': {'minimum': 0.0005, 'maximum': 20},
+        'USDT': {'minimum': 0.0005, 'maximum': 1000000}
+    }
+
+    STEP_SIZE = {
+        'KRW': [(2000000, 1000), (1000000, 500), (500000, 100),
+                (100000, 50), (10000, 10), (1000, 5), (100, 1),
+                (10, 0.1), (1, 0.01), (0.1, 0.001), ('-inf', 0.0001)],
+        'BTC': [('-inf', 0.00000001)],
+        'USDT': [('-inf', 0.001)]
+    }

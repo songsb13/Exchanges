@@ -13,7 +13,7 @@ from Util.pyinstaller_patch import debugger
 from Exchanges.settings import Consts, SaiOrderStatus
 from Exchanges.messages import WarningMessage as WarningMsg
 
-from Exchanges.upbit.setting import Urls, OrderStatus, DepositStatus
+from Exchanges.upbit.setting import Urls, OrderStatus, DepositStatus, LocalConsts
 from Exchanges.upbit.subscriber import UpbitSubscriber
 from Exchanges.upbit.util import sai_to_upbit_symbol_converter, upbit_to_sai_symbol_converter
 
@@ -93,6 +93,66 @@ class BaseUpbit(BaseExchange):
         except:
             debugger.exception('FATAL: Upbit, _private_api')
             return ExchangeResult(False, message=WarningMsg.EXCEPTION_RAISED.format(name=self.name), wait_time=1)
+
+    def _get_step_size(self, symbol, amount):
+        market, coin = symbol.split('-')
+
+        if market in ['BTC', 'USDT']:
+            return LocalConsts.STEP_SIZE[market][0][1]
+
+        ticker_object = self.get_ticker(symbol)
+        if not ticker_object.success:
+            return ticker_object
+
+        krw_price = ticker_object.data['sai_price']
+
+        for price, unit in LocalConsts.STEP_SIZE[market]:
+            if krw_price >= price:
+                decimal_amount = Decimal(amount)
+                stepped_amount = (decimal_amount - Decimal(decimal_amount % unit)).quantize(Decimal(10) ** - 8)
+                return ExchangeResult(True, stepped_amount)
+        else:
+            sai_symbol = upbit_to_sai_symbol_converter(symbol)  # for logging
+            return ExchangeResult(False, message=WarningMsg.STEP_SIZE_NOT_FOUND.format(
+                name=self.name,
+                sai_symbol=sai_symbol,
+            ))
+
+    def is_available_lot_size(self, market, amount):
+        """
+            Args:
+                market: KRW, BTC
+                amount: amount, Decimal
+            Returns:
+                True or False
+                messages if getting false
+        """
+        if market not in LocalConsts.AVAILABLE_MARKETS:
+            return ExchangeResult(False, message=WarningMsg)
+
+        minimum = LocalConsts.LOT_SIZES[market]['minimum']
+        maximum = LocalConsts.LOT_SIZES[market]['maximum']
+
+        if not minimum <= amount <= maximum:
+            return False, WarningMsg.WRONG_LOT_SIZE.format(
+                name=self.name,
+                market=market,
+                minimum=minimum,
+                maximum=maximum
+            )
+        step_info = LocalConsts.STEP_SIZE[market]
+
+        for price, unit in step_info:
+
+
+        else:
+            return ExchangeResult(False,)
+        step_size = self.lot_sizes[market]['step_size']
+
+        decimal_amount = Decimal(amount)
+        buy_size = (decimal_amount - Decimal(decimal_amount % step_size)).quantize(Decimal(10) ** - 8)
+
+        return ExchangeResult(True, {})
 
     def fee_count(self):
         return 1
