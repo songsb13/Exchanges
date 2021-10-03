@@ -94,17 +94,11 @@ class BaseUpbit(BaseExchange):
             debugger.exception('FATAL: Upbit, _private_api')
             return ExchangeResult(False, message=WarningMsg.EXCEPTION_RAISED.format(name=self.name), wait_time=1)
 
-    def _get_step_size(self, symbol, price):
+    def _get_step_size(self, symbol, krw_price):
         market, coin = symbol.split('-')
 
         if market in ['BTC', 'USDT']:
-            return LocalConsts.STEP_SIZE[market][0][1]
-
-        ticker_object = self.get_ticker(symbol)
-        if not ticker_object.success:
-            return ticker_object
-
-        krw_price = ticker_object.data['sai_price']
+            return ExchangeResult(True, LocalConsts.STEP_SIZE[market][0][1])
 
         for price, unit in LocalConsts.STEP_SIZE[market]:
             if krw_price >= price:
@@ -118,7 +112,24 @@ class BaseUpbit(BaseExchange):
                 sai_symbol=sai_symbol,
             ))
 
-    def is_available_lot_size(self, market, amount):
+    def _is_available_lot_size(self, symbol, krw_price, amount):
+        market, coin = symbol.split('-')
+        total_price = Decimal(krw_price * amount)
+
+        minimum = LocalConsts.LOT_SIZES[market]['minimum']
+        maximum = LocalConsts.LOT_SIZES[market]['maximum']
+        if not minimum <= total_price <= maximum:
+            msg = WarningMsg.WRONG_LOT_SIZE.format(
+                name=self.name,
+                market=market,
+                minimum=minimum,
+                maximum=maximum
+            )
+            return ExchangeResult(False, message=msg)
+
+        return ExchangeResult(True)
+
+    def _trading_validator(self, symbol, amount):
         """
             Args:
                 market: KRW, BTC
@@ -127,32 +138,20 @@ class BaseUpbit(BaseExchange):
                 True or False
                 messages if getting false
         """
-        if market not in LocalConsts.AVAILABLE_MARKETS:
-            return ExchangeResult(False, message=WarningMsg)
+        ticker_object = self.get_ticker(symbol)
+        if not ticker_object.success:
+            return ticker_object
 
-        minimum = LocalConsts.LOT_SIZES[market]['minimum']
-        maximum = LocalConsts.LOT_SIZES[market]['maximum']
+        krw_price = ticker_object.data['sai_price']
 
-        if not minimum <= amount <= maximum:
-            return False, WarningMsg.WRONG_LOT_SIZE.format(
-                name=self.name,
-                market=market,
-                minimum=minimum,
-                maximum=maximum
-            )
-        step_info = LocalConsts.STEP_SIZE[market]
+        lot_size_result = self._is_available_lot_size(symbol, krw_price, amount)
 
-        for price, unit in step_info:
+        if not lot_size_result.success:
+            return lot_size_result
 
+        step_size_result = self._get_step_size(symbol, krw_price)
 
-        else:
-            return ExchangeResult(False,)
-        step_size = self.lot_sizes[market]['step_size']
-
-        decimal_amount = Decimal(amount)
-        buy_size = (decimal_amount - Decimal(decimal_amount % step_size)).quantize(Decimal(10) ** - 8)
-
-        return ExchangeResult(True, {})
+        return step_size_result
 
     def fee_count(self):
         return 1
@@ -278,7 +277,13 @@ class BaseUpbit(BaseExchange):
     def buy(self, coin, amount, price=None):
         order_type = Consts.MARKET if price is not None else Consts.LIMIT
         amount, price = map(str, (amount, price))
-        
+
+        if price:
+            trading_validation_result = self._trading_validator(coin, amount)
+
+            if not trading_validation_result.success:
+                return trading_validation_result
+
         params = {
             'market': coin,
             'side': 'bid',
@@ -293,7 +298,13 @@ class BaseUpbit(BaseExchange):
         order_type = Consts.MARKET if price is not None else Consts.LIMIT
 
         amount, price = map(str, (amount, price))
-        
+
+        if price:
+            trading_validation_result = self._trading_validator(coin, amount)
+
+            if not trading_validation_result.success:
+                return trading_validation_result
+
         params = {
             'market': coin,
             'side': 'ask',
