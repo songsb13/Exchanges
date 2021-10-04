@@ -10,6 +10,10 @@ class WarningMessage(object):
                      '해당 거래소의 [{market}]마켓은 주문 금액이 [{minimum}]이상 [{maximum}]미만이 되어야 합니다.'
     STEP_SIZE_NOT_FOUND = '[{name}] 정상적인 호가범위가 아닙니다. ' \
                           '해당 거래소의 [{sai_symbol}]를 찾을 수 없습니다.'
+    
+    WRONG_MIN_NOTIONAL = '[{name}]정상적인 주문 금액이 아닙니다. ' \
+                         '해당 거래소의 [{symbol}]는 주문 총액이 [{min_notional}]이상이어야 합니다.'
+
 
 class CriticalMessage(object):
     pass

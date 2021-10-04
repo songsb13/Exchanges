@@ -138,12 +138,68 @@ class Binance(BaseExchange):
 
         return True
 
-    def _get_step_size(self, symbol):
-        symbol = self._symbol_localizing(symbol)
+    def _get_step_size(self, symbol, amount):
+        step_size = self._lot_sizes.get(symbol, dict()).get('step_size')
+        
+        if not step_size:
+            sai_symbol = binance_to_sai_symbol_converter(symbol)
+            return ExchangeResult(False, message=WarningMessage.STEP_SIZE_NOT_FOUND.format(
+                name=self.name,
+                sai_symbol=sai_symbol,
+            ))
+        step_size = self._lot_sizes[symbol]['step_size']
 
-        step_size = Decimal(self.exchange_info[symbol]).normalize()
+        decimal_amount = Decimal(amount)
+        stepped_amount = (decimal_amount - Decimal(decimal_amount % step_size)).quantize(Decimal(10) ** - 8)
 
-        return ExchangeResult(True, step_size, '', 0)
+        return ExchangeResult(True, stepped_amount)
+
+    def _is_available_lot_size(self, symbol, amount):
+        minimum = self._lot_sizes[symbol]['min_quantity']
+        maximum = self._lot_sizes[symbol]['max_quantity']
+        if not minimum <= amount <= maximum:
+            msg = WarningMessage.WRONG_LOT_SIZE.format(
+                name=self.name,
+                market=symbol,
+                minimum=minimum,
+                maximum=maximum
+            )
+            return ExchangeResult(False, message=msg)
+        
+        return ExchangeResult(True)
+        
+    def _is_available_min_notional(self, symbol, price, amount):
+        total_price = Decimal(price * amount)
+    
+        minimum = self._lot_sizes[symbol]['min_notional']
+        if not minimum <= total_price:
+            msg = WarningMessage.WRONG_MIN_NOTIONAL.format(
+                name=self.name,
+                symbol=symbol,
+                min_notional=minimum,
+            )
+            return ExchangeResult(False, message=msg)
+
+    def _trading_validator(self, symbol, amount):
+        ticker_object = self.get_ticker(symbol)
+        if not ticker_object.success:
+            return ticker_object
+
+        price = ticker_object.data['sai_price']
+
+        lot_size_result = self._is_available_lot_size(symbol, amount)
+
+        if not lot_size_result.success:
+            return lot_size_result
+        
+        min_notional_result = self._is_available_min_notional(symbol, price, amount)
+        
+        if not min_notional_result.success:
+            return min_notional_result
+        
+        step_size_result = self._get_step_size(symbol, amount)
+
+        return step_size_result
 
     def _set_lot_sizes(self):
         lot_size_info = dict()
@@ -157,12 +213,17 @@ class Binance(BaseExchange):
                     min_ = Decimal(filter_.get('minQty', int())).quantize(Decimal(10) ** -8)
                     max_ = Decimal(filter_.get('maxQty', int())).quantize(Decimal(10) ** -8)
                     step_size = Decimal(filter_.get('stepSize', int())).quantize(Decimal(10) ** -8)
-                    lot_size_info[symbol] = {
+                    lot_size_info[symbol].update({
                         'min_quantity': min_,
                         'max_quantity': max_,
                         'step_size': step_size
-                    }
+                    })
                     break
+                elif filter_type == 'MIN_NOTIONAL':
+                    min_notional = Decimal(filter_.get('minNotional', int())).quantize(Decimal(10) ** -8)
+                    lot_size_info[symbol].update({
+                        'min_notional': min_notional
+                    })
         return lot_size_info
 
     def set_subscriber(self):
@@ -190,24 +251,26 @@ class Binance(BaseExchange):
 
         return result
 
-    def buy(self, symbol, amount, trade_type, price=None):
-        debugger.debug('Binance, buy::: {}, {}, {}'.format(symbol, amount, price))
-        params = dict()
+    def buy(self, sai_symbol, amount, trade_type, price=None):
+        debugger.debug('Binance, buy::: {}, {}, {}'.format(sai_symbol, amount, price))
 
         binance_trade_type = sai_to_binance_trade_type_converter(trade_type)
-        binance_symbol = sai_to_binance_symbol_converter(symbol)
+        symbol = sai_to_binance_symbol_converter(sai_symbol)
 
-        step_size = self._lot_sizes[symbol]['step_size']
-
-        decimal_amount = Decimal(amount)
-        buy_size = (decimal_amount - Decimal(decimal_amount % step_size)).quantize(Decimal(10) ** - 8)
-        params.update({
-                    'symbol': binance_symbol,
-                    'side': 'buy',
-                    'quantity': '{0:4f}'.format(buy_size).strip(),
-                    'type': binance_trade_type
-                  })
-
+        trading_validation_result = self._trading_validator(symbol, amount)
+        
+        if not trading_validation_result.success:
+            return trading_validation_result
+        
+        stepped_amount = trading_validation_result.data
+        
+        params = {
+            'symbol': symbol,
+            'side': 'buy',
+            'quantity': stepped_amount,
+            'type': binance_trade_type
+        }
+        
         result = self._private_api(Consts.POST, Urls.ORDER, params)
 
         if result.success:
@@ -222,22 +285,25 @@ class Binance(BaseExchange):
 
         return result
 
-    def sell(self, symbol, amount, trade_type, price=None):
-        debugger.debug('Binance, sell::: {}, {}, {}'.format(symbol, amount, price))
+    def sell(self, sai_symbol, amount, trade_type, price=None):
+        debugger.debug('Binance, sell::: {}, {}, {}'.format(sai_symbol, amount, price))
         params = dict()
 
         binance_trade_type = sai_to_binance_trade_type_converter(trade_type)
-        binance_symbol = sai_to_binance_symbol_converter(symbol)
+        symbol = sai_to_binance_symbol_converter(sai_symbol)
 
-        step_size = self._lot_sizes[symbol]['step_size']
-        decimal_amount = Decimal(amount)
-        sell_size = (decimal_amount - Decimal(decimal_amount % step_size)).quantize(Decimal(10) ** - 8)
+        trading_validation_result = self._trading_validator(symbol, amount)
+
+        if not trading_validation_result.success:
+            return trading_validation_result
+
+        stepped_amount = trading_validation_result.data
 
         params.update({
                     'type': binance_trade_type,
-                    'symbol': binance_symbol,
+                    'symbol': symbol,
                     'side': 'sell',
-                    'quantity': '{0:4f}'.format(sell_size).strip(),
+                    'quantity': stepped_amount
                   })
 
         result = self._private_api(Consts.POST, Urls.ORDER, params)
@@ -256,15 +322,10 @@ class Binance(BaseExchange):
     def fee_count(self):
         return 1
 
-    def bnc_btm_quantizer(self, symbol):
-        binance_symbol = sai_to_binance_symbol_converter(symbol)
-        binance_qtz = self._get_step_size(binance_symbol).data[1]
-        return Decimal(10) ** -4 if binance_qtz < Decimal(10) ** -4 else binance_qtz
-
     def base_to_alt(self, symbol, btc_amount, alt_amount, td_fee, tx_fee):
         coin = symbol.split('_')[1]
         binance_symbol = sai_to_binance_symbol_converter(symbol)
-        result_object = self.buy(binance_symbol, alt_amount, BaseTradeType.MARKET)
+        result_object = self.buy(binance_symbol, alt_amount, BaseTradeType.BUY_MARKET)
 
         if result_object.success:
             alt_amount *= 1 - Decimal(td_fee)
@@ -278,7 +339,7 @@ class Binance(BaseExchange):
     def alt_to_base(self, symbol, btc_amount, alt_amount):
         binance_symbol = binance_to_sai_symbol_converter(symbol)
         for _ in range(10):
-            result_object = self.sell(binance_symbol, alt_amount, BaseTradeType.MARKET)
+            result_object = self.sell(binance_symbol, alt_amount, BaseTradeType.SELL_MARKET)
 
             if result_object.success:
                 break
@@ -287,13 +348,10 @@ class Binance(BaseExchange):
         return result_object
 
     def get_ticker(self, symbol):
-        binance_symbol = binance_to_sai_symbol_converter(symbol)
-        for _ in range(3):
-            result_object = self._public_api(Urls.TICKER, {'symbol': binance_symbol})
-            if result_object.success:
-                result_object.data = {'sai_price': result_object.data[0]['trade_price']}
-                break
-        time.sleep(result_object.wait_time)
+        binance_symbol = sai_to_binance_symbol_converter(symbol)
+        result_object = self._public_api(Urls.TICKER, {'symbol': binance_symbol})
+        if result_object.success:
+            result_object.data = {'sai_price': result_object.data[0]['trade_price']}
 
         return result_object
 
