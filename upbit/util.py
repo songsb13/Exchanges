@@ -6,7 +6,7 @@ def upbit_to_sai_symbol_converter(pair):
     return pair.replace('-', '_')
 
 
-def sai_to_binance_trade_type_converter(trade_type):
+def sai_to_upbit_trade_type_converter(trade_type):
     actual_trade_type = dict(
         BUY_MARKET='price',
         BUY_LIMIT='limit',

@@ -15,7 +15,7 @@ from Exchanges.messages import WarningMessage as WarningMsg
 
 from Exchanges.upbit.setting import Urls, OrderStatus, DepositStatus, LocalConsts
 from Exchanges.upbit.subscriber import UpbitSubscriber
-from Exchanges.upbit.util import sai_to_upbit_symbol_converter, upbit_to_sai_symbol_converter
+from Exchanges.upbit.util import sai_to_upbit_symbol_converter, upbit_to_sai_symbol_converter, sai_to_upbit_trade_type_converter
 
 from Exchanges.abstracts import BaseExchange
 from Exchanges.objects import DataStore, ExchangeResult
@@ -132,7 +132,7 @@ class BaseUpbit(BaseExchange):
     def _trading_validator(self, symbol, amount):
         """
             Args:
-                market: KRW, BTC
+                symbol: KRW, BTC
                 amount: amount, Decimal
             Returns:
                 True or False
@@ -274,44 +274,45 @@ class BaseUpbit(BaseExchange):
         
         return self._private_api(Consts.POST, Urls.WITHDRAW, params)
     
-    def buy(self, coin, amount, price=None):
-        order_type = Consts.MARKET if price is not None else Consts.LIMIT
-        amount, price = map(str, (amount, price))
-
-        if price:
-            trading_validation_result = self._trading_validator(coin, amount)
-
-            if not trading_validation_result.success:
-                return trading_validation_result
-
+    def buy(self, coin, amount, trade_type, price=None):
+        upbit_trade_type = sai_to_upbit_trade_type_converter(trade_type)
         params = {
             'market': coin,
             'side': 'bid',
             'volume': amount,
-            'price': price,
-            'ord_type': order_type
+            'ord_type': upbit_trade_type
         }
-        
-        return self._private_api(Consts.POST, Urls.ORDERS, params)
-    
-    def sell(self, coin, amount, price=None):
-        order_type = Consts.MARKET if price is not None else Consts.LIMIT
-
-        amount, price = map(str, (amount, price))
-
         if price:
             trading_validation_result = self._trading_validator(coin, amount)
 
             if not trading_validation_result.success:
                 return trading_validation_result
+            step_size = trading_validation_result.data
+            stepped_price = (price - Decimal(price % step_size)).quantize(Decimal(10) ** - 8)
 
+            params.update(dict(price=stepped_price))
+        
+        return self._private_api(Consts.POST, Urls.ORDERS, params)
+    
+    def sell(self, coin, amount, trade_type, price=None):
+        upbit_trade_type = sai_to_upbit_trade_type_converter(trade_type)
         params = {
             'market': coin,
             'side': 'ask',
             'volume': amount,
             'price': price,
-            'ord_type': order_type
+            'ord_type': upbit_trade_type
         }
+
+        if price:
+            trading_validation_result = self._trading_validator(coin, amount)
+
+            if not trading_validation_result.success:
+                return trading_validation_result
+            step_size = trading_validation_result.data
+            stepped_price = (price - Decimal(price % step_size)).quantize(Decimal(10) ** - 8)
+
+            params.update(dict(price=stepped_price))
         
         return self._private_api(Consts.POST, Urls.ORDERS, params)
     
