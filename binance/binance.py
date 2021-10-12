@@ -230,7 +230,7 @@ class Binance(BaseExchange):
         self._subscriber = BinanceSubscriber(self.data_store, self._lock_dic)
 
     def get_precision(self, pair=None):
-        pair = self._symbol_localizing(pair)
+        pair = sai_to_binance_symbol_converter(pair)
 
         if pair in self.exchange_info:
             precision = int(math.log10(float(self.exchange_info[pair])))
@@ -379,7 +379,7 @@ class Binance(BaseExchange):
         return result
 
     def withdraw(self, coin, amount, to_address, payment_id=None):
-        coin = self._symbol_localizing(coin)
+        coin = sai_to_binance_symbol_converter(coin)
         params = {'coin': coin, 'address': to_address,
                   'amount': Decimal(amount).quantize(Decimal(10) ** - 8), 'name': 'SAICDiffTrader'}
 
@@ -428,7 +428,7 @@ class Binance(BaseExchange):
             data_dic = self.data_store.orderbook_queue
             if not self.data_store.orderbook_queue:
                 return ExchangeResult(False, message=WarningMessage.ORDERBOOK_NOT_STORED.format(name=self.name),
-                                    wait_time=1)
+                                      wait_time=1)
 
             return ExchangeResult(True, data_dic)
 
@@ -543,7 +543,7 @@ class Binance(BaseExchange):
 
         return result_object
 
-    async def get_deposit_addrs(self):
+    async def get_deposit_addrs(self, coin_list=None):
         debugger.debug('Binance::: get_deposit_addrs')
 
         able_to_trading_coin_list = list()
@@ -555,7 +555,7 @@ class Binance(BaseExchange):
             result_message = str()
             return_deposit_dict = dict()
             for coin in able_to_trading_coin_list:
-                coin = self._symbol_customizing(coin)
+                coin = binance_to_sai_symbol_converter(coin)
 
                 get_deposit_result_object = await self._get_deposit_addrs(coin)
                 
@@ -668,7 +668,7 @@ class Binance(BaseExchange):
         if result_object.success:
             balance = dict()
             for bal in result_object.data['balances']:
-                coin = self._symbol_customizing(bal['asset'])
+                coin = binance_to_sai_symbol_converter(bal['asset'])
                 if float(bal['free']) > 0:
                     balance[coin.upper()] = Decimal(bal['free']).quantize(Decimal(10)**-8)
 

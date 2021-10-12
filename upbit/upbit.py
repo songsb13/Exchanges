@@ -257,11 +257,6 @@ class BaseUpbit(BaseExchange):
                 return ExchangeResult(False, message=WarningMsg.CANDLE_NOT_STORED.format(name=self.name), wait_time=1)
             return ExchangeResult(True, result)
 
-    def service_currencies(self, currencies):
-        # using deposit_addrs
-        res = list()
-        return [res.append(data.split('-')[1]) for data in currencies if currencies['market'].split('-')[1] not in res]
-    
     def withdraw(self, coin, amount, to_address, payment_id=None):
         params = {
             'currency': coin,
@@ -321,12 +316,7 @@ class BaseUpbit(BaseExchange):
         
         return ExchangeResult(True, alt_amount)
 
-    def check_order(self, data, profit_object):
-        return data
-        # uuid = parameter['uuid']
-        # result = self._private_api(Consts.GET, Urls.ORDER, dict(uuid=uuid))
-
-    async def async_public_api(self, path, extra=None):
+    async def _async_public_api(self, path, extra=None):
         if extra is None:
             extra = dict()
         try:
@@ -348,7 +338,7 @@ class BaseUpbit(BaseExchange):
             debugger.exception('FATAL: Upbit, _async_public_api')
             return ExchangeResult(False, message=WarningMsg.EXCEPTION_RAISED.format(name=self.name), wait_time=1)
 
-    async def async_private_api(self, method, path, extra=None):
+    async def _async_private_api(self, method, path, extra=None):
         payload = {
             'access_key': self._key,
             'nonce': int(time.time() * 1000),
@@ -405,10 +395,6 @@ class BaseUpbit(BaseExchange):
     
     async def get_balance(self):
         return self._private_api(Consts.GET, Urls.ACCOUNT)
-    
-    async def get_detail_balance(self, data):
-        # bal = self.get_balance()
-        return {bal['currency']: bal['balance'] for bal in data}
     
     async def get_orderbook(self, market):
         return self.async_public_api(Urls.ORDERBOOK, {'markets': market})

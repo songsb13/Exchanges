@@ -8,18 +8,20 @@ class BaseExchange(object):
 
     def _public_api(self, path, extra=None):
         """
-        For using public API
 
-        :param path: URL path without Base URL, '/url/path/'
-        :param extra: Parameter if required.
-        :return:
+        This function is to use the public apis.
+        Args:
+            path(str): The URL path without a base URL, '/url/path/'
+            extra(dict, optional): Required parameter to send the API
+        Returns:
+            ResultObject(:obj: bool, dict, str, int)
+
         return 4 format
         1. success: True if status is 200 else False
         2. data: response data
         3. message: if success is False, logging with this message.
         4. time: if success is False, will be sleep this time.
         """
-        pass
 
     def _private_api(self, method, path, extra=None):
         """
@@ -35,7 +37,12 @@ class BaseExchange(object):
         3. message: if success is False, logging with this message.
         4. time: if success is False, will be sleep this time.
         """
-        pass
+
+
+    def _trading_validator(self, symbol, amount):
+        """
+
+        """
 
     def _sign_generator(self, *args):
         """
@@ -44,25 +51,7 @@ class BaseExchange(object):
         *args: get parameter for signing
         :return: signed data example sha256, 512 etc..
         """
-        pass
 
-    def _symbol_localizing(self, symbol):
-        """
-        Matching to local use symbol, iota -> iot, bch -> bcc
-        """
-
-    def _symbol_customizing(self, symobl):
-        """
-        Matching to common use symbol, iot -> iota, bcc -> bch
-        """
-
-    def _currencies(self):
-        """
-        this function be looped up to 3 times
-
-        :return: return symbols not customized, symbol is dependent of each exchange
-        """
-        pass
 
     def fee_count(self):
         """
@@ -73,23 +62,53 @@ class BaseExchange(object):
         upbit: btc -> alt, return 1
 
         """
-        pass
 
-    def get_ticker(self, market):
+
+    def get_ticker(self, symbol):
         """
         you can get current price this function
         this function be looped up to 3 times
-        :market: symbol using in exchange
+        :symbol: symbol using in exchange
         :return: Ticker data, type is dependent of each exchange.
         """
-        pass
 
-    def get_available_coin(self):
+
+    def get_order_history(self, id_, additional):
+        """
+
+        """
+
+    def get_deposit_history(self, coin):
+        """
+
+        """
+
+    def get_available_symbols(self):
         """
         use with _currencies
         :return: Custom symbol list ['BTC_XRP', 'BTC_LTC']
         """
-        pass
+
+
+    def set_subscribe_candle(self, symbol):
+        """
+
+        """
+
+    def set_subscribe_orderbook(self, symbol):
+        """
+
+        """
+
+    def get_orderbook(self):
+        """
+
+        """
+
+    def get_candle(self, symbol):
+        """
+
+        """
 
     def withdraw(self, coin, amount, to_address, payment_id=None):
         """
@@ -100,9 +119,9 @@ class BaseExchange(object):
         :param payment_id: include if required
         :return: success, data, message, time
         """
-        pass
 
-    def buy(self, coin, amount, price=None):
+
+    def buy(self, sai_symbol, amount, trade_type, price=None):
         """
         Buy coin
         :param coin: ALT symbol --> ETH, LTC ...
@@ -110,9 +129,9 @@ class BaseExchange(object):
         :param price: type is dependent of exchange, common type is str or float. --> 0.001
         :return: success, data, message, time
         """
-        pass
 
-    def sell(self, coin, amount, price=None):
+
+    def sell(self, sai_symbol, amount, trade_type, price=None):
         """
         Sell coin
         :param coin: ALT symbol --> ETH, LTC ...
@@ -120,39 +139,39 @@ class BaseExchange(object):
         :param price: type is dependent of exchange, common type is str or float. --> 0.001
         :return:
         """
-        pass
 
-    def base_to_alt(self, currency_pair, btc_amount, alt_amount, td_fee, tx_fee):
+
+    def base_to_alt(self, sai_symbol, btc_amount, alt_amount, td_fee, tx_fee):
         """
         this function use to buy coin dependent of parameter currency_pair, alt_amount and
         calculate alt_amount withdrawn other exchange.
 
 
-        :param currency_pair: BTC_ALT custom symbol.
+        :param sai_symbol: BTC_ALT custom symbol.
         :param btc_amount: empty parameter
         :param alt_amount: alt amount to buy
         :param td_fee: trading fee, type is float or int
         :param tx_fee: transaction fee dict, tx_fee[customized_symbol]
         :return: success, alt amount to send subtracted fees, message, time
         """
-        pass
 
-    def alt_to_base(self, currency_pair, btc_amount, alt_amount):
+
+    def alt_to_base(self, sai_symbol, btc_amount, alt_amount):
         """
         this function use to sell coin dependent of parameter currency_pair, btc_amount and
         calculate btc_amount be withdrawn other exchange.
 
-        :param currency_pair: BTC_ALT custom symbol.
+        :param sai_symbol: BTC_ALT custom symbol.
         :param btc_amount: empty parameter
         :param alt_amount: alt amount to sell
         :return: None
         """
 
-    def get_precision(self, pair=None):
+    def get_precision(self, sai_symbol=None):
         """
         this function is returned minimum decimal point
 
-        pair: BTC_XXX
+        :param sai_symbol: BTC_XXX
         :return: success, data, message, time
         """
 
@@ -160,10 +179,8 @@ class BaseExchange(object):
         """
         For using async public API
 
-        :param method: Get or Post
         :param path: URL path without Base URL, '/url/path/'
         :param extra: Parameter if required.
-        :param header: Header if required.
         :return:
         return 4 format
         1. success: True if status is 200 else False
@@ -171,7 +188,7 @@ class BaseExchange(object):
         3. message: if success is False, logging with this message.
         4. time: if success is False, will be sleep this time.
         """
-        pass
+
 
     async def _async_private_api(self, method, path, extra=None):
         """
@@ -186,17 +203,7 @@ class BaseExchange(object):
         3. message: if success is False, logging with this message.
         4. time: if success is False, will be sleep this time.
         """
-        pass
 
-    async def _get_orderbook(self, symbol):
-        """
-        you can get orderbook asks, bids, not customized
-        this function be looped up to 3 times
-
-        :param symbol: symbol must be exchange symbol.
-        :return: orderbook, is dependent of each exchange
-        """
-        pass
 
     async def _get_deposit_addrs(self, symbol):
         """
@@ -205,21 +212,6 @@ class BaseExchange(object):
         :return: success, address, message, time
         """
 
-    async def _get_transaction_fee(self, symbol):
-        """
-        you can get transaction fee dependent of symbol
-        this function be looped up to 3 times
-        :return: success, data, message if you fail to get, time.
-        """
-
-    async def _get_trading_fee(self, symbol):
-        """
-        you can get trading fee dependent of symbol
-        few exchanges are return constant value.
-        this function be looped up to 3 times
-
-        :return: success, data, message if you fail to get, time
-        """
     async def _get_balance(self):
         """
         you can get balance dependent of exchange
@@ -234,14 +226,14 @@ class BaseExchange(object):
         :param coin_list: None or custom symbol list --> ['BTC_XXX', ...]
         :return: exchange deposit addrs, type is have to dictonary --> {'BTC': BTCaddrs, ...}
         """
-        pass
+
 
     async def get_balance(self):
         """
         use with _get_balance
         :return: user balance, type is have to dictonary --> {'BTC': float(amount), ...}
         """
-        pass
+
 
     async def get_trading_fee(self):
         """
@@ -262,7 +254,7 @@ class BaseExchange(object):
         :param btc_sum: be calculate average base on btc_sum
         :return: dict, set of custom symbol with its ask & bid average. {BTC_XRP:{asks:Decimal, bids:Decimal}, ...}
         """
-        pass
+
 
     async def compare_orderbook(self, other, coins, default_btc=1):
         """
@@ -271,6 +263,6 @@ class BaseExchange(object):
         :param default_btc: dfc
         :return: tuple, 2 different exchange orderbook & profit percent of main & sec exchanges
         """
-        pass
+
 
 
