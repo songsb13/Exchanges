@@ -422,13 +422,7 @@ class BaseUpbit(BaseExchange):
 
     async def get_balance(self):
         return self._private_api(Consts.GET, Urls.ACCOUNT)
-    
-    async def get_orderbook(self, market):
-        return self.async_public_api(Urls.ORDERBOOK, {'markets': market})
-    
-    async def get_btc_orderbook(self, btc_sum):
-        return await self.get_orderbook('KRW-BTC')
-    
+
     async def get_curr_avg_orderbook(self, coin_list, btc_sum=1):
         with self._lock_dic['orderbook']:
             data_dic = self.data_store.orderbook_queue
