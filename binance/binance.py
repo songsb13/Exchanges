@@ -567,7 +567,7 @@ class Binance(BaseExchange):
             for coin in able_to_trading_coin_list:
                 coin = _symbol_customizing(coin)
 
-                get_deposit_result_object = await self._async_private_api(Consts.GET, Urls.DEPOSITS, {'coin': symbol.lower()})
+                get_deposit_result_object = await self._async_private_api(Consts.GET, Urls.DEPOSITS, {'coin': coin.lower()})
                 
                 if not get_deposit_result_object.success:
                     result_message += '[{}]해당 코인은 값을 가져오는데 실패했습니다.\n'.format(get_deposit_result_object.message)
