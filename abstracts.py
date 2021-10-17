@@ -2,42 +2,34 @@ class BaseExchange(object):
     """
     all exchanges module should be followed BaseExchange format.
     """
-    _base_url = str
-    _key = str
-    _secret = str
 
     def _public_api(self, path, extra=None):
         """
-
         This function is to use the public apis.
         Args:
             path(str): The URL path without a base URL, '/url/path/'
             extra(dict, optional): Required parameter to send the API
         Returns:
             ResultObject(:obj: bool, dict, str, int)
-
-        return 4 format
-        1. success: True if status is 200 else False
-        2. data: response data
-        3. message: if success is False, logging with this message.
-        4. time: if success is False, will be sleep this time.
+            1. success: True if successfully get data else False.
+            2. data: response data
+            3. message: return error message if fail to get response data.
+            4. time: return sleep time if fail to get response data.
         """
 
     def _private_api(self, method, path, extra=None):
         """
-        For using private API
-
-        :param path: URL path without Base URL, '/url/path/'
-        :param method: input required request type GET or POST
-        :param extra: Parameter if required.
-        :return:
-        return 4 format
-        1. success: True if status is 200 else False
-        2. data: response data
-        3. message: if success is False, logging with this message.
-        4. time: if success is False, will be sleep this time.
+        This function is to use the private apis
+        Args:
+            path(str): The URL path without a base URL, '/url/path/'
+            extra(dict, optional): Required parameter to send the API
+        Returns:
+            ResultObject(:obj: bool, dict, str, int)
+            1. success: True if status is 200 else False
+            2. data: response data
+            3. message: if success is False, logging with this message.
+            4. time: if success is False, will be sleep this time.
         """
-
 
     def _trading_validator(self, symbol, amount):
         """
@@ -52,7 +44,6 @@ class BaseExchange(object):
         :return: signed data example sha256, 512 etc..
         """
 
-
     def fee_count(self):
         """
         trading fee count
@@ -63,7 +54,6 @@ class BaseExchange(object):
 
         """
 
-
     def get_ticker(self, symbol):
         """
         you can get current price this function
@@ -71,7 +61,6 @@ class BaseExchange(object):
         :symbol: symbol using in exchange
         :return: Ticker data, type is dependent of each exchange.
         """
-
 
     def get_order_history(self, id_, additional):
         """
@@ -88,7 +77,6 @@ class BaseExchange(object):
         use with _currencies
         :return: Custom symbol list ['BTC_XRP', 'BTC_LTC']
         """
-
 
     def set_subscribe_candle(self, symbol):
         """
@@ -120,7 +108,6 @@ class BaseExchange(object):
         :return: success, data, message, time
         """
 
-
     def buy(self, sai_symbol, amount, trade_type, price=None):
         """
         Buy coin
@@ -130,7 +117,6 @@ class BaseExchange(object):
         :return: success, data, message, time
         """
 
-
     def sell(self, sai_symbol, amount, trade_type, price=None):
         """
         Sell coin
@@ -139,7 +125,6 @@ class BaseExchange(object):
         :param price: type is dependent of exchange, common type is str or float. --> 0.001
         :return:
         """
-
 
     def base_to_alt(self, sai_symbol, btc_amount, alt_amount, td_fee, tx_fee):
         """
@@ -154,7 +139,6 @@ class BaseExchange(object):
         :param tx_fee: transaction fee dict, tx_fee[customized_symbol]
         :return: success, alt amount to send subtracted fees, message, time
         """
-
 
     def alt_to_base(self, sai_symbol, btc_amount, alt_amount):
         """
@@ -189,7 +173,6 @@ class BaseExchange(object):
         4. time: if success is False, will be sleep this time.
         """
 
-
     async def _async_private_api(self, method, path, extra=None):
         """
         For using async private API
@@ -203,7 +186,6 @@ class BaseExchange(object):
         3. message: if success is False, logging with this message.
         4. time: if success is False, will be sleep this time.
         """
-
 
     async def _get_deposit_addrs(self, symbol):
         """
@@ -227,13 +209,11 @@ class BaseExchange(object):
         :return: exchange deposit addrs, type is have to dictonary --> {'BTC': BTCaddrs, ...}
         """
 
-
     async def get_balance(self):
         """
         use with _get_balance
         :return: user balance, type is have to dictonary --> {'BTC': float(amount), ...}
         """
-
 
     async def get_trading_fee(self):
         """
@@ -255,7 +235,6 @@ class BaseExchange(object):
         :return: dict, set of custom symbol with its ask & bid average. {BTC_XRP:{asks:Decimal, bids:Decimal}, ...}
         """
 
-
     async def compare_orderbook(self, other, coins, default_btc=1):
         """
         :param other: Other exchange's compare_orderbook object
@@ -263,6 +242,3 @@ class BaseExchange(object):
         :param default_btc: dfc
         :return: tuple, 2 different exchange orderbook & profit percent of main & sec exchanges
         """
-
-
-
