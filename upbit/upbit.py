@@ -38,7 +38,10 @@ class BaseUpbit(BaseExchange):
             Consts.ORDERBOOK: threading.Lock(),
             Consts.CANDLE: threading.Lock()
         }
-        
+
+        self._subscriber = None
+
+    def set_subscriber(self):
         self._subscriber = UpbitSubscriber(self.data_store, self._lock_dic)
 
     def _public_api(self, path, extra=None):
@@ -159,7 +162,11 @@ class BaseUpbit(BaseExchange):
     def get_jwt_token(self, payload):
         return 'Bearer {}'.format(jwt.encode(payload, self._secret, ).decode('utf8'))
 
+    def _get_ticker(self):
+        pass
+
     def get_ticker(self, symbol):
+        debugger.debug()
         symbol = sai_to_upbit_symbol_converter(symbol)
 
         result = self._public_api(Urls.TICKER, {'markets': symbol})
