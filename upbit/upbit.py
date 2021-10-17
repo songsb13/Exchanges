@@ -302,9 +302,7 @@ class BaseUpbit(BaseExchange):
 
             if not trading_validation_result.success:
                 return trading_validation_result
-            step_size = trading_validation_result.data
-            stepped_price = (price - Decimal(price % step_size)).quantize(Decimal(10) ** - 8)
-
+            stepped_price = trading_validation_result.data
             params.update(dict(price=stepped_price))
         
         return self._private_api(Consts.POST, Urls.ORDERS, params)
