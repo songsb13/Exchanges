@@ -390,9 +390,36 @@ class BaseUpbit(BaseExchange):
 
         return ExchangeResult(True, fees)
 
-    async def get_deposit_addrs(self, coin_list=None):
-        return self.async_public_api(Urls.DEPOSIT_ADDRESS)
-    
+    async def get_deposit_addrs(self, coin_list):
+        debugger.debug('Upbit, get_deposit_addrs')
+        result = await self._async_private_api(Consts.GET, Urls.DEPOSIT_ADDRESS)
+        if result.success:
+            result_dict = dict()
+            for data in result.data:
+                coin = data['currency']
+                if coin not in coin_list:
+                    continue
+
+                able_result = await self._async_private_api(Consts.GET, Urls.ABLE_WITHDRAWS, {'currency': coin})
+
+                if not result.success:
+                    continue
+
+                support_list = able_result.data['currency']['wallet_support']
+                if 'withdraw' not in support_list or 'deposit' not in support_list:
+                    continue
+
+                deposit_address = data['deposit_address']
+
+                if 'secondary_address' in data.keys() and data['secondary_address']:
+                    result_dict[coin + 'TAG'] = data['secondary_address']
+
+                result_dict[coin] = deposit_address
+
+            result.data = result_dict
+
+        return result
+
     async def get_balance(self):
         return self._private_api(Consts.GET, Urls.ACCOUNT)
     
