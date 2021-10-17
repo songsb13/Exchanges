@@ -13,7 +13,7 @@ from urllib.parse import urlencode
 from decimal import Decimal, ROUND_DOWN, getcontext
 
 from Exchanges.settings import Consts, BaseMarkets, BaseTradeType, SaiOrderStatus
-from Exchanges.messages import WarningMessage, MessageDebug
+from Exchanges.messages import WarningMessage, DebugMessage
 from Exchanges.binance.util import sai_to_binance_symbol_converter, binance_to_sai_symbol_converter, \
     sai_to_binance_trade_type_converter, sai_to_binance_symbol_converter_in_subscriber, _symbol_customizing
 from Exchanges.binance.setting import Urls, OrderStatus, DepositStatus
@@ -55,7 +55,7 @@ class Binance(BaseExchange):
             response = rq.json()
 
             if 'msg' in response:
-                message = MessageDebug.FAIL_RESPONSE_DETAILS.format(name=self.name, body=response['msg'],
+                message = DebugMessage.FAIL_RESPONSE_DETAILS.format(name=self.name, body=response['msg'],
                                                                     path=path, parameter=extra)
                 debugger.debug(message)
 
@@ -87,7 +87,7 @@ class Binance(BaseExchange):
             response = rq.json()
 
             if 'msg' in response:
-                message = MessageDebug.FAIL_RESPONSE_DETAILS.format(name=self.name, body=response['msg'],
+                message = DebugMessage.FAIL_RESPONSE_DETAILS.format(name=self.name, body=response['msg'],
                                                                     path=path, parameter=extra)
                 debugger.debug(message)
 
@@ -508,7 +508,7 @@ class Binance(BaseExchange):
                 response = json.loads(await rq.text())
 
                 if 'msg' in response:
-                    message = MessageDebug.FAIL_RESPONSE_DETAILS.format(name=self.name, body=response['msg'],
+                    message = DebugMessage.FAIL_RESPONSE_DETAILS.format(name=self.name, body=response['msg'],
                                                                         path=path, parameter=extra)
                     debugger.debug(message)
                     return ExchangeResult(False, message=message, wait_time=1)
@@ -531,7 +531,7 @@ class Binance(BaseExchange):
             response = json.loads(await rq.text())
 
             if 'msg' in response:
-                message = MessageDebug.FAIL_RESPONSE_DETAILS.format(name=self.name, body=response['msg'],
+                message = DebugMessage.FAIL_RESPONSE_DETAILS.format(name=self.name, body=response['msg'],
                                                                     path=path, parameter=extra)
                 debugger.debug(message)
                 return ExchangeResult(False, message=message, wait_time=1)
