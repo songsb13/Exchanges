@@ -19,6 +19,6 @@ class CriticalMessage(object):
     pass
 
 
-class MessageDebug(object):
+class DebugMessage(object):
     ENTRANCE = '{name}, fn={fn}, data={join_data}'
     FAIL_RESPONSE_DETAILS = '{name}, body: [{body}], path: [{path}], parameter: [{parameter}]'

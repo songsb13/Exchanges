@@ -13,9 +13,9 @@ from urllib.parse import urlencode
 from decimal import Decimal, ROUND_DOWN, getcontext
 
 from Exchanges.settings import Consts, BaseMarkets, BaseTradeType, SaiOrderStatus
-from Exchanges.messages import WarningMessage, MessageDebug
+from Exchanges.messages import WarningMessage, DebugMessage
 from Exchanges.binance.util import sai_to_binance_symbol_converter, binance_to_sai_symbol_converter, \
-    sai_to_binance_trade_type_converter, sai_to_binance_symbol_converter_in_subscriber
+    sai_to_binance_trade_type_converter, sai_to_binance_symbol_converter_in_subscriber, _symbol_customizing
 from Exchanges.binance.setting import Urls, OrderStatus, DepositStatus
 from Exchanges.abstracts import BaseExchange
 from Exchanges.objects import ExchangeResult, DataStore
@@ -33,7 +33,9 @@ class Binance(BaseExchange):
         self._secret = secret
         
         self.exchange_info = None
+        self.all_details = None
         self._get_exchange_info()
+        self._get_all_asset_details()
         self._lot_sizes = self._set_lot_sizes()
         self.data_store = DataStore()
 
@@ -53,7 +55,7 @@ class Binance(BaseExchange):
             response = rq.json()
 
             if 'msg' in response:
-                message = MessageDebug.FAIL_RESPONSE_DETAILS.format(name=self.name, body=response['msg'],
+                message = DebugMessage.FAIL_RESPONSE_DETAILS.format(name=self.name, body=response['msg'],
                                                                     path=path, parameter=extra)
                 debugger.debug(message)
 
@@ -85,7 +87,7 @@ class Binance(BaseExchange):
             response = rq.json()
 
             if 'msg' in response:
-                message = MessageDebug.FAIL_RESPONSE_DETAILS.format(name=self.name, body=response['msg'],
+                message = DebugMessage.FAIL_RESPONSE_DETAILS.format(name=self.name, body=response['msg'],
                                                                     path=path, parameter=extra)
                 debugger.debug(message)
 
@@ -137,6 +139,23 @@ class Binance(BaseExchange):
         self.exchange_info = step_size
 
         return True
+
+    def _get_all_asset_details(self):
+        for _ in range(3):
+            result_object = self._private_api('GET', Urls.GET_ALL_INFORMATION)
+            if result_object.success:
+                result = dict()
+                for each in result_object.data:
+                    coin = each.pop('coin', None)
+
+                    if coin:
+                        result.update({coin: each})
+                self.all_details = result
+                break
+
+            time.sleep(result_object.wait_time)
+        else:
+            return result_object
 
     def _get_step_size(self, symbol, amount):
         step_size = self._lot_sizes.get(symbol, dict()).get('step_size')
@@ -489,7 +508,7 @@ class Binance(BaseExchange):
                 response = json.loads(await rq.text())
 
                 if 'msg' in response:
-                    message = MessageDebug.FAIL_RESPONSE_DETAILS.format(name=self.name, body=response['msg'],
+                    message = DebugMessage.FAIL_RESPONSE_DETAILS.format(name=self.name, body=response['msg'],
                                                                         path=path, parameter=extra)
                     debugger.debug(message)
                     return ExchangeResult(False, message=message, wait_time=1)
@@ -512,7 +531,7 @@ class Binance(BaseExchange):
             response = json.loads(await rq.text())
 
             if 'msg' in response:
-                message = MessageDebug.FAIL_RESPONSE_DETAILS.format(name=self.name, body=response['msg'],
+                message = DebugMessage.FAIL_RESPONSE_DETAILS.format(name=self.name, body=response['msg'],
                                                                     path=path, parameter=extra)
                 debugger.debug(message)
                 return ExchangeResult(False, message=message, wait_time=1)
@@ -533,21 +552,12 @@ class Binance(BaseExchange):
 
         return result_object
 
-    async def _get_deposit_addrs(self, symbol):
-        for _ in range(3):
-            result_object = await self._async_private_api(Consts.GET, Urls.DEPOSITS, {'asset': symbol})
-
-            if result_object.success:
-                break
-            time.sleep(result_object.wait_time)
-
-        return result_object
-
     async def get_deposit_addrs(self, coin_list=None):
         debugger.debug('Binance::: get_deposit_addrs')
 
         able_to_trading_coin_list = list()
         for data in self.exchange_info['symbols']:
+            # check status coin is able to trading.
             if data['status'] == 'TRADING':
                 able_to_trading_coin_list.append(data['baseAsset'])
 
@@ -555,18 +565,28 @@ class Binance(BaseExchange):
             result_message = str()
             return_deposit_dict = dict()
             for coin in able_to_trading_coin_list:
-                coin = binance_to_sai_symbol_converter(coin)
+                coin = _symbol_customizing(coin)
 
-                get_deposit_result_object = await self._get_deposit_addrs(coin)
+                get_deposit_result_object = await self._async_private_api(Consts.GET, Urls.DEPOSITS, {'coin': coin.lower()})
                 
                 if not get_deposit_result_object.success:
                     result_message += '[{}]해당 코인은 값을 가져오는데 실패했습니다.\n'.format(get_deposit_result_object.message)
                     continue
-                    
-                elif get_deposit_result_object.data['success'] is False:
-                    result_message += '[{}]해당 코인은 점검 중입니다.\n'.format(coin)
-                    continue
-                
+
+                coin_details = self.all_details.get(coin, None)
+
+                if coin_details is not None:
+                    able_deposit = coin_details['depositAllEnable']
+                    able_withdrawal = coin_details['withdrawAllEnable']
+
+                    if not able_deposit:
+                        debugger.debug('Binance, [{}] 해당 코인은 입금이 막혀있는 상태입니다.'.format(coin))
+                        continue
+
+                    elif not able_withdrawal:
+                        debugger.debug('Binance, [{}] 해당 코인은 출금이 막혀있는 상태입니다.'.format(coin))
+                        continue
+
                 address = get_deposit_result_object.data.get('address')
                 if address:
                     return_deposit_dict[coin] = address

@@ -38,7 +38,10 @@ class BaseUpbit(BaseExchange):
             Consts.ORDERBOOK: threading.Lock(),
             Consts.CANDLE: threading.Lock()
         }
-        
+
+        self._subscriber = None
+
+    def set_subscriber(self):
         self._subscriber = UpbitSubscriber(self.data_store, self._lock_dic)
 
     def _public_api(self, path, extra=None):
@@ -159,7 +162,11 @@ class BaseUpbit(BaseExchange):
     def get_jwt_token(self, payload):
         return 'Bearer {}'.format(jwt.encode(payload, self._secret, ).decode('utf8'))
 
+    def _get_ticker(self):
+        pass
+
     def get_ticker(self, symbol):
+        debugger.debug()
         symbol = sai_to_upbit_symbol_converter(symbol)
 
         result = self._public_api(Urls.TICKER, {'markets': symbol})
@@ -302,9 +309,7 @@ class BaseUpbit(BaseExchange):
 
             if not trading_validation_result.success:
                 return trading_validation_result
-            step_size = trading_validation_result.data
-            stepped_price = (price - Decimal(price % step_size)).quantize(Decimal(10) ** - 8)
-
+            stepped_price = trading_validation_result.data
             params.update(dict(price=stepped_price))
         
         return self._private_api(Consts.POST, Urls.ORDERS, params)
@@ -390,18 +395,39 @@ class BaseUpbit(BaseExchange):
 
         return ExchangeResult(True, fees)
 
-    async def get_deposit_addrs(self, coin_list=None):
-        return self.async_public_api(Urls.DEPOSIT_ADDRESS)
-    
+    async def get_deposit_addrs(self, coin_list):
+        debugger.debug('Upbit, get_deposit_addrs')
+        result = await self._async_private_api(Consts.GET, Urls.DEPOSIT_ADDRESS)
+        if result.success:
+            result_dict = dict()
+            for data in result.data:
+                coin = data['currency']
+                if coin not in coin_list:
+                    continue
+
+                able_result = await self._async_private_api(Consts.GET, Urls.ABLE_WITHDRAWS, {'currency': coin})
+
+                if not result.success:
+                    continue
+
+                support_list = able_result.data['currency']['wallet_support']
+                if 'withdraw' not in support_list or 'deposit' not in support_list:
+                    continue
+
+                deposit_address = data['deposit_address']
+
+                if 'secondary_address' in data.keys() and data['secondary_address']:
+                    result_dict[coin + 'TAG'] = data['secondary_address']
+
+                result_dict[coin] = deposit_address
+
+            result.data = result_dict
+
+        return result
+
     async def get_balance(self):
         return self._private_api(Consts.GET, Urls.ACCOUNT)
-    
-    async def get_orderbook(self, market):
-        return self.async_public_api(Urls.ORDERBOOK, {'markets': market})
-    
-    async def get_btc_orderbook(self, btc_sum):
-        return await self.get_orderbook('KRW-BTC')
-    
+
     async def get_curr_avg_orderbook(self, coin_list, btc_sum=1):
         with self._lock_dic['orderbook']:
             data_dic = self.data_store.orderbook_queue

@@ -20,6 +20,7 @@ class Urls(object):
     ACCOUNT = '/accounts'
     ORDERBOOK = '/orderbook'
     DEPOSIT_ADDRESS = '/v1/deposits/coin_addresses'
+    ABLE_WITHDRAWS = '/withdraws/chance'
     GET_DEPOSIT_HISTORY = '/deposits'
 
     class Websocket(object):
