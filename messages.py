@@ -13,6 +13,7 @@ class WarningMessage(object):
     
     WRONG_MIN_NOTIONAL = '[{name}]정상적인 주문 금액이 아닙니다. ' \
                          '해당 거래소의 [{symbol}]는 주문 총액이 [{min_notional}]이상이어야 합니다.'
+    FAIL_RESPONSE_DETAILS = '{name}, body: [{body}], path: [{path}], parameter: [{parameter}]'
 
 
 class CriticalMessage(object):
@@ -20,5 +21,5 @@ class CriticalMessage(object):
 
 
 class DebugMessage(object):
-    ENTRANCE = '{name}, fn={fn}, data={join_data}'
-    FAIL_RESPONSE_DETAILS = '{name}, body: [{body}], path: [{path}], parameter: [{parameter}]'
+    ENTRANCE = '{name}, fn={fn}, data={data}'
+    FATAL = 'FATAL, {name}, fn={fn}'
