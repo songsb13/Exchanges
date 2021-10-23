@@ -43,62 +43,49 @@ class Binance(BaseExchange):
             Consts.ORDERBOOK: threading.Lock(),
             Consts.CANDLE: threading.Lock()
         }
-        
-        self._subscriber = BinanceSubscriber(self.data_store, self._lock_dic)
+
+        self._subscriber = None
+
+    def __get_results(self, request, path, extra, fn):
+        try:
+            result = json.loads(request)
+        except:
+            debugger.debug(DebugMessage.FATAL.format(name=self.name, fn=fn))
+            return ExchangeResult(False, message=WarningMessage.EXCEPTION_RAISED.format(name=self.name), wait_time=1)
+
+        raw_error_message = result.get('msg', None)
+
+        if raw_error_message is None:
+            return ExchangeResult(True, result)
+        else:
+            error_message = WarningMessage.FAIL_RESPONSE_DETAILS.format(name=self.name, body=raw_error_message,
+                                                                        path=path, parameter=extra)
+            return ExchangeResult(False, message=error_message, wait_time=1)
 
     def _public_api(self, path, extra=None):
         if extra is None:
             extra = dict()
 
-        try:
-            rq = requests.get(Urls.BASE + path, params=extra)
-            response = rq.json()
-
-            if 'msg' in response:
-                message = WarningMessage.FAIL_RESPONSE_DETAILS.format(name=self.name, body=response['msg'],
-                                                                      path=path, parameter=extra)
-                debugger.debug(message)
-
-                user_message = WarningMessage.FAIL_MESSAGE_BODY.format(name=self.name, message=response['msg'])
-                return ExchangeResult(False, message=user_message, wait_time=1)
-            else:
-                return ExchangeResult(True, response)
-
-        except:
-            debugger.exception('FATAL: Binance, _public_api')
-            return ExchangeResult(False, message=WarningMessage.EXCEPTION_RAISED.format(name=self.name), wait_time=1)
+        rq = requests.get(Urls.BASE + path, params=extra)
+        return self.__get_results(rq, path, extra, fn='_public_api')
 
     def _private_api(self, method, path, extra=None):
         if extra is None:
             extra = dict()
 
-        try:
-            query = self._sign_generator(extra)
-            sig = query.pop('signature')
-            query = "{}&signature={}".format(urlencode(sorted(extra.items())), sig)
+        query = self._sign_generator(extra)
+        sig = query.pop('signature')
+        query = "{}&signature={}".format(urlencode(sorted(extra.items())), sig)
 
-            if method == Consts.GET:
-                rq = requests.get(Urls.BASE + path, params=query, headers={"X-MBX-APIKEY": self._key})
+        if method == Consts.GET:
+            rq = requests.get(Urls.BASE + path, params=query, headers={"X-MBX-APIKEY": self._key})
+        else:
+            if path == Urls.WITHDRAW:
+                rq = requests.post(Urls.BASE + path, params=query, headers={"X-MBX-APIKEY": self._key})
             else:
-                if path == Urls.WITHDRAW:
-                    rq = requests.post(Urls.BASE + path, params=query, headers={"X-MBX-APIKEY": self._key})
-                else:
-                    rq = requests.post(Urls.BASE + path, data=query, headers={"X-MBX-APIKEY": self._key})
-            response = rq.json()
+                rq = requests.post(Urls.BASE + path, data=query, headers={"X-MBX-APIKEY": self._key})
 
-            if 'msg' in response:
-                message = WarningMessage.FAIL_RESPONSE_DETAILS.format(name=self.name, body=response['msg'],
-                                                                    path=path, parameter=extra)
-                debugger.debug(message)
-
-                user_message = WarningMessage.FAIL_MESSAGE_BODY.format(name=self.name, message=response['msg'])
-                return ExchangeResult(False, wait_time=user_message, message=1)
-            else:
-                return ExchangeResult(True, response)
-
-        except:
-            debugger.exception('FATAL: Binance, _priavet_api')
-            return ExchangeResult(False, message=WarningMessage.EXCEPTION_RAISED.format(name=self.name), wait_time=1)
+        return self.__get_results(rq, path, extra, fn='_private_api')
 
     def _sign_generator(self, *args):
         params, *_ = args
@@ -507,29 +494,16 @@ class Binance(BaseExchange):
         async with aiohttp.ClientSession(headers={"X-MBX-APIKEY": self._key}) as session:
             query = self._sign_generator(extra)
 
-            try:
-                if method == Consts.GET:
-                    sig = query.pop('signature')
-                    query = "{}&signature={}".format(urlencode(sorted(extra.items())), sig)
-                    rq = await session.get(Urls.BASE + path + "?{}".format(query))
+            if method == Consts.GET:
+                sig = query.pop('signature')
+                query = "{}&signature={}".format(urlencode(sorted(extra.items())), sig)
+                rq = await session.get(Urls.BASE + path + "?{}".format(query))
 
-                else:
-                    rq = await session.post(Urls.BASE + path, data=query)
+            else:
+                rq = await session.post(Urls.BASE + path, data=query)
 
-                response = json.loads(await rq.text())
-
-                if 'msg' in response:
-                    message = WarningMessage.FAIL_RESPONSE_DETAILS.format(name=self.name, body=response['msg'],
-                                                                        path=path, parameter=extra)
-                    debugger.debug(message)
-                    return ExchangeResult(False, message=message, wait_time=1)
-
-                else:
-                    return ExchangeResult(True, response)
-
-            except:
-                debugger.exception('FATAL: Binance, _async_private_api')
-                return ExchangeResult(False, message=WarningMessage.EXCEPTION_RAISED.format(name=self.name), wait_time=1)
+            result_text = await rq.text()
+            return self.__get_results(result_text, path, extra, fn='_async_private_api')
 
     async def _async_public_api(self, path, extra=None):
         if extra is None:
@@ -537,22 +511,9 @@ class Binance(BaseExchange):
 
         async with aiohttp.ClientSession() as session:
             rq = await session.get(Urls.BASE + path, params=extra)
+            result_text = await rq.text()
 
-        try:
-            response = json.loads(await rq.text())
-
-            if 'msg' in response:
-                message = WarningMessage.FAIL_RESPONSE_DETAILS.format(name=self.name, body=response['msg'],
-                                                                    path=path, parameter=extra)
-                debugger.debug(message)
-                return ExchangeResult(False, message=message, wait_time=1)
-
-            else:
-                return ExchangeResult(True, response)
-
-        except:
-            debugger.exception('FATAL')
-            return ExchangeResult(False, message=WarningMessage.EXCEPTION_RAISED.format(name=self.name), wait_time=1)
+            return self.__get_results(result_text, path, extra, fn='_async_public_api')
 
     async def _get_balance(self):
         for _ in range(3):
@@ -748,7 +709,6 @@ class Binance(BaseExchange):
             return ExchangeResult(True, avg_orderbook)
 
         except:
-            debugger.exception('FATAL: Binance, get_curr_avg_orderbook')
             return ExchangeResult(False, message=WarningMessage.EXCEPTION_RAISED.format(name=self.name), wait_time=1)
 
     async def compare_orderbook(self, other_exchange, symbol_list, default_btc=1):
