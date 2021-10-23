@@ -12,6 +12,7 @@ from Util.pyinstaller_patch import debugger
 
 from Exchanges.settings import Consts, SaiOrderStatus
 from Exchanges.messages import WarningMessage as WarningMsg
+from Exchanges.messages import DebugMessage
 
 from Exchanges.upbit.setting import Urls, OrderStatus, DepositStatus, LocalConsts
 from Exchanges.upbit.subscriber import UpbitSubscriber
@@ -65,6 +66,7 @@ class BaseUpbit(BaseExchange):
             return ExchangeResult(False, message=WarningMsg.EXCEPTION_RAISED.format(name=self.name), wait_time=1)
 
     def _private_api(self, method, path, extra=None):
+        debugger.debug(DebugMessage.ENTRANCE.format(name=self.name, fn="_private_api", data=extra))
         payload = {
             'access_key': self._key,
             'nonce': int(time.time() * 1000),
@@ -87,14 +89,20 @@ class BaseUpbit(BaseExchange):
             res = rq.json()
     
             if 'error' in res:
-                error_msg = res.get('error', dict()).get('message', WarningMsg.MESSAGE_NOT_FOUND.format(name=self.name))
+                raw_error_msg = res.get('error', dict()).get('message', WarningMsg.MESSAGE_NOT_FOUND.format(name=self.name))
+
+                if raw_error_msg is None:
+                    error_msg = WarningMsg.FAIL_RESPONSE_DETAILS.format(name=self.name, body=raw_error_msg,
+                                                                        path=path, parameter=extra)
+                else:
+                    error_msg = WarningMsg.MESSAGE_NOT_FOUND.format(name=self.name)
                 return ExchangeResult(False, message=error_msg, wait_time=1)
     
             else:
                 return ExchangeResult(True, res)
 
         except:
-            debugger.exception('FATAL: Upbit, _private_api')
+            debugger.exception(DebugMessage.FATAL.format(name=self.name, fn="_private_api"))
             return ExchangeResult(False, message=WarningMsg.EXCEPTION_RAISED.format(name=self.name), wait_time=1)
 
     def _get_step_size(self, symbol, krw_price):
@@ -162,11 +170,8 @@ class BaseUpbit(BaseExchange):
     def get_jwt_token(self, payload):
         return 'Bearer {}'.format(jwt.encode(payload, self._secret, ).decode('utf8'))
 
-    def _get_ticker(self):
-        pass
-
     def get_ticker(self, symbol):
-        debugger.debug()
+        debugger.debug(DebugMessage.ENTRANCE.format(name=self.name, fn="get_ticker", data=str(locals())))
         symbol = sai_to_upbit_symbol_converter(symbol)
 
         result = self._public_api(Urls.TICKER, {'markets': symbol})
@@ -177,6 +182,7 @@ class BaseUpbit(BaseExchange):
         return result
 
     def get_order_history(self, uuid, additional_parameter):
+        debugger.debug(DebugMessage.ENTRANCE.format(name=self.name, fn="get_order_history", data=str(locals())))
         params = dict(uuid=uuid)
 
         result = self._private_api(Consts.GET, Urls.ORDER, params)
@@ -204,6 +210,7 @@ class BaseUpbit(BaseExchange):
         return result
 
     def get_deposit_history(self, coin):
+        debugger.debug(DebugMessage.ENTRANCE.format(name=self.name, fn="get_deposit_history", data=str(locals())))
         params = dict(
             currency=coin,
             state=DepositStatus.ACCEPTED
@@ -221,6 +228,7 @@ class BaseUpbit(BaseExchange):
         return result
 
     def get_available_symbols(self):
+        debugger.debug(DebugMessage.ENTRANCE.format(name=self.name, fn="get_available_symbols", data=''))
         result = self._public_api(Urls.CURRENCY)
 
         if result.success:
@@ -238,6 +246,7 @@ class BaseUpbit(BaseExchange):
             subscribe candle.
             symbol: it can be list or string, [BTC-XRP, BTC-ETH] or 'BTC-XRP'
         """
+        debugger.debug(DebugMessage.ENTRANCE.format(name=self.name, fn="set_subscribe_candle", data=str(locals())))
         coin = list(map(sai_to_upbit_symbol_converter, symbol)) if isinstance(symbol, list) \
             else sai_to_upbit_symbol_converter(symbol)
         with self._lock_dic['candle']:
@@ -250,6 +259,7 @@ class BaseUpbit(BaseExchange):
             subscribe orderbook.
             symbol: it can be list or string, [BTC-XRP, BTC-ETH] or 'BTC-XRP'
         """
+        debugger.debug(DebugMessage.ENTRANCE.format(name=self.name, fn="set_subscribe_orderbook", data=str(locals())))
         coin = list(map(sai_to_upbit_symbol_converter, symbol)) if isinstance(symbol, list) \
             else sai_to_upbit_symbol_converter(symbol)
         with self._lock_dic['orderbook']:
@@ -258,6 +268,7 @@ class BaseUpbit(BaseExchange):
         return True
 
     def get_candle(self, coin):
+        debugger.debug(DebugMessage.ENTRANCE.format(name=self.name, fn="get_candle", data=str(locals())))
         with self._lock_dic['candle']:
             result = self.data_store.candle_queue.get(coin, None)
             if result is None:
@@ -265,6 +276,7 @@ class BaseUpbit(BaseExchange):
             return ExchangeResult(True, result)
 
     def withdraw(self, coin, amount, to_address, payment_id=None):
+        debugger.debug(DebugMessage.ENTRANCE.format(name=self.name, fn="withdraw", data=str(locals())))
         params = {
             'currency': coin,
             'address': to_address,
@@ -277,6 +289,7 @@ class BaseUpbit(BaseExchange):
         return self._private_api(Consts.POST, Urls.WITHDRAW, params)
     
     def buy(self, sai_symbol, amount, trade_type, price=None):
+        debugger.debug(DebugMessage.ENTRANCE.format(name=self.name, fn="buy", data=str(locals())))
         upbit_trade_type = sai_to_upbit_trade_type_converter(trade_type)
         symbol = sai_to_upbit_symbol_converter(sai_symbol)
         params = {
@@ -296,6 +309,7 @@ class BaseUpbit(BaseExchange):
         return self._private_api(Consts.POST, Urls.ORDERS, params)
     
     def sell(self, sai_symbol, amount, trade_type, price=None):
+        debugger.debug(DebugMessage.ENTRANCE.format(name=self.name, fn="sell", data=str(locals())))
         upbit_trade_type = sai_to_upbit_trade_type_converter(trade_type)
         symbol = sai_to_upbit_symbol_converter(sai_symbol)
         params = {
@@ -315,6 +329,7 @@ class BaseUpbit(BaseExchange):
         return self._private_api(Consts.POST, Urls.ORDERS, params)
     
     def base_to_alt(self, currency_pair, btc_amount, alt_amount, td_fee, tx_fee):
+        debugger.debug(DebugMessage.ENTRANCE.format(name=self.name, fn="base_to_alt", data=str(locals())))
         alt_amount *= 1 - decimal.Decimal(td_fee)
         alt_amount -= decimal.Decimal(tx_fee[currency_pair.split('_')[1]])
         alt_amount = alt_amount
@@ -378,6 +393,7 @@ class BaseUpbit(BaseExchange):
             return ExchangeResult(False, message=WarningMsg.EXCEPTION_RAISED.format(name=self.name), wait_time=1)
 
     async def get_transaction_fee(self):
+        debugger.debug(DebugMessage.ENTRANCE.format(name=self.name, fn="get_transaction_fee", data=str(locals())))
         result = requests.get(Urls.Web.BASE + Urls.Web.TRANSACTION_FEE_PAGE)
         raw_data = json.loads(result.text)
 
@@ -396,7 +412,7 @@ class BaseUpbit(BaseExchange):
         return ExchangeResult(True, fees)
 
     async def get_deposit_addrs(self, coin_list):
-        debugger.debug('Upbit, get_deposit_addrs')
+        debugger.debug(DebugMessage.ENTRANCE.format(name=self.name, fn="get_deposit_addrs", data=str(locals())))
         result = await self._async_private_api(Consts.GET, Urls.DEPOSIT_ADDRESS)
         if result.success:
             result_dict = dict()
@@ -429,6 +445,7 @@ class BaseUpbit(BaseExchange):
         return self._private_api(Consts.GET, Urls.ACCOUNT)
 
     async def get_curr_avg_orderbook(self, coin_list, btc_sum=1):
+        debugger.debug(DebugMessage.ENTRANCE.format(name=self.name, fn="get_curr_avg_orderbook", data=str(locals())))
         with self._lock_dic['orderbook']:
             data_dic = self.data_store.orderbook_queue
             
@@ -456,6 +473,7 @@ class BaseUpbit(BaseExchange):
                 return ExchangeResult(True, avg_order_book)
     
     async def compare_orderbook(self, other, symbol_list, default_btc=1):
+        debugger.debug(DebugMessage.ENTRANCE.format(name=self.name, fn="compare_orderbook", data=str(locals())))
         upbit_res, other_res = await asyncio.gather(
             self.get_curr_avg_orderbook(symbol_list, default_btc),
             other.get_curr_avg_orderbook(symbol_list, default_btc)
