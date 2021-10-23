@@ -55,8 +55,8 @@ class Binance(BaseExchange):
             response = rq.json()
 
             if 'msg' in response:
-                message = DebugMessage.FAIL_RESPONSE_DETAILS.format(name=self.name, body=response['msg'],
-                                                                    path=path, parameter=extra)
+                message = WarningMessage.FAIL_RESPONSE_DETAILS.format(name=self.name, body=response['msg'],
+                                                                      path=path, parameter=extra)
                 debugger.debug(message)
 
                 user_message = WarningMessage.FAIL_MESSAGE_BODY.format(name=self.name, message=response['msg'])
@@ -87,7 +87,7 @@ class Binance(BaseExchange):
             response = rq.json()
 
             if 'msg' in response:
-                message = DebugMessage.FAIL_RESPONSE_DETAILS.format(name=self.name, body=response['msg'],
+                message = WarningMessage.FAIL_RESPONSE_DETAILS.format(name=self.name, body=response['msg'],
                                                                     path=path, parameter=extra)
                 debugger.debug(message)
 
@@ -246,6 +246,7 @@ class Binance(BaseExchange):
         return lot_size_info
 
     def set_subscriber(self):
+        debugger.debug(DebugMessage.ENTRANCE.format(name=self.name, fn="set_subscriber", data=str(locals())))
         self._subscriber = BinanceSubscriber(self.data_store, self._lock_dic)
 
     def get_precision(self, pair=None):
@@ -258,6 +259,7 @@ class Binance(BaseExchange):
             return ExchangeResult(False, message=WarningMessage.PRECISION_NOT_FOUND.format(name=self.name), wait_time=60)
 
     def get_available_symbols(self):
+        debugger.debug(DebugMessage.ENTRANCE.format(name=self.name, fn="get_available_symbols", data=str(locals())))
         result = list()
         for data in self.exchange_info['symbols']:
             market = data.get('quoteAsset')
@@ -271,7 +273,7 @@ class Binance(BaseExchange):
         return result
 
     def buy(self, sai_symbol, amount, trade_type, price=None):
-        debugger.debug('Binance, buy::: {}, {}, {}'.format(sai_symbol, amount, price))
+        debugger.debug(DebugMessage.ENTRANCE.format(name=self.name, fn="buy", data=str(locals())))
 
         binance_trade_type = sai_to_binance_trade_type_converter(trade_type)
         symbol = sai_to_binance_symbol_converter(sai_symbol)
@@ -305,7 +307,7 @@ class Binance(BaseExchange):
         return result
 
     def sell(self, sai_symbol, amount, trade_type, price=None):
-        debugger.debug('Binance, sell::: {}, {}, {}'.format(sai_symbol, amount, price))
+        debugger.debug(DebugMessage.ENTRANCE.format(name=self.name, fn="sell", data=str(locals())))
         params = dict()
 
         binance_trade_type = sai_to_binance_trade_type_converter(trade_type)
@@ -342,6 +344,7 @@ class Binance(BaseExchange):
         return 1
 
     def base_to_alt(self, symbol, btc_amount, alt_amount, td_fee, tx_fee):
+        debugger.debug(DebugMessage.ENTRANCE.format(name=self.name, fn="base_to_alt", data=str(locals())))
         coin = symbol.split('_')[1]
         binance_symbol = sai_to_binance_symbol_converter(symbol)
         result_object = self.buy(binance_symbol, alt_amount, BaseTradeType.BUY_MARKET)
@@ -356,6 +359,7 @@ class Binance(BaseExchange):
         return result_object
 
     def alt_to_base(self, symbol, btc_amount, alt_amount):
+        debugger.debug(DebugMessage.ENTRANCE.format(name=self.name, fn="alt_to_base", data=str(locals())))
         binance_symbol = binance_to_sai_symbol_converter(symbol)
         for _ in range(10):
             result_object = self.sell(binance_symbol, alt_amount, BaseTradeType.SELL_MARKET)
@@ -367,6 +371,7 @@ class Binance(BaseExchange):
         return result_object
 
     def get_ticker(self, symbol):
+        debugger.debug(DebugMessage.ENTRANCE.format(name=self.name, fn="get_ticker", data=str(locals())))
         binance_symbol = sai_to_binance_symbol_converter(symbol)
         result_object = self._public_api(Urls.TICKER, {'symbol': binance_symbol})
         if result_object.success:
@@ -375,7 +380,7 @@ class Binance(BaseExchange):
         return result_object
 
     def get_order_history(self, order_id, additional):
-        debugger.debug('Binance, get_order_history::: {}, {}'.format(order_id, additional))
+        debugger.debug(DebugMessage.ENTRANCE.format(name=self.name, fn="get_order_history", data=str(locals())))
 
         params = dict(orderId=order_id)
         if additional:
@@ -398,6 +403,7 @@ class Binance(BaseExchange):
         return result
 
     def withdraw(self, coin, amount, to_address, payment_id=None):
+        debugger.debug(DebugMessage.ENTRANCE.format(name=self.name, fn="withdraw", data=str(locals())))
         coin = sai_to_binance_symbol_converter(coin)
         params = {'coin': coin, 'address': to_address,
                   'amount': Decimal(amount).quantize(Decimal(10) ** - 8), 'name': 'SAICDiffTrader'}
@@ -413,6 +419,7 @@ class Binance(BaseExchange):
             subscribe candle.
             coin: it can be list or string, [xrpbtc, ethbtc] or 'xrpbtc'
         """
+        debugger.debug(DebugMessage.ENTRANCE.format(name=self.name, fn="set_subscribe_candle", data=str(locals())))
         for _ in range(10):
             time.sleep(1)
             if self._subscriber.keep_running:
@@ -430,6 +437,7 @@ class Binance(BaseExchange):
             subscribe orderbook.
             coin: it can be list or string, [xrpbtc, ethbtc] or 'xrpbtc'
         """
+        debugger.debug(DebugMessage.ENTRANCE.format(name=self.name, fn="set_subscribe_orderbook", data=str(locals())))
         for _ in range(10):
             time.sleep(1)
             if self._subscriber.keep_running:
@@ -443,6 +451,7 @@ class Binance(BaseExchange):
         return True
 
     def get_orderbook(self):
+        debugger.debug(DebugMessage.ENTRANCE.format(name=self.name, fn="get_orderbook", data=str(locals())))
         with self._lock_dic['orderbook']:
             data_dic = self.data_store.orderbook_queue
             if not self.data_store.orderbook_queue:
@@ -452,6 +461,7 @@ class Binance(BaseExchange):
             return ExchangeResult(True, data_dic)
 
     def get_candle(self, symbol):
+        debugger.debug(DebugMessage.ENTRANCE.format(name=self.name, fn="get_candle", data=str(locals())))
         binance_symbol = sai_to_binance_symbol_converter(symbol)
         with self._lock_dic['candle']:
             candle_dict = self.data_store.candle_queue.get(binance_symbol, None)
@@ -474,6 +484,7 @@ class Binance(BaseExchange):
         return self._private_api(Consts.GET, Urls.GET_DEPOSIT_HISTORY, params)
 
     def get_deposit_history(self, coin):
+        debugger.debug(DebugMessage.ENTRANCE.format(name=self.name, fn="get_deposit_history", data=str(locals())))
         params = dict(coin=coin, status=DepositStatus.SUCCESS)
 
         result = self._get_deposit_history(params)
@@ -508,7 +519,7 @@ class Binance(BaseExchange):
                 response = json.loads(await rq.text())
 
                 if 'msg' in response:
-                    message = DebugMessage.FAIL_RESPONSE_DETAILS.format(name=self.name, body=response['msg'],
+                    message = WarningMessage.FAIL_RESPONSE_DETAILS.format(name=self.name, body=response['msg'],
                                                                         path=path, parameter=extra)
                     debugger.debug(message)
                     return ExchangeResult(False, message=message, wait_time=1)
@@ -531,7 +542,7 @@ class Binance(BaseExchange):
             response = json.loads(await rq.text())
 
             if 'msg' in response:
-                message = DebugMessage.FAIL_RESPONSE_DETAILS.format(name=self.name, body=response['msg'],
+                message = WarningMessage.FAIL_RESPONSE_DETAILS.format(name=self.name, body=response['msg'],
                                                                     path=path, parameter=extra)
                 debugger.debug(message)
                 return ExchangeResult(False, message=message, wait_time=1)
@@ -553,7 +564,7 @@ class Binance(BaseExchange):
         return result_object
 
     async def get_deposit_addrs(self, coin_list=None):
-        debugger.debug('Binance::: get_deposit_addrs')
+        debugger.debug(DebugMessage.ENTRANCE.format(name=self.name, fn="get_deposit_addrs", data=str(locals())))
 
         able_to_trading_coin_list = list()
         for data in self.exchange_info['symbols']:
@@ -664,6 +675,7 @@ class Binance(BaseExchange):
         return ExchangeResult(True, 0.001)
 
     async def get_transaction_fee(self):
+        debugger.debug(DebugMessage.ENTRANCE.format(name=self.name, fn="get_transaction_fee", data=str(locals())))
         result = self._private_api('GET', Urls.GET_ALL_INFORMATION)
 
         if result.success:
@@ -683,6 +695,7 @@ class Binance(BaseExchange):
         return result
 
     async def get_balance(self):
+        debugger.debug(DebugMessage.ENTRANCE.format(name=self.name, fn="get_balance", data=str(locals())))
         result_object = await self._get_balance()
 
         if result_object.success:
@@ -697,6 +710,7 @@ class Binance(BaseExchange):
         return result_object
     
     async def get_curr_avg_orderbook(self, symbol_list, btc_sum=1):
+        debugger.debug(DebugMessage.ENTRANCE.format(name=self.name, fn="get_curr_avg_orderbook", data=str(locals())))
         try:
             if not self.data_store.orderbook_queue:
                 return ExchangeResult(False, message=WarningMessage.ORDERBOOK_NOT_STORED.format(name=self.name), wait_time=1)
@@ -738,6 +752,7 @@ class Binance(BaseExchange):
             return ExchangeResult(False, message=WarningMessage.EXCEPTION_RAISED.format(name=self.name), wait_time=1)
 
     async def compare_orderbook(self, other_exchange, symbol_list, default_btc=1):
+        debugger.debug(DebugMessage.ENTRANCE.format(name=self.name, fn="compare_orderbook", data=str(locals())))
         for _ in range(3):
             binance_result_object, other_result_object = await asyncio.gather(
                 self.get_curr_avg_orderbook(symbol_list, default_btc),
