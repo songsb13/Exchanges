@@ -45,25 +45,35 @@ class BaseUpbit(BaseExchange):
     def set_subscriber(self):
         self._subscriber = UpbitSubscriber(self.data_store, self._lock_dic)
 
+    def __get_results(self, request, path, extra, fn):
+        try:
+            res = json.loads(request)
+        except:
+            debugger.exception(DebugMessage.FATAL.format(name=self.name, fn=fn))
+            return ExchangeResult(False, message=WarningMsg.EXCEPTION_RAISED.format(name=self.name), wait_time=1)
+
+        raw_error = res.get('error', dict())
+
+        if not raw_error:
+            return ExchangeResult(True, res)
+        else:
+            raw_error_message = raw_error.get('message', None)
+            if raw_error_message is None:
+                error_message = WarningMsg.FAIL_RESPONSE_DETAILS.format(name=self.name, body=raw_error_message,
+                                                                        path=path, parameter=extra)
+            else:
+                error_message = WarningMsg.MESSAGE_NOT_FOUND.format(name=self.name)
+
+            return ExchangeResult(False, message=error_message, wait_time=1)
+
     def _public_api(self, path, extra=None):
         if extra is None:
             extra = dict()
         
         url = Urls.BASE + path
         rq = requests.get(url, params=extra)
-        try:
-            res = rq.json()
-            
-            if 'error' in res:
-                error_msg = res.get('error', dict()).get('message', WarningMsg.MESSAGE_NOT_FOUND.format(name=self.name))
-                return ExchangeResult(False, message=error_msg, wait_time=1)
-            
-            else:
-                return ExchangeResult(True, res)
-        
-        except:
-            debugger.exception('FATAL: Upbit, _public_api')
-            return ExchangeResult(False, message=WarningMsg.EXCEPTION_RAISED.format(name=self.name), wait_time=1)
+
+        return self.__get_results(rq, path, extra, fn='public_api')
 
     def _private_api(self, method, path, extra=None):
         debugger.debug(DebugMessage.ENTRANCE.format(name=self.name, fn="_private_api", data=extra))
@@ -74,7 +84,7 @@ class BaseUpbit(BaseExchange):
         
         if extra is not None:
             payload.update({'query': urlencode(extra)})
-        
+
         authorization_token = self.get_jwt_token(payload)
         header = {'Authorization': authorization_token}
         url = Urls.BASE + path
@@ -85,25 +95,7 @@ class BaseUpbit(BaseExchange):
         else:
             rq = requests.get(url=url, headers=header, params=extra)
 
-        try:
-            res = rq.json()
-    
-            if 'error' in res:
-                raw_error_msg = res.get('error', dict()).get('message', WarningMsg.MESSAGE_NOT_FOUND.format(name=self.name))
-
-                if raw_error_msg is None:
-                    error_msg = WarningMsg.FAIL_RESPONSE_DETAILS.format(name=self.name, body=raw_error_msg,
-                                                                        path=path, parameter=extra)
-                else:
-                    error_msg = WarningMsg.MESSAGE_NOT_FOUND.format(name=self.name)
-                return ExchangeResult(False, message=error_msg, wait_time=1)
-    
-            else:
-                return ExchangeResult(True, res)
-
-        except:
-            debugger.exception(DebugMessage.FATAL.format(name=self.name, fn="_private_api"))
-            return ExchangeResult(False, message=WarningMsg.EXCEPTION_RAISED.format(name=self.name), wait_time=1)
+        return self.__get_results(rq, path, extra, fn='private_api')
 
     def _get_step_size(self, symbol, krw_price):
         market, coin = symbol.split('-')
@@ -339,24 +331,12 @@ class BaseUpbit(BaseExchange):
     async def _async_public_api(self, path, extra=None):
         if extra is None:
             extra = dict()
-        try:
-            async with aiohttp.ClientSession() as s:
-                url = Urls.BASE + path
-                rq = await s.get(url, params=extra)
-                
-                res = json.loads(await rq.text())
-                
-                if 'error' in res:
-                    error_msg = res.get('error', dict()).get('message',
-                                                             WarningMsg.MESSAGE_NOT_FOUND.format(name=self.name))
-    
-                    return ExchangeResult(False, message=error_msg, wait_time=1)
-                
-                else:
-                    return ExchangeResult(True, res)
-        except:
-            debugger.exception('FATAL: Upbit, _async_public_api')
-            return ExchangeResult(False, message=WarningMsg.EXCEPTION_RAISED.format(name=self.name), wait_time=1)
+        async with aiohttp.ClientSession() as s:
+            url = Urls.BASE + path
+            rq = await s.get(url, params=extra)
+
+            result_text = await rq.text()
+            return self.__get_results(result_text, path, extra, fn='_async_public_api')
 
     async def _async_private_api(self, method, path, extra=None):
         payload = {
@@ -371,26 +351,14 @@ class BaseUpbit(BaseExchange):
         header = {'Authorization': authorization_token}
         url = Urls.BASE + path
 
-        try:
-            async with aiohttp.ClientSession() as s:
-                if method == Consts.GET:
-                    rq = await s.get(url, headers=header, data=extra)
-                else:
-                    rq = await s.post(url, headers=header, data=extra)
-        
-                res = json.loads(await rq.text())
-        
-                if 'error' in res:
-                    error_msg = res.get('error', dict()).get('message',
-                                                             WarningMsg.MESSAGE_NOT_FOUND.format(name=self.name))
-    
-                    return ExchangeResult(False, message=error_msg, wait_time=1)
-        
-                else:
-                    return ExchangeResult(True, res)
-        except:
-            debugger.exception('FATAL: Upbit, async_private_api')
-            return ExchangeResult(False, message=WarningMsg.EXCEPTION_RAISED.format(name=self.name), wait_time=1)
+        async with aiohttp.ClientSession() as s:
+            if method == Consts.GET:
+                rq = await s.get(url, headers=header, data=extra)
+            else:
+                rq = await s.post(url, headers=header, data=extra)
+
+            result_text = await rq.text()
+            return self.__get_results(result_text, path, extra, fn='_async_private_api')
 
     async def get_transaction_fee(self):
         debugger.debug(DebugMessage.ENTRANCE.format(name=self.name, fn="get_transaction_fee", data=str(locals())))
