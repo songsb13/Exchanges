@@ -46,7 +46,7 @@ class Binance(BaseExchange):
 
         self._subscriber = None
 
-    def __get_results(self, request, path, extra, fn):
+    def _get_results(self, request, path, extra, fn):
         try:
             result = json.loads(request)
         except:
@@ -67,7 +67,7 @@ class Binance(BaseExchange):
             extra = dict()
 
         rq = requests.get(Urls.BASE + path, params=extra)
-        return self.__get_results(rq, path, extra, fn='_public_api')
+        return self._get_results(rq, path, extra, fn='_public_api')
 
     def _private_api(self, method, path, extra=None):
         if extra is None:
@@ -85,7 +85,7 @@ class Binance(BaseExchange):
             else:
                 rq = requests.post(Urls.BASE + path, data=query, headers={"X-MBX-APIKEY": self._key})
 
-        return self.__get_results(rq, path, extra, fn='_private_api')
+        return self._get_results(rq, path, extra, fn='_private_api')
 
     def _sign_generator(self, *args):
         params, *_ = args
@@ -232,18 +232,90 @@ class Binance(BaseExchange):
                     })
         return lot_size_info
 
+    def fee_count(self):
+        return 1
+
     def set_subscriber(self):
         debugger.debug(DebugMessage.ENTRANCE.format(name=self.name, fn="set_subscriber", data=str(locals())))
         self._subscriber = BinanceSubscriber(self.data_store, self._lock_dic)
 
-    def get_precision(self, pair=None):
-        pair = sai_to_binance_symbol_converter(pair)
+    def set_subscribe_candle(self, symbol):
+        """
+            subscribe candle.
+            coin: it can be list or string, [xrpbtc, ethbtc] or 'xrpbtc'
+        """
+        debugger.debug(DebugMessage.ENTRANCE.format(name=self.name, fn="set_subscribe_candle", data=str(locals())))
+        for _ in range(10):
+            time.sleep(1)
+            if self._subscriber.keep_running:
+                break
 
-        if pair in self.exchange_info:
-            precision = int(math.log10(float(self.exchange_info[pair])))
-            return ExchangeResult(True, precision)
-        else:
-            return ExchangeResult(False, message=WarningMessage.PRECISION_NOT_FOUND.format(name=self.name), wait_time=60)
+        binance_symbol_list = list(map(sai_to_binance_symbol_converter_in_subscriber, symbol)) if isinstance(symbol,
+                                                                                                             list) \
+            else sai_to_binance_symbol_converter_in_subscriber(symbol)
+        with self._lock_dic['candle']:
+            self._subscriber.subscribe_candle(binance_symbol_list)
+
+        return True
+
+    def set_subscribe_orderbook(self, symbol):
+        """
+            subscribe orderbook.
+            coin: it can be list or string, [xrpbtc, ethbtc] or 'xrpbtc'
+        """
+        debugger.debug(DebugMessage.ENTRANCE.format(name=self.name, fn="set_subscribe_orderbook", data=str(locals())))
+        for _ in range(10):
+            time.sleep(1)
+            if self._subscriber.keep_running:
+                break
+
+        binance_symbol_list = list(map(sai_to_binance_symbol_converter_in_subscriber, symbol)) if isinstance(symbol,
+                                                                                                             list) \
+            else sai_to_binance_symbol_converter_in_subscriber(symbol)
+        with self._lock_dic['orderbook']:
+            self._subscriber.subscribe_orderbook(binance_symbol_list)
+
+        return True
+
+    def get_orderbook(self):
+        debugger.debug(DebugMessage.ENTRANCE.format(name=self.name, fn="get_orderbook", data=str(locals())))
+        with self._lock_dic['orderbook']:
+            data_dic = self.data_store.orderbook_queue
+            if not self.data_store.orderbook_queue:
+                return ExchangeResult(False, message=WarningMessage.ORDERBOOK_NOT_STORED.format(name=self.name),
+                                      wait_time=1)
+
+            return ExchangeResult(True, data_dic)
+
+    def get_candle(self, symbol):
+        debugger.debug(DebugMessage.ENTRANCE.format(name=self.name, fn="get_candle", data=str(locals())))
+        binance_symbol = sai_to_binance_symbol_converter(symbol)
+        with self._lock_dic['candle']:
+            candle_dict = self.data_store.candle_queue.get(binance_symbol, None)
+
+            if not candle_dict:
+                return ExchangeResult(False, message=WarningMessage.CANDLE_NOT_STORED.format(name=self.name),
+                                      wait_time=1)
+
+            rows = ['timestamp', 'open', 'close', 'high', 'low', 'volume']
+            result_dict = dict()
+            for symbol, candle_list in candle_dict.items():
+                history = {key_: list() for key_ in rows}
+                for candle in candle_list:
+                    for key, item in candle.items():
+                        history[key].append(item)
+                result_dict[symbol] = history
+
+        return ExchangeResult(True, result_dict)
+
+    def get_ticker(self, symbol):
+        debugger.debug(DebugMessage.ENTRANCE.format(name=self.name, fn="get_ticker", data=str(locals())))
+        binance_symbol = sai_to_binance_symbol_converter(symbol)
+        result_object = self._public_api(Urls.TICKER, {'symbol': binance_symbol})
+        if result_object.success:
+            result_object.data = {'sai_price': result_object.data[0]['trade_price']}
+
+        return result_object
 
     def get_available_symbols(self):
         debugger.debug(DebugMessage.ENTRANCE.format(name=self.name, fn="get_available_symbols", data=str(locals())))
@@ -256,6 +328,46 @@ class Binance(BaseExchange):
                 continue
 
             result.append('{}_{}'.format(market, coin))
+
+        return result
+
+    def get_order_history(self, order_id, additional):
+        debugger.debug(DebugMessage.ENTRANCE.format(name=self.name, fn="get_order_history", data=str(locals())))
+
+        params = dict(orderId=order_id)
+        if additional:
+            if 'symbol' in additional:
+                additional['symbol'] = sai_to_binance_symbol_converter(additional['symbol'])
+            params.update(additional)
+
+        result = self._private_api(Consts.GET, Urls.ORDER, params)
+
+        if result.success:
+            cummulative_quote_qty = Decimal(result.data['cummulativeQuoteQty']).quantize(Decimal(10) ** -6,
+                                                                                         rounding=ROUND_DOWN)
+            origin_qty = Decimal(result.data['origQty']).quantize(Decimal(10) ** -6, rounding=ROUND_DOWN)
+            additional = {'sai_status': SaiOrderStatus.CLOSED if result.data['status'] == OrderStatus.FILLED else SaiOrderStatus.ON_TRADING,
+                          'sai_average_price': cummulative_quote_qty,
+                          'sai_amount': origin_qty}
+
+            result.data = additional
+
+        return result
+
+    def get_deposit_history(self, coin):
+        debugger.debug(DebugMessage.ENTRANCE.format(name=self.name, fn="get_deposit_history", data=str(locals())))
+        params = dict(coin=coin, status=DepositStatus.SUCCESS)
+
+        result = self._private_api(Consts.GET, Urls.GET_DEPOSIT_HISTORY, params)
+
+        if result.success and result.data:
+            latest_data = result.data[0]
+            result_dict = dict(
+                sai_deposit_amount=latest_data['amount'],
+                sai_coin=latest_data['coin']
+            )
+
+            result.data = result_dict
 
         return result
 
@@ -327,9 +439,6 @@ class Binance(BaseExchange):
 
         return result
 
-    def fee_count(self):
-        return 1
-
     def base_to_alt(self, symbol, btc_amount, alt_amount, td_fee, tx_fee):
         debugger.debug(DebugMessage.ENTRANCE.format(name=self.name, fn="base_to_alt", data=str(locals())))
         coin = symbol.split('_')[1]
@@ -357,38 +466,6 @@ class Binance(BaseExchange):
 
         return result_object
 
-    def get_ticker(self, symbol):
-        debugger.debug(DebugMessage.ENTRANCE.format(name=self.name, fn="get_ticker", data=str(locals())))
-        binance_symbol = sai_to_binance_symbol_converter(symbol)
-        result_object = self._public_api(Urls.TICKER, {'symbol': binance_symbol})
-        if result_object.success:
-            result_object.data = {'sai_price': result_object.data[0]['trade_price']}
-
-        return result_object
-
-    def get_order_history(self, order_id, additional):
-        debugger.debug(DebugMessage.ENTRANCE.format(name=self.name, fn="get_order_history", data=str(locals())))
-
-        params = dict(orderId=order_id)
-        if additional:
-            if 'symbol' in additional:
-                additional['symbol'] = sai_to_binance_symbol_converter(additional['symbol'])
-            params.update(additional)
-
-        result = self._private_api(Consts.GET, Urls.ORDER, params)
-
-        if result.success:
-            cummulative_quote_qty = Decimal(result.data['cummulativeQuoteQty']).quantize(Decimal(10) ** -6,
-                                                                                         rounding=ROUND_DOWN)
-            origin_qty = Decimal(result.data['origQty']).quantize(Decimal(10) ** -6, rounding=ROUND_DOWN)
-            additional = {'sai_status': SaiOrderStatus.CLOSED if result.data['status'] == OrderStatus.FILLED else SaiOrderStatus.ON_TRADING,
-                          'sai_average_price': cummulative_quote_qty,
-                          'sai_amount': origin_qty}
-
-            result.data = additional
-
-        return result
-
     def withdraw(self, coin, amount, to_address, payment_id=None):
         debugger.debug(DebugMessage.ENTRANCE.format(name=self.name, fn="withdraw", data=str(locals())))
         coin = sai_to_binance_symbol_converter(coin)
@@ -400,92 +477,6 @@ class Binance(BaseExchange):
             params.update(tag_dic)
 
         return self._private_api(Consts.POST, Urls.WITHDRAW, params)
-
-    def set_subscribe_candle(self, symbol):
-        """
-            subscribe candle.
-            coin: it can be list or string, [xrpbtc, ethbtc] or 'xrpbtc'
-        """
-        debugger.debug(DebugMessage.ENTRANCE.format(name=self.name, fn="set_subscribe_candle", data=str(locals())))
-        for _ in range(10):
-            time.sleep(1)
-            if self._subscriber.keep_running:
-                break
-
-        binance_symbol_list = list(map(sai_to_binance_symbol_converter_in_subscriber, symbol)) if isinstance(symbol, list) \
-            else sai_to_binance_symbol_converter_in_subscriber(symbol)
-        with self._lock_dic['candle']:
-            self._subscriber.subscribe_candle(binance_symbol_list)
-
-        return True
-
-    def set_subscribe_orderbook(self, symbol):
-        """
-            subscribe orderbook.
-            coin: it can be list or string, [xrpbtc, ethbtc] or 'xrpbtc'
-        """
-        debugger.debug(DebugMessage.ENTRANCE.format(name=self.name, fn="set_subscribe_orderbook", data=str(locals())))
-        for _ in range(10):
-            time.sleep(1)
-            if self._subscriber.keep_running:
-                break
-
-        binance_symbol_list = list(map(sai_to_binance_symbol_converter_in_subscriber, symbol)) if isinstance(symbol, list) \
-            else sai_to_binance_symbol_converter_in_subscriber(symbol)
-        with self._lock_dic['orderbook']:
-            self._subscriber.subscribe_orderbook(binance_symbol_list)
-
-        return True
-
-    def get_orderbook(self):
-        debugger.debug(DebugMessage.ENTRANCE.format(name=self.name, fn="get_orderbook", data=str(locals())))
-        with self._lock_dic['orderbook']:
-            data_dic = self.data_store.orderbook_queue
-            if not self.data_store.orderbook_queue:
-                return ExchangeResult(False, message=WarningMessage.ORDERBOOK_NOT_STORED.format(name=self.name),
-                                      wait_time=1)
-
-            return ExchangeResult(True, data_dic)
-
-    def get_candle(self, symbol):
-        debugger.debug(DebugMessage.ENTRANCE.format(name=self.name, fn="get_candle", data=str(locals())))
-        binance_symbol = sai_to_binance_symbol_converter(symbol)
-        with self._lock_dic['candle']:
-            candle_dict = self.data_store.candle_queue.get(binance_symbol, None)
-        
-            if not candle_dict:
-                return ExchangeResult(False, message=WarningMessage.CANDLE_NOT_STORED.format(name=self.name), wait_time=1)
-            
-            rows = ['timestamp', 'open', 'close', 'high', 'low', 'volume']
-            result_dict = dict()
-            for symbol, candle_list in candle_dict.items():
-                history = {key_: list() for key_ in rows}
-                for candle in candle_list:
-                    for key, item in candle.items():
-                        history[key].append(item)
-                result_dict[symbol] = history
-    
-        return ExchangeResult(True, result_dict)
-
-    def _get_deposit_history(self, params):
-        return self._private_api(Consts.GET, Urls.GET_DEPOSIT_HISTORY, params)
-
-    def get_deposit_history(self, coin):
-        debugger.debug(DebugMessage.ENTRANCE.format(name=self.name, fn="get_deposit_history", data=str(locals())))
-        params = dict(coin=coin, status=DepositStatus.SUCCESS)
-
-        result = self._get_deposit_history(params)
-
-        if result.success and result.data:
-            latest_data = result.data[0]
-            result_dict = dict(
-                sai_deposit_amount=latest_data['amount'],
-                sai_coin=latest_data['coin']
-            )
-
-            result.data = result_dict
-
-        return result
 
     async def _async_private_api(self, method, path, extra=None):
         if extra is None:
@@ -503,7 +494,7 @@ class Binance(BaseExchange):
                 rq = await session.post(Urls.BASE + path, data=query)
 
             result_text = await rq.text()
-            return self.__get_results(result_text, path, extra, fn='_async_private_api')
+            return self._get_results(result_text, path, extra, fn='_async_private_api')
 
     async def _async_public_api(self, path, extra=None):
         if extra is None:
@@ -513,7 +504,7 @@ class Binance(BaseExchange):
             rq = await session.get(Urls.BASE + path, params=extra)
             result_text = await rq.text()
 
-            return self.__get_results(result_text, path, extra, fn='_async_public_api')
+            return self._get_results(result_text, path, extra, fn='_async_public_api')
 
     async def _get_balance(self):
         for _ in range(3):
