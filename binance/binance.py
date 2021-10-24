@@ -439,24 +439,16 @@ class Binance(BaseExchange):
 
         return result
 
-    def base_to_alt(self, symbol, btc_amount, alt_amount, td_fee, tx_fee):
+    def base_to_alt(self, coin, alt_amount, td_fee, tx_fee):
         debugger.debug(DebugMessage.ENTRANCE.format(name=self.name, fn="base_to_alt", data=str(locals())))
-        coin = symbol.split('_')[1]
-        binance_symbol = sai_to_binance_symbol_converter(symbol)
-        result_object = self.buy(binance_symbol, alt_amount, BaseTradeType.BUY_MARKET)
+        alt_amount *= 1 - Decimal(td_fee)
+        alt_amount -= Decimal(tx_fee[coin])
+        alt_amount = alt_amount
+        return alt_amount
 
-        if result_object.success:
-            alt_amount *= 1 - Decimal(td_fee)
-            alt_amount -= Decimal(tx_fee[coin])
-            alt_amount = alt_amount.quantize(self.bnc_btm_quantizer(symbol), rounding=ROUND_DOWN)
-
-            result_object.data = alt_amount
-
-        return result_object
-
-    def alt_to_base(self, symbol, btc_amount, alt_amount):
+    def alt_to_base(self, coin, btc_amount, alt_amount):
         debugger.debug(DebugMessage.ENTRANCE.format(name=self.name, fn="alt_to_base", data=str(locals())))
-        binance_symbol = binance_to_sai_symbol_converter(symbol)
+        binance_symbol = sai_to_binance_symbol_converter(symbol)
         for _ in range(10):
             result_object = self.sell(binance_symbol, alt_amount, BaseTradeType.SELL_MARKET)
 
@@ -486,6 +478,16 @@ class Binance(BaseExchange):
 
         return result
 
+    async def _async_public_api(self, path, extra=None):
+        if extra is None:
+            extra = dict()
+
+        async with aiohttp.ClientSession() as session:
+            rq = await session.get(Urls.BASE + path, params=extra)
+            result_text = await rq.text()
+
+            return self._get_results(result_text, path, extra, fn='_async_public_api')
+
     async def _async_private_api(self, method, path, extra=None):
         if extra is None:
             extra = dict()
@@ -503,16 +505,6 @@ class Binance(BaseExchange):
 
             result_text = await rq.text()
             return self._get_results(result_text, path, extra, fn='_async_private_api')
-
-    async def _async_public_api(self, path, extra=None):
-        if extra is None:
-            extra = dict()
-
-        async with aiohttp.ClientSession() as session:
-            rq = await session.get(Urls.BASE + path, params=extra)
-            result_text = await rq.text()
-
-            return self._get_results(result_text, path, extra, fn='_async_public_api')
 
     async def _get_balance(self):
         for _ in range(3):
@@ -661,7 +653,7 @@ class Binance(BaseExchange):
         if result_object.success:
             balance = dict()
             for bal in result_object.data['balances']:
-                coin = binance_to_sai_symbol_converter(bal['asset'])
+                coin = bal['asset']
                 if float(bal['free']) > 0:
                     balance[coin.upper()] = Decimal(bal['free']).quantize(Decimal(10)**-8)
 
