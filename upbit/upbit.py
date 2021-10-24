@@ -255,7 +255,7 @@ class BaseUpbit(BaseExchange):
                 symbol = data.get('market')
                 if symbol:
                     converted = upbit_to_sai_symbol_converter(symbol)
-                    result_list.append(converted.replace('-', '_'))
+                    result_list.append(converted)
             else:
                 return result_list
 
@@ -268,10 +268,11 @@ class BaseUpbit(BaseExchange):
                                       wait_time=1)
             return ExchangeResult(True, data_dic)
 
-    def get_candle(self, coin):
+    def get_candle(self, symbol):
         debugger.debug(DebugMessage.ENTRANCE.format(name=self.name, fn="get_candle", data=str(locals())))
         with self._lock_dic['candle']:
-            result = self.data_store.candle_queue.get(coin, None)
+            upbit_symbol = sai_to_upbit_symbol_converter(symbol)
+            result = self.data_store.candle_queue.get(symbol, None)
             if result is None:
                 return ExchangeResult(False, message=WarningMsg.CANDLE_NOT_STORED.format(name=self.name), wait_time=1)
             return ExchangeResult(True, result)
@@ -337,13 +338,13 @@ class BaseUpbit(BaseExchange):
         
         return self._private_api(Consts.POST, Urls.ORDERS, params)
     
-    def base_to_alt(self, currency_pair, btc_amount, alt_amount, td_fee, tx_fee):
+    def base_to_alt(self, coin, alt_amount, td_fee, tx_fee):
         debugger.debug(DebugMessage.ENTRANCE.format(name=self.name, fn="base_to_alt", data=str(locals())))
-        alt_amount *= 1 - decimal.Decimal(td_fee)
-        alt_amount -= decimal.Decimal(tx_fee[currency_pair.split('_')[1]])
+        alt_amount *= 1 - Decimal(td_fee)
+        alt_amount -= Decimal(tx_fee[coin])
         alt_amount = alt_amount
-        
-        return ExchangeResult(True, alt_amount)
+
+        return alt_amount
 
     async def _async_public_api(self, path, extra=None):
         if extra is None:
@@ -427,7 +428,13 @@ class BaseUpbit(BaseExchange):
         return result
 
     async def get_balance(self):
-        return self._private_api(Consts.GET, Urls.ACCOUNT)
+        debugger.debug(DebugMessage.ENTRANCE.format(name=self.name, fn="get_balance", data=str(locals())))
+        result = await self._async_private_api(Consts.GET, Urls.ACCOUNT)
+
+        if result.success:
+            result.data = {bal['currency']: bal['balance'] for bal in result.data}
+
+        return result
 
     async def get_curr_avg_orderbook(self, coin_list, btc_sum=1):
         debugger.debug(DebugMessage.ENTRANCE.format(name=self.name, fn="get_curr_avg_orderbook", data=str(locals())))
@@ -451,7 +458,7 @@ class BaseUpbit(BaseExchange):
                         
                         if order_sum >= btc_sum:
                             volume = order_sum / np.sum(order_amount)
-                            avg_order_book[sai_symbol]['{}s'.format(type_)] = decimal.Decimal(volume)
+                            avg_order_book[sai_symbol]['{}s'.format(type_)] = Decimal(volume)
                             
                             break
                 
