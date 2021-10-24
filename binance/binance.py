@@ -15,7 +15,7 @@ from decimal import Decimal, ROUND_DOWN, getcontext
 from Exchanges.settings import Consts, BaseMarkets, BaseTradeType, SaiOrderStatus
 from Exchanges.messages import WarningMessage, DebugMessage
 from Exchanges.binance.util import sai_to_binance_symbol_converter, binance_to_sai_symbol_converter, \
-    sai_to_binance_trade_type_converter, sai_to_binance_symbol_converter_in_subscriber, _symbol_customizing
+    sai_to_binance_trade_type_converter, sai_to_binance_symbol_converter_in_subscriber, _symbol_customizing, _symbol_localizing
 from Exchanges.binance.setting import Urls, OrderStatus, DepositStatus
 from Exchanges.abstracts import BaseExchange
 from Exchanges.objects import ExchangeResult, DataStore
@@ -468,7 +468,7 @@ class Binance(BaseExchange):
 
     def withdraw(self, coin, amount, to_address, payment_id=None):
         debugger.debug(DebugMessage.ENTRANCE.format(name=self.name, fn="withdraw", data=str(locals())))
-        coin = sai_to_binance_symbol_converter(coin)
+        coin = _symbol_localizing(coin)
         params = {'coin': coin, 'address': to_address,
                   'amount': Decimal(amount).quantize(Decimal(10) ** - 8), 'name': 'SAICDiffTrader'}
 
@@ -476,7 +476,15 @@ class Binance(BaseExchange):
             tag_dic = {'addressTag': payment_id}
             params.update(tag_dic)
 
-        return self._private_api(Consts.POST, Urls.WITHDRAW, params)
+        result = self._private_api(Consts.POST, Urls.WITHDRAW, params)
+
+        if result.success:
+            sai_data = {
+                'sai_id': result.data['id'],
+            }
+            result.data = sai_data
+
+        return result
 
     async def _async_private_api(self, method, path, extra=None):
         if extra is None:

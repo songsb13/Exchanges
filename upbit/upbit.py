@@ -283,11 +283,19 @@ class BaseUpbit(BaseExchange):
             'address': to_address,
             'amount': str(amount),
         }
-        
+
         if payment_id:
             params.update({'secondary_address': payment_id})
-        
-        return self._private_api(Consts.POST, Urls.WITHDRAW, params)
+
+        result = self._private_api(Consts.POST, Urls.WITHDRAW, params)
+
+        if result.success:
+            sai_data = {
+                'sai_id': result.data['uuid'],
+            }
+            result.data = sai_data
+
+        return result
     
     def buy(self, sai_symbol, amount, trade_type, price=None):
         debugger.debug(DebugMessage.ENTRANCE.format(name=self.name, fn="buy", data=str(locals())))
