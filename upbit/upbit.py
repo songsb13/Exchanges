@@ -42,10 +42,7 @@ class BaseUpbit(BaseExchange):
 
         self._subscriber = None
 
-    def set_subscriber(self):
-        self._subscriber = UpbitSubscriber(self.data_store, self._lock_dic)
-
-    def __get_results(self, request, path, extra, fn):
+    def _get_results(self, request, path, extra, fn):
         try:
             res = json.loads(request)
         except:
@@ -73,7 +70,7 @@ class BaseUpbit(BaseExchange):
         url = Urls.BASE + path
         rq = requests.get(url, params=extra)
 
-        return self.__get_results(rq, path, extra, fn='public_api')
+        return self._get_results(rq, path, extra, fn='public_api')
 
     def _private_api(self, method, path, extra=None):
         debugger.debug(DebugMessage.ENTRANCE.format(name=self.name, fn="_private_api", data=extra))
@@ -95,7 +92,7 @@ class BaseUpbit(BaseExchange):
         else:
             rq = requests.get(url=url, headers=header, params=extra)
 
-        return self.__get_results(rq, path, extra, fn='private_api')
+        return self._get_results(rq, path, extra, fn='private_api')
 
     def _get_step_size(self, symbol, krw_price):
         market, coin = symbol.split('-')
@@ -158,9 +155,38 @@ class BaseUpbit(BaseExchange):
 
     def fee_count(self):
         return 1
-    
+
     def get_jwt_token(self, payload):
         return 'Bearer {}'.format(jwt.encode(payload, self._secret, ).decode('utf8'))
+
+    def set_subscriber(self):
+        self._subscriber = UpbitSubscriber(self.data_store, self._lock_dic)
+
+    def set_subscribe_candle(self, symbol):
+        """
+            subscribe candle.
+            symbol: it can be list or string, [BTC-XRP, BTC-ETH] or 'BTC-XRP'
+        """
+        debugger.debug(DebugMessage.ENTRANCE.format(name=self.name, fn="set_subscribe_candle", data=str(locals())))
+        coin = list(map(sai_to_upbit_symbol_converter, symbol)) if isinstance(symbol, list) \
+            else sai_to_upbit_symbol_converter(symbol)
+        with self._lock_dic['candle']:
+            self._subscriber.subscribe_candle(coin)
+
+        return True
+
+    def set_subscribe_orderbook(self, symbol):
+        """
+            subscribe orderbook.
+            symbol: it can be list or string, [BTC-XRP, BTC-ETH] or 'BTC-XRP'
+        """
+        debugger.debug(DebugMessage.ENTRANCE.format(name=self.name, fn="set_subscribe_orderbook", data=str(locals())))
+        coin = list(map(sai_to_upbit_symbol_converter, symbol)) if isinstance(symbol, list) \
+            else sai_to_upbit_symbol_converter(symbol)
+        with self._lock_dic['orderbook']:
+            self._subscriber.subscribe_orderbook(coin)
+
+        return True
 
     def get_ticker(self, symbol):
         debugger.debug(DebugMessage.ENTRANCE.format(name=self.name, fn="get_ticker", data=str(locals())))
@@ -233,31 +259,14 @@ class BaseUpbit(BaseExchange):
             else:
                 return result_list
 
-    def set_subscribe_candle(self, symbol):
-        """
-            subscribe candle.
-            symbol: it can be list or string, [BTC-XRP, BTC-ETH] or 'BTC-XRP'
-        """
-        debugger.debug(DebugMessage.ENTRANCE.format(name=self.name, fn="set_subscribe_candle", data=str(locals())))
-        coin = list(map(sai_to_upbit_symbol_converter, symbol)) if isinstance(symbol, list) \
-            else sai_to_upbit_symbol_converter(symbol)
-        with self._lock_dic['candle']:
-            self._subscriber.subscribe_candle(coin)
-
-        return True
-
-    def set_subscribe_orderbook(self, symbol):
-        """
-            subscribe orderbook.
-            symbol: it can be list or string, [BTC-XRP, BTC-ETH] or 'BTC-XRP'
-        """
-        debugger.debug(DebugMessage.ENTRANCE.format(name=self.name, fn="set_subscribe_orderbook", data=str(locals())))
-        coin = list(map(sai_to_upbit_symbol_converter, symbol)) if isinstance(symbol, list) \
-            else sai_to_upbit_symbol_converter(symbol)
+    def get_orderbook(self):
         with self._lock_dic['orderbook']:
-            self._subscriber.subscribe_orderbook(coin)
+            data_dic = self.data_store.orderbook_queue
 
-        return True
+            if not self.data_store.orderbook_queue:
+                return ExchangeResult(False, message=WarningMsg.ORDERBOOK_NOT_STORED.format(name=self.name),
+                                      wait_time=1)
+            return ExchangeResult(True, data_dic)
 
     def get_candle(self, coin):
         debugger.debug(DebugMessage.ENTRANCE.format(name=self.name, fn="get_candle", data=str(locals())))
@@ -336,7 +345,7 @@ class BaseUpbit(BaseExchange):
             rq = await s.get(url, params=extra)
 
             result_text = await rq.text()
-            return self.__get_results(result_text, path, extra, fn='_async_public_api')
+            return self._get_results(result_text, path, extra, fn='_async_public_api')
 
     async def _async_private_api(self, method, path, extra=None):
         payload = {
@@ -358,7 +367,7 @@ class BaseUpbit(BaseExchange):
                 rq = await s.post(url, headers=header, data=extra)
 
             result_text = await rq.text()
-            return self.__get_results(result_text, path, extra, fn='_async_private_api')
+            return self._get_results(result_text, path, extra, fn='_async_private_api')
 
     async def get_transaction_fee(self):
         debugger.debug(DebugMessage.ENTRANCE.format(name=self.name, fn="get_transaction_fee", data=str(locals())))
