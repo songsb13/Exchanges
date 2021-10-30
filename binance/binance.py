@@ -448,7 +448,7 @@ class Binance(BaseExchange):
 
     def alt_to_base(self, coin, btc_amount, alt_amount):
         debugger.debug(DebugMessage.ENTRANCE.format(name=self.name, fn="alt_to_base", data=str(locals())))
-        binance_symbol = sai_to_binance_symbol_converter(symbol)
+        binance_symbol = sai_to_binance_symbol_converter(coin)
         for _ in range(10):
             result_object = self.sell(binance_symbol, alt_amount, BaseTradeType.SELL_MARKET)
 
