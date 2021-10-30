@@ -427,6 +427,10 @@ class BaseUpbit(BaseExchange):
 
         return result
 
+    async def get_trading_fee(self):
+        dic_ = dict(KRW=0.0005, BTC=0.0025, USDT=0.0025)
+        return ExchangeResult(True, dic_['BTC'])
+
     async def get_balance(self):
         debugger.debug(DebugMessage.ENTRANCE.format(name=self.name, fn="get_balance", data=str(locals())))
         result = await self._async_private_api(Consts.GET, Urls.ACCOUNT)
