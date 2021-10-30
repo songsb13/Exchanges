@@ -7,16 +7,67 @@ import asyncio
 import time
 
 
-class TestNotification(unittest.TestCase):
-    symbol_set = ['BTC_ETH', 'BTC_XRP']
-    
+class TestBaseUpbit(unittest.TestCase):
+    """
+        tests for execute functions -> trading, withdraw
+    """
     @classmethod
-    def setUpClass(cls):
-        cls.exchange = upbit.BaseUpbit(
-            key='qfbl7FNHhPbXgGhJVSDaoJMxXcJnphhDoDLnugNk4QI ',
-            secret='wIvD1OOUYMxXONNB7biRjUtltTDY9hcD1BlFO6IqVx6'
+    def setUpClass(cls) -> None:
+        exchange = upbit.BaseUpbit(
+            key='',
+            secret=''
         )
-    
+        cls.exchange = exchange
+
+        available_result = exchange.get_available_symbols()
+        cls.available_symbols = available_result.data
+
+        loop = asyncio.new_event_loop()
+        transaction_result = loop.run_until_complete(exchange.get_transaction_fee())
+        cls.transaction_fees = transaction_result.data
+
+        loop = asyncio.new_event_loop()
+        deposit_result = loop.run_until_complete(exchange.get_deposit_addrs(cls.available_symbols))
+        cls.deposits = deposit_result.data
+
+        exchange.set_subscriber()
+        exchange.set_subscribe_orderbook(cls.available_symbols)
+        exchange.set_subscribe_candle(cls.available_symbols)
+
+    def setUp(self) -> None:
+        loop = asyncio.new_event_loop()
+        result_object = loop.run_until_complete(self.exchange.get_balance())
+
+        self.balance = None if not result_object.success else result_object.data
+
+
+class TestTrade(TestBaseUpbit):
+    def test_under_minimum(self):
+        pass
+
+    def test_under_balance(self):
+        pass
+
+    def test_over_balance(self):
+        pass
+
+    def test_no_amount(self):
+        pass
+
+    def test_incorrect_step_size(self):
+        pass
+
+    def test_incorrect_lot_size(self):
+        pass
+
+
+class TestWithdraw(TestBaseUpbit):
+    pass
+
+
+class TestNotification(TestBaseUpbit):
+    symbol_set = ['BTC_ETH', 'BTC_XRP']
+
     def test_get_available_coin(self):
         result = self.exchange.get_available_coin()
         self.assertTrue(result.success)
