@@ -1,10 +1,15 @@
 from Exchanges.upbit import upbit
 from Exchanges.objects import DataStore
 
+from Exchanges.settings import BaseTradeType
+from Exchanges.upbit.setting import LocalConsts
+
+from decimal import Decimal, ROUND_DOWN
 import threading
 import unittest
 import asyncio
 import time
+
 
 
 class TestBaseUpbit(unittest.TestCase):
@@ -17,6 +22,7 @@ class TestBaseUpbit(unittest.TestCase):
             key='',
             secret=''
         )
+        cls.test_main_sai_symbol = 'KRW_BTC'
         cls.exchange = exchange
 
         available_result = exchange.get_available_symbols()
@@ -39,9 +45,91 @@ class TestBaseUpbit(unittest.TestCase):
         result_object = loop.run_until_complete(self.exchange.get_balance())
 
         self.balance = None if not result_object.success else result_object.data
+        print(self.balance)
 
 
 class TestTrade(TestBaseUpbit):
+    def test_under_minimum_buy_market(self):
+        krw_btc_minimum_price = LocalConsts.LOT_SIZES['KRW']['minimum'] * 0.9
+        trading_result = self.exchange.buy(self.test_main_sai_symbol, BaseTradeType.BUY_MARKET,
+                                           price=krw_btc_minimum_price)
+        self.assertFalse(trading_result.success)
+    
+    def test_under_minimum_buy_limit(self):
+        result = self.exchange.get_ticker(self.test_main_sai_symbol)
+        self.assertTrue(result.success)
+
+        krw_btc_price = result.data['sai_price']
+    
+        krw_btc_minimum_price = LocalConsts.LOT_SIZES['KRW']['minimum'] * 0.9
+        
+        amount = Decimal(krw_btc_minimum_price / krw_btc_price).quantize(Decimal(10)**-8, rounding=ROUND_DOWN)
+        
+        trading_result = self.exchange.buy(self.test_main_sai_symbol, BaseTradeType.BUY_LIMIT,
+                                           amount=amount, price=krw_btc_minimum_price)
+        
+        self.assertFalse(trading_result.success)
+    
+    def test_under_minimum_sell_market(self):
+        result = self.exchange.get_ticker(self.test_main_sai_symbol)
+        self.assertTrue(result.success)
+    
+        krw_btc_price = result.data['sai_price']
+    
+        krw_btc_minimum_price = LocalConsts.LOT_SIZES['KRW']['minimum'] * 0.9
+    
+        amount = Decimal(krw_btc_minimum_price / krw_btc_price).quantize(Decimal(10) ** -8, rounding=ROUND_DOWN)
+
+        trading_result = self.exchange.sell(self.test_main_sai_symbol, BaseTradeType.BUY_MARKET,
+                                            amount=amount)
+        self.assertFalse(trading_result.success)
+
+    def test_under_minimum_sell_limit(self):
+        result = self.exchange.get_ticker(self.test_main_sai_symbol)
+        self.assertTrue(result.success)
+    
+        krw_btc_price = result.data['sai_price']
+    
+        krw_btc_minimum_price = LocalConsts.LOT_SIZES['KRW']['minimum'] * 0.9
+    
+        amount = Decimal(krw_btc_minimum_price / krw_btc_price).quantize(Decimal(10) ** -8, rounding=ROUND_DOWN)
+    
+        trading_result = self.exchange.sell(self.test_main_sai_symbol, BaseTradeType.BUY_LIMIT,
+                                            amount=amount, price=krw_btc_minimum_price)
+    
+        self.assertFalse(trading_result.success)
+
+    def test_over_balance_buy_market(self):
+        krw_over_balance = self.balance['KRW'] * 1.5
+        trading_result = self.exchange.buy(self.test_main_sai_symbol, BaseTradeType.BUY_MARKET,
+                                           price=krw_over_balance)
+        self.assertFalse(trading_result.success)
+    
+    def test_over_balance_sell_market(self):
+        result = self.exchange.get_ticker(self.test_main_sai_symbol)
+        self.assertTrue(result.success)
+    
+        krw_btc_price = result.data['sai_price']
+    
+        krw_over_balance = self.balance['KRW'] * 1.5
+    
+        amount = Decimal(krw_over_balance / krw_btc_price).quantize(Decimal(10) ** -8, rounding=ROUND_DOWN)
+    
+        trading_result = self.exchange.sell(self.test_main_sai_symbol, BaseTradeType.BUY_MARKET,
+                                            amount=amount)
+        self.assertFalse(trading_result.success)
+
+    def test_no_amount(self):
+        pass
+
+    def test_incorrect_step_size(self):
+        pass
+
+    def test_incorrect_lot_size(self):
+        pass
+
+
+class TestWithdraw(TestBaseUpbit):
     def test_under_minimum(self):
         pass
 
@@ -59,81 +147,6 @@ class TestTrade(TestBaseUpbit):
 
     def test_incorrect_lot_size(self):
         pass
-
-
-class TestWithdraw(TestBaseUpbit):
-    pass
-
-
-class TestNotification(TestBaseUpbit):
-    symbol_set = ['BTC_ETH', 'BTC_XRP']
-
-    def test_get_available_coin(self):
-        result = self.exchange.get_available_coin()
-        self.assertTrue(result.success)
-        self.assertIn('BTC_XRP', result.data)
-        print(result.data)
-    
-    def test_get_curr_avg_orderbook(self):
-        loop = asyncio.get_event_loop()
-        while True:
-            result = loop.run_until_complete(self.exchange.get_curr_avg_orderbook(''))
-            print(result.__dict__)
-            time.sleep(1)
-    
-    def test_get_balance(self):
-        loop = asyncio.get_event_loop()
-        balance_result = loop.run_until_complete(self.exchange.get_balance())
-        self.assertTrue(balance_result.success)
-        self.assertIn('BTC', balance_result.data)
-        print(balance_result.data)
-    
-    def test_get_candle(self):
-        while True:
-            result = self.exchange.get_candle()
-            print(result.__dict__)
-            time.sleep(1)
-    
-    def test_get_deposit_addrs(self):
-        loop = asyncio.get_event_loop()
-        result = loop.run_until_complete(self.exchange.get_deposit_addrs())
-        self.assertTrue(result.success)
-        self.assertIn('BTC', result.data)
-        print(result.data)
-    
-    def test_get_transaction_fee(self):
-        loop = asyncio.get_event_loop()
-        result = loop.run_until_complete(self.exchange.get_transaction_fee())
-        self.assertTrue(result.success)
-        self.assertIn('BTC', result.data)
-        print(result.data)
-    
-    def test_get_avg_price(self):
-        loop = asyncio.get_event_loop()
-        result = loop.run_until_complete(self.exchange.get_avg_price(self.symbol_set))
-        self.assertTrue(result.success)
-        self.assertIn('BTC', result.data)
-        print(result.data)
-    
-    def test_market_trade(self):
-        converted_coin = self.exchange._sai_to_upbit_symbol_converter('BTC_XRP')
-        buy_result = self.exchange.buy(converted_coin, 5)
-        if buy_result.success:
-            print(buy_result.data)
-        else:
-            print(buy_result.message)
-        self.assertTrue(buy_result.success)
-        
-        sell_result = self.exchange.sell(converted_coin, 5)
-        if sell_result.success:
-            print(sell_result.data)
-        else:
-            print(sell_result.message)
-        self.assertTrue(sell_result.success)
-    
-    def test_servertime(self):
-        servertime_result = self.exchange
-        print(time.time() - float(servertime_result.data))
 
 
 class UpbitSocketTest(unittest.TestCase):

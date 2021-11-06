@@ -326,7 +326,7 @@ class BaseUpbit(BaseExchange):
 
         return self._private_api(Consts.POST, Urls.ORDERS, default_parameters)
     
-    def sell(self, sai_symbol, amount, trade_type, price=None):
+    def sell(self, sai_symbol, trade_type, amount=None, price=None):
         debugger.debug(DebugMessage.ENTRANCE.format(name=self.name, fn="sell", data=str(locals())))
 
         if amount is None:
