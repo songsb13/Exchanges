@@ -129,7 +129,7 @@ class BaseUpbit(BaseExchange):
 
         return ExchangeResult(True)
 
-    def _trading_validator_in_market(self, symbol, market_amount):
+    def _trading_validator_in_market(self, symbol, market_amount, trading_type):
         """
             validator for market
             Args:
@@ -140,6 +140,13 @@ class BaseUpbit(BaseExchange):
                 messages if getting false
         """
         market_current_price = 1
+
+        if trading_type == BaseTradeType.SELL_MARKET:
+            ticker_object = self.get_ticker(symbol)
+            if not ticker_object.success:
+                return ticker_object
+
+            market_current_price = ticker_object.data['sai_price']
 
         lot_size_result = self._is_available_lot_size(symbol, market_current_price, market_amount)
 
@@ -337,16 +344,19 @@ class BaseUpbit(BaseExchange):
             'ord_type': upbit_trade_type
         }
         # market trading
-        trading_validation_result = self._trading_validator(symbol, amount)
+        if trade_type == BaseTradeType.BUY_MARKET:
+            trading_validation_result = self._trading_validator_in_market(symbol, amount, trade_type)
+            if not trading_validation_result.success:
+                return trading_validation_result
+            stepped_price = trading_validation_result.data
+            default_parameters.update(dict(price=stepped_price))
+        else:
+            trading_validation_result = self._trading_validator(symbol, amount)
 
-        if not trading_validation_result.success:
-            return trading_validation_result
-        stepped_price = trading_validation_result.data
-        default_parameters.update(dict(price=stepped_price))
-
-        if trade_type == BaseTradeType.BUY_LIMIT:
-            # limit trading
-            default_parameters.update(dict(volume=amount))
+            if not trading_validation_result.success:
+                return trading_validation_result
+            stepped_price = trading_validation_result.data
+            default_parameters.update(dict(price=stepped_price, volume=amount))
 
         return self._private_api(Consts.POST, Urls.ORDERS, default_parameters)
     
@@ -369,13 +379,9 @@ class BaseUpbit(BaseExchange):
             'ord_type': upbit_trade_type
         }
         if trade_type == BaseTradeType.SELL_MARKET:
-            trading_validation_result = self._trading_validator_in_market(symbol, amount)
-
+            trading_validation_result = self._trading_validator_in_market(symbol, amount, trade_type)
             if not trading_validation_result.success:
                 return trading_validation_result
-            stepped_price = trading_validation_result.data
-            default_parameters.update(dict(price=stepped_price))
-
         else:
             trading_validation_result = self._trading_validator(symbol, amount)
 
