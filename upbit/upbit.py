@@ -129,6 +129,27 @@ class BaseUpbit(BaseExchange):
 
         return ExchangeResult(True)
 
+    def _trading_validator_in_market(self, symbol, market_amount):
+        """
+            validator for market
+            Args:
+                symbol: KRW, BTC
+                amount: amount, Decimal
+            Returns:
+                True or False
+                messages if getting false
+        """
+        market_current_price = 1
+
+        lot_size_result = self._is_available_lot_size(symbol, market_current_price, market_amount)
+
+        if not lot_size_result.success:
+            return lot_size_result
+
+        step_size_result = self._get_step_size(symbol, market_amount)
+
+        return step_size_result
+
     def _trading_validator(self, symbol, amount):
         """
             Args:
@@ -301,8 +322,11 @@ class BaseUpbit(BaseExchange):
     def buy(self, sai_symbol, trade_type, amount=None, price=None):
         debugger.debug(DebugMessage.ENTRANCE.format(name=self.name, fn="buy", data=str(locals())))
 
-        if price is None:
-            return ExchangeResult(False, '', message='')
+        if not price:
+            return ExchangeResult(False, message='')
+
+        if BaseTradeType.BUY_LIMIT and not amount:
+            return ExchangeResult(False, message='')
 
         upbit_trade_type = sai_to_upbit_trade_type_converter(trade_type)
         symbol = sai_to_upbit_symbol_converter(sai_symbol)
@@ -330,7 +354,10 @@ class BaseUpbit(BaseExchange):
         debugger.debug(DebugMessage.ENTRANCE.format(name=self.name, fn="sell", data=str(locals())))
 
         if amount is None:
-            return ExchangeResult(False, '', message='')
+            return ExchangeResult(False, message='')
+
+        if BaseTradeType.SELL_LIMIT and not price:
+            return ExchangeResult(False, message='')
 
         upbit_trade_type = sai_to_upbit_trade_type_converter(trade_type)
         symbol = sai_to_upbit_symbol_converter(sai_symbol)
@@ -341,7 +368,15 @@ class BaseUpbit(BaseExchange):
             'volume': amount,
             'ord_type': upbit_trade_type
         }
-        if trade_type == BaseTradeType.SELL_LIMIT:
+        if trade_type == BaseTradeType.SELL_MARKET:
+            trading_validation_result = self._trading_validator_in_market(symbol, amount)
+
+            if not trading_validation_result.success:
+                return trading_validation_result
+            stepped_price = trading_validation_result.data
+            default_parameters.update(dict(price=stepped_price))
+
+        else:
             trading_validation_result = self._trading_validator(symbol, amount)
 
             if not trading_validation_result.success:
