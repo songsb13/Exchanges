@@ -49,13 +49,13 @@ class TestBaseUpbit(unittest.TestCase):
 
 
 class TestTradeMarket(TestBaseUpbit):
-    def test_under_minimum_buy_market(self):
+    def test_under_minimum_buy(self):
         krw_btc_minimum_price = LocalConsts.LOT_SIZES['KRW']['minimum'] * 0.9
         trading_result = self.exchange.buy(self.test_main_sai_symbol, BaseTradeType.BUY_MARKET,
                                            price=krw_btc_minimum_price)
         self.assertFalse(trading_result.success)
     
-    def test_under_minimum_sell_market(self):
+    def test_under_minimum_sell(self):
         result = self.exchange.get_ticker(self.test_main_sai_symbol)
         self.assertTrue(result.success)
     
@@ -69,13 +69,13 @@ class TestTradeMarket(TestBaseUpbit):
                                             amount=amount)
         self.assertFalse(trading_result.success)
 
-    def test_over_balance_buy_market(self):
+    def test_over_balance_buy(self):
         krw_over_balance = self.balance['KRW'] * 1.5
         trading_result = self.exchange.buy(self.test_main_sai_symbol, BaseTradeType.BUY_MARKET,
                                            price=krw_over_balance)
         self.assertFalse(trading_result.success)
 
-    def test_over_balance_sell_market(self):
+    def test_over_balance_sell(self):
         result = self.exchange.get_ticker(self.test_main_sai_symbol)
         self.assertTrue(result.success)
     
@@ -89,27 +89,27 @@ class TestTradeMarket(TestBaseUpbit):
                                             amount=amount)
         self.assertFalse(trading_result.success)
 
-    def test_no_amount_buy_market(self):
+    def test_no_amount_buy(self):
         empty_price = 0
         trading_result = self.exchange.buy(self.test_main_sai_symbol, BaseTradeType.BUY_MARKET,
                                            price=empty_price)
 
         self.assertFalse(trading_result.success)
 
-    def test_no_amount_sell_market(self):
+    def test_no_amount_sell(self):
         empty_amount = 0
         trading_result = self.exchange.sell(self.test_main_sai_symbol, BaseTradeType.SELL_MARKET,
                                             amount=empty_amount)
         self.assertFalse(trading_result.success)
 
-    def test_incorrect_lot_size_buy_market(self):
+    def test_incorrect_lot_size_buy(self):
         trading_price = LocalConsts.LOT_SIZES['KRW'] * 0.5
         trading_result = self.exchange.buy(self.test_main_sai_symbol, BaseTradeType.BUY_MARKET,
                                            price=trading_price)
 
         self.assertFalse(trading_result.success)
 
-    def test_incorrect_lot_size_sell_market(self):
+    def test_incorrect_lot_size_sell(self):
         trading_price = LocalConsts.LOT_SIZES['KRW'] * 0.5
         trading_result = self.exchange.buy(self.test_main_sai_symbol, BaseTradeType.BUY_MARKET,
                                            price=trading_price)
@@ -118,7 +118,7 @@ class TestTradeMarket(TestBaseUpbit):
 
 
 class TestTradeLimit(TestBaseUpbit):
-    def test_under_minimum_buy_limit(self):
+    def test_under_minimum_buy(self):
         result = self.exchange.get_ticker(self.test_main_sai_symbol)
         self.assertTrue(result.success)
 
@@ -133,7 +133,7 @@ class TestTradeLimit(TestBaseUpbit):
 
         self.assertFalse(trading_result.success)
 
-    def test_under_minimum_sell_limit(self):
+    def test_under_minimum_sell(self):
         result = self.exchange.get_ticker(self.test_main_sai_symbol)
         self.assertTrue(result.success)
 
@@ -148,7 +148,7 @@ class TestTradeLimit(TestBaseUpbit):
 
         self.assertFalse(trading_result.success)
 
-    def test_over_balance_buy_limit(self):
+    def test_over_balance_buy(self):
         result = self.exchange.get_ticker(self.test_main_sai_symbol)
         self.assertTrue(result.success)
 
@@ -162,7 +162,7 @@ class TestTradeLimit(TestBaseUpbit):
                                            amount=amount, price=krw_btc_price)
         self.assertFalse(trading_result.success)
 
-    def test_over_balance_sell_limit(self):
+    def test_over_balance_sell(self):
         result = self.exchange.get_ticker(self.test_main_sai_symbol)
         self.assertTrue(result.success)
 
@@ -176,7 +176,7 @@ class TestTradeLimit(TestBaseUpbit):
                                             amount=amount, price=krw_btc_price)
         self.assertFalse(trading_result.success)
 
-    def test_no_amount_buy_limit(self):
+    def test_no_amount_buy(self):
         empty_amount = 0
         empty_price = 0
         trading_result = self.exchange.buy(self.test_main_sai_symbol, BaseTradeType.BUY_LIMIT,
@@ -184,7 +184,7 @@ class TestTradeLimit(TestBaseUpbit):
 
         self.assertFalse(trading_result.success)
 
-    def test_no_amount_sell_limit(self):
+    def test_no_amount_sell(self):
         empty_amount = 0
         empty_price = 0
         trading_result = self.exchange.sell(self.test_main_sai_symbol, BaseTradeType.SELL_LIMIT,
