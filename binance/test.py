@@ -1,11 +1,103 @@
 from Exchanges.binance import binance
 from Exchanges.objects import DataStore
 
+from Exchanges.settings import BaseTradeType
+
 import unittest
 import asyncio
 import threading
 import time
 
+
+class TestBaseBinance(unittest.TestCase):
+    """
+    tests for execute functions
+    """
+    @classmethod
+    def setUpClass(cls) -> None:
+        exchange = binance.Binance(
+            'oYQYru6IvzCgxSFaCRdRQyKCHfpUQEEujZAxJsCw5LEjuR7D2F8S7pIGxrN9u2lB ',
+            '4WcKtsR88UqGMyYUuKVb7XZlo0adfr8z3eOtZZm4mRWaWTfJTc4prLcZ29Ti8zXl'
+        )
+
+        cls.test_main_sai_symbol = 'BTC_TRX'
+        cls.exchange = exchange
+        available_result = exchange.get_available_symbols()
+        cls.available_symbols = available_result.data
+
+        loop = asyncio.new_event_loop()
+        transaction_result = loop.run_until_complete(exchange.get_transaction_fee())
+        cls.transaction_fees = transaction_result.data
+
+        loop = asyncio.new_event_loop()
+        deposit_result = loop.run_until_complete(exchange.get_deposit_addrs(cls.available_symbols))
+        cls.deposits = deposit_result.data
+
+        exchange.set_subscriber()
+        exchange.set_subscribe_orderbook(cls.available_symbols)
+        exchange.set_subscribe_candle(cls.available_symbols)
+
+    def setUp(self) -> None:
+        loop = asyncio.new_event_loop()
+        result_object = loop.run_until_complete(self.exchange.get_balance())
+
+        self.balance = None if not result_object.success else result_object.data
+        print(self.balance)
+
+
+class TestTradeMarket(TestBaseBinance):
+    def test_under_minimum_buy(self):
+        minimum = self.exchange._lot_sizes[self.test_main_sai_symbol]['min_quantity']
+        test_symbol_minimum_price = self.exchange.buy(
+
+        )
+
+    def test_under_minimum_sell(self):
+        pass
+
+    def test_over_balance_buy(self):
+        pass
+
+    def test_over_balance_sell(self):
+        pass
+
+    def test_no_amount_buy(self):
+        pass
+
+    def test_no_amount_sell(self):
+        pass
+
+    def test_incorrect_lot_size_buy(self):
+        pass
+
+    def test_incorrect_lot_size_sell(self):
+        pass
+
+
+class TestTradeLimit(TestBaseBinance):
+    def test_under_minimum_buy(self):
+        pass
+
+    def test_under_minimum_sell(self):
+        pass
+
+    def test_over_balance_buy(self):
+        pass
+
+    def test_over_balance_sell(self):
+        pass
+
+    def test_no_amount_buy(self):
+        pass
+
+    def test_no_amount_sell(self):
+        pass
+
+    def test_incorrect_lot_size_buy(self):
+        pass
+
+    def test_incorrect_lot_size_sell(self):
+        pass
 
 class TestNotification(unittest.TestCase):
     symbol_set = ['BTC_ETH', 'BTC_XRP']
