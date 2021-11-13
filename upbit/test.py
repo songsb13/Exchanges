@@ -102,11 +102,19 @@ class TestTradeMarket(TestBaseUpbit):
                                             amount=empty_amount)
         self.assertFalse(trading_result.success)
 
-    def test_incorrect_step_size(self):
-        LocalConsts.LOT_SIZES['KRW'] * 0.5
+    def test_incorrect_lot_size_buy_market(self):
+        trading_price = LocalConsts.LOT_SIZES['KRW'] * 0.5
+        trading_result = self.exchange.buy(self.test_main_sai_symbol, BaseTradeType.BUY_MARKET,
+                                           price=trading_price)
 
-    def test_incorrect_lot_size(self):
-        pass
+        self.assertFalse(trading_result.success)
+
+    def test_incorrect_lot_size_sell_market(self):
+        trading_price = LocalConsts.LOT_SIZES['KRW'] * 0.5
+        trading_result = self.exchange.buy(self.test_main_sai_symbol, BaseTradeType.BUY_MARKET,
+                                           price=trading_price)
+
+        self.assertFalse(trading_result.success)
 
 
 class TestTradeLimit(TestBaseUpbit):
