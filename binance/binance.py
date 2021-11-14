@@ -433,7 +433,7 @@ class Binance(BaseExchange):
 
         return result
 
-    def sell(self, sai_symbol, amount, trade_type, price=None):
+    def sell(self, sai_symbol, trade_type, amount=None, price=None):
         debugger.debug(DebugMessage.ENTRANCE.format(name=self.name, fn="sell", data=str(locals())))
         params = dict()
 
