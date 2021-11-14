@@ -186,6 +186,23 @@ class Binance(BaseExchange):
             )
             return ExchangeResult(False, message=msg)
 
+    def _trading_validator_in_market(self, symbol, amount):
+        price = 1
+
+        lot_size_result = self._is_available_lot_size(symbol, amount)
+
+        if not lot_size_result.success:
+            return lot_size_result
+
+        min_notional_result = self._is_available_min_notional(symbol, price, amount)
+
+        if not min_notional_result.success:
+            return min_notional_result
+
+        step_size_result = self._get_step_size(symbol, amount)
+
+        return step_size_result
+
     def _trading_validator(self, symbol, amount):
         ticker_object = self.get_ticker(symbol)
         if not ticker_object.success:
@@ -371,27 +388,38 @@ class Binance(BaseExchange):
 
         return result
 
-    def buy(self, sai_symbol, amount, trade_type, price=None):
+    def buy(self, sai_symbol, trade_type, amount=None, price=None):
         debugger.debug(DebugMessage.ENTRANCE.format(name=self.name, fn="buy", data=str(locals())))
+
+        if not amount:
+            return ExchangeResult(False, message='')
+
+        if BaseTradeType.BUY_LIMIT and not price:
+            return ExchangeResult(False, message='')
 
         binance_trade_type = sai_to_binance_trade_type_converter(trade_type)
         symbol = sai_to_binance_symbol_converter(sai_symbol)
 
-        trading_validation_result = self._trading_validator(symbol, amount)
-        
-        if not trading_validation_result.success:
-            return trading_validation_result
-        
-        stepped_amount = trading_validation_result.data
-        
-        params = {
+        default_parameters = {
             'symbol': symbol,
             'side': 'buy',
-            'quantity': stepped_amount,
             'type': binance_trade_type
         }
-        
-        result = self._private_api(Consts.POST, Urls.ORDER, params)
+
+        if trade_type == BaseTradeType.BUY_MARKET:
+            trading_validation_result = self._trading_validator_in_market(symbol, amount, trade_type)
+            if not trading_validation_result.success:
+                return trading_validation_result
+            stepped_amount = trading_validation_result.data
+            default_parameters.update(dict(quantity=stepped_amount))
+        else:
+            trading_validation_result = self._trading_validator(symbol, amount)
+            if not trading_validation_result.success:
+                return trading_validation_result
+            stepped_amount = trading_validation_result.data
+            default_parameters.update(dict(price=price, quantity=stepped_amount))
+
+        result = self._private_api(Consts.POST, Urls.ORDER, default_parameters)
 
         if result.success:
             price = result.data['price']
@@ -412,19 +440,23 @@ class Binance(BaseExchange):
         binance_trade_type = sai_to_binance_trade_type_converter(trade_type)
         symbol = sai_to_binance_symbol_converter(sai_symbol)
 
-        trading_validation_result = self._trading_validator(symbol, amount)
-
-        if not trading_validation_result.success:
-            return trading_validation_result
-
-        stepped_amount = trading_validation_result.data
-
-        params.update({
-                    'type': binance_trade_type,
-                    'symbol': symbol,
-                    'side': 'sell',
-                    'quantity': stepped_amount
-                  })
+        default_parameters = {
+            'symbol': symbol,
+            'side': 'sell',
+            'type': binance_trade_type
+        }
+        if trade_type == BaseTradeType.SELL_MARKET:
+            trading_validation_result = self._trading_validator_in_market(symbol, amount, trade_type)
+            if not trading_validation_result.success:
+                return trading_validation_result
+            stepped_amount = trading_validation_result.data
+            default_parameters.update(dict(quantity=stepped_amount))
+        else:
+            trading_validation_result = self._trading_validator(symbol, amount)
+            if not trading_validation_result.success:
+                return trading_validation_result
+            stepped_amount = trading_validation_result.data
+            default_parameters.update(dict(price=price, quantity=stepped_amount))
 
         result = self._private_api(Consts.POST, Urls.ORDER, params)
 
