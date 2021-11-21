@@ -172,22 +172,72 @@ class TestTradeLimit(TestBaseBinance):
         )
 
     def test_over_balance_buy(self):
-        pass
+        btc_over_balance = self.balance[self.test_main_market] * 1.1
+        amount = (btc_over_balance / self.btc_alt_price).quantize(Decimal(10) ** -8, rounding=ROUND_DOWN)
+        test_symbol_over_balance = self.exchange.buy(
+            self.test_main_sai_symbol,
+            BaseTradeType.BUY_MARKET,
+            amount=amount,
+            price=self.btc_alt_price
+        )
+
+        self.assertFalse(test_symbol_over_balance.success)
 
     def test_over_balance_sell(self):
-        pass
+        btc_over_balance = self.balance[self.test_main_market] * 1.1
+        amount = (btc_over_balance / self.btc_alt_price).quantize(Decimal(10) ** -8, rounding=ROUND_DOWN)
+        test_symbol_over_balance = self.exchange.sell(
+            self.test_main_sai_symbol,
+            BaseTradeType.SELL_MARKET,
+            amount=amount,
+            price=self.btc_alt_price
+        )
+
+        self.assertFalse(test_symbol_over_balance)
 
     def test_no_amount_buy(self):
-        pass
+        test_symbol_no_amount = self.exchange.buy(
+            self.test_main_sai_symbol,
+            BaseTradeType.BUY_MARKET,
+            amount=0,
+            price=self.btc_alt_price
+        )
+
+        self.assertFalse(test_symbol_no_amount)
 
     def test_no_amount_sell(self):
-        pass
+        test_symbol_no_amount = self.exchange.sell(
+            self.test_main_sai_symbol,
+            BaseTradeType.BUY_MARKET,
+            amount=0,
+            price=self.btc_alt_price
+        )
+
+        self.assertFalse(test_symbol_no_amount)
 
     def test_incorrect_lot_size_buy(self):
-        pass
+        step_size = self.exchange._lot_sizes[self.test_main_sai_symbol]['step_size']
+        amount = step_size + step_size * 0.1
+        test_symbol_incorrect_lot_size = self.exchange.buy(
+            self.test_main_sai_symbol,
+            BaseTradeType.BUY_MARKET,
+            amount=amount,
+            price=self.btc_alt_price
+        )
+
+        self.assertFalse(test_symbol_incorrect_lot_size)
 
     def test_incorrect_lot_size_sell(self):
-        pass
+        step_size = self.exchange._lot_sizes[self.test_main_sai_symbol]['step_size']
+        amount = step_size + step_size * 0.1
+        test_symbol_incorrect_lot_size = self.exchange.sell(
+            self.test_main_sai_symbol,
+            BaseTradeType.BUY_MARKET,
+            amount=amount,
+            price=self.btc_alt_price
+        )
+
+        self.assertFalse(test_symbol_incorrect_lot_size)
 
 
 class TestNotification(unittest.TestCase):
