@@ -330,7 +330,9 @@ class Binance(BaseExchange):
         binance_symbol = sai_to_binance_symbol_converter(symbol)
         result_object = self._public_api(Urls.TICKER, {'symbol': binance_symbol})
         if result_object.success:
-            result_object.data = {'sai_price': result_object.data[0]['trade_price']}
+            ticker = Decimal(result_object.data[0]['trade_price']).quantize(Decimal(10) ** -8)
+
+            result_object.data = {'sai_price': ticker}
 
         return result_object
 
@@ -346,7 +348,7 @@ class Binance(BaseExchange):
 
             result.append('{}_{}'.format(market, coin))
 
-        return result
+        return ExchangeResult(True, data=result)
 
     def get_order_history(self, order_id, additional):
         debugger.debug(DebugMessage.ENTRANCE.format(name=self.name, fn="get_order_history", data=str(locals())))
