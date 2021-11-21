@@ -82,7 +82,7 @@ class BaseUpbit(BaseExchange):
         if extra is not None:
             payload.update({'query': urlencode(extra)})
 
-        authorization_token = self.get_jwt_token(payload)
+        authorization_token = self._sign_generator(payload)
         header = {'Authorization': authorization_token}
         url = Urls.BASE + path
 
@@ -184,7 +184,8 @@ class BaseUpbit(BaseExchange):
     def fee_count(self):
         return 1
 
-    def get_jwt_token(self, payload):
+    def _sign_generator(self, *args):
+        payload, *_ = args
         return 'Bearer {}'.format(jwt.encode(payload, self._secret, ).decode('utf8'))
 
     def set_subscriber(self):
@@ -216,14 +217,15 @@ class BaseUpbit(BaseExchange):
 
         return True
 
-    def get_ticker(self, symbol):
+    def get_ticker(self, sai_symbol):
         debugger.debug(DebugMessage.ENTRANCE.format(name=self.name, fn="get_ticker", data=str(locals())))
-        symbol = sai_to_upbit_symbol_converter(symbol)
+        symbol = sai_to_upbit_symbol_converter(sai_symbol)
 
         result = self._public_api(Urls.TICKER, {'markets': symbol})
 
         if result.success:
-            result.data = {'sai_price': result.data[0]['trade_price']}
+            ticker = Decimal(result.data[0]['trade_price']).quantize(Decimal(10) ** -8)
+            result.data = {'sai_price': ticker}
 
         return result
 
@@ -285,7 +287,9 @@ class BaseUpbit(BaseExchange):
                     converted = upbit_to_sai_symbol_converter(symbol)
                     result_list.append(converted)
             else:
-                return result_list
+                return ExchangeResult(True, data=result_list)
+        else:
+            return result
 
     def get_orderbook(self):
         with self._lock_dic['orderbook']:
@@ -419,7 +423,7 @@ class BaseUpbit(BaseExchange):
         if extra is not None:
             payload.update({'query': urlencode(extra)})
 
-        authorization_token = self.get_jwt_token(payload)
+        authorization_token = self._sign_generator(payload)
         header = {'Authorization': authorization_token}
         url = Urls.BASE + path
 
