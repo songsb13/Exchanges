@@ -10,11 +10,11 @@ class BaseExchange(object):
             path(str): The URL path without a base URL, '/url/path/'
             extra(dict, optional): Required parameter to send the API
         Returns:
-            ResultObject(:obj: bool, dict, str, int)
-            1. success: True if successfully get data else False.
-            2. data: response data
-            3. message: return error message if fail to get response data.
-            4. time: return sleep time if fail to get response data.
+            ResultObject(:obj: success, data, message, time)
+                success(bool): True if successfully communicate to API server else False
+                data: Data from API server, Format is depend on API Server
+                message(str): Return error result message if fail to communicate to API server
+                time(int): Wait time if fail to communicate to API server.
         """
 
     def _private_api(self, method, path, extra=None):
@@ -24,58 +24,112 @@ class BaseExchange(object):
             path(str): The URL path without a base URL, '/url/path/'
             extra(dict, optional): Required parameter to send the API
         Returns:
-            ResultObject(:obj: bool, dict, str, int)
-            1. success: True if status is 200 else False
-            2. data: response data
-            3. message: if success is False, logging with this message.
-            4. time: if success is False, will be sleep this time.
+            ResultObject(:obj: success, data, message, time)
+                success(bool): True if successfully communicate to API server else False
+                data: Data from API server, Format is depend on API Server
+                message(str): Return error result message if fail to communicate to API server
+                time(int): Wait time if fail to communicate to API server.
         """
 
     def _trading_validator(self, symbol, amount):
         """
+            It is trading validator for getting data integrity.
+            Args:
+                symbol(str): exchange's symbol
+                amount(int): trading coin's amount
 
+            Returns:
+                Return a step size object if all validation logic is passed
+                else return false object.
+
+                ResultObject(:obj: success, data, message, time)
+                    success(bool): True if successfully communicate to API server else False
+                    data(decimal): stepped size
+                    message(str): Return error result message if fail to communicate to API server
+                    time(int): Wait time if fail to communicate to API server.
         """
 
     def _sign_generator(self, *args):
         """
-        for using any API required signing
+            Sign generator for encrypting the parameters.
+            Args:
+                *args(list): parameters for signing.
 
-        *args: get parameter for signing
-        :return: signed data example sha256, 512 etc..
+            Returns:
+                data(str, dict): Signed data, Or signed parameter
         """
 
     def fee_count(self):
         """
-        trading fee count
-        :return: trading fee count, dependent of each exchange.
-        example)
-        korbit: krw -> btc -> alt, return 2
-        upbit: btc -> alt, return 1
-
+            Get trading fee count
+            Returns:
+                fee_count(int): return 2 if exchange is support only KRW market else 1
         """
 
-    def get_ticker(self, symbol):
+    def get_ticker(self, sai_symbol):
         """
-        you can get current price this function
-        this function be looped up to 3 times
-        :symbol: symbol using in exchange
-        :return: Ticker data, type is dependent of each exchange.
+            Get ticker based on symbol
+            Args:
+                sai_symbol(str): customized symbol, BTC_ETH
+
+            Returns:
+                Return result object with sai_data
+
+                ResultObject(:obj: success, data, message, time)
+                    success(bool): True if successfully communicate to API server else False
+                    data(decimal): ticker price based on sai_symbol
+                    message(str): Return error result message if fail to communicate to API server
+                    time(int): Wait time if fail to communicate to API server.
         """
 
     def get_order_history(self, id_, additional):
         """
+            Get order history based on id_
+            Args:
+                id_(str): order id
+                additional(dict): additional parameter
+            Returns:
+                Return result object with sai_data
 
+                ResultObject(:obj: success, data, message, time)
+                    success(bool): True if successfully communicate to API server else False
+                    data(dict): get order history data
+                        sai_status(str): order's status
+                        sai_average_price(decimal): order's average price
+                        sai_amount(decimal): order's trading amount
+                    message(str): Return error result message if fail to communicate to API server
+                    time(int): Wait time if fail to communicate to API server.
         """
 
     def get_deposit_history(self, coin):
         """
+            Get deposit history based on coin
+            Args:
+                coin(str): ALT coin name
+            Returns:
+                Return result object with sai_data
 
+                ResultObject(:obj: success, data, message, time)
+                    success(bool): True if successfully communicate to API server else False
+                    data(dict): get deposit history data
+                        sai_deposit_amount(decimal): history's deposit amount
+                        sai_coin(str): coin name
+                    message(str): Return error result message if fail to communicate to API server
+                    time(int): Wait time if fail to communicate to API server.
         """
 
     def get_available_symbols(self):
         """
-        use with _currencies
-        :return: Custom symbol list ['BTC_XRP', 'BTC_LTC']
+            Get exchange's available symbols
+
+            Returns:
+                Return result object with sai_data
+
+                ResultObject(:obj: success, data, message, time)
+                    success(bool): True if successfully communicate to API server else False
+                    sai_symbols(list): [BTC_XRP, BTC_ETH, ...]
+                    message(str): Return error result message if fail to communicate to API server
+                    time(int): Wait time if fail to communicate to API server.
         """
 
     def set_subscribe_candle(self, symbol):
@@ -126,14 +180,12 @@ class BaseExchange(object):
         :return:
         """
 
-    def base_to_alt(self, sai_symbol, btc_amount, alt_amount, td_fee, tx_fee):
+    def base_to_alt(self, coin, alt_amount, td_fee, tx_fee):
         """
         this function use to buy coin dependent of parameter currency_pair, alt_amount and
         calculate alt_amount withdrawn other exchange.
 
-
-        :param sai_symbol: BTC_ALT custom symbol.
-        :param btc_amount: empty parameter
+        :param coin: ALT symbol.
         :param alt_amount: alt amount to buy
         :param td_fee: trading fee, type is float or int
         :param tx_fee: transaction fee dict, tx_fee[customized_symbol]
