@@ -7,6 +7,8 @@ import json
 import websocket
 
 from Util.pyinstaller_patch import *
+from Exchanges.binance.util import binance_to_sai_symbol_converter_in_subscriber, \
+    sai_to_binance_symbol_converter_in_subscriber
 from Exchanges.binance.setting import Urls
 from Exchanges.settings import Consts
 
@@ -120,23 +122,25 @@ class BinanceSubscriber(websocket.WebSocketApp):
     def orderbook_receiver(self, data):
         with self._lock_dic[Consts.ORDERBOOK]:
             symbol = data['s']
-            self._temp_orderbook_store.setdefault(symbol, list())
+            sai_symbol = binance_to_sai_symbol_converter_in_subscriber(symbol)
+            self._temp_orderbook_store.setdefault(sai_symbol, list())
         
-            self._temp_orderbook_store[symbol].append(dict(
+            self._temp_orderbook_store[sai_symbol].append(dict(
                 bids=dict(price=data['b'], amount=data['B']),
                 asks=dict(price=data['a'], amount=data['A'])
             ))
         
-            if len(self._temp_orderbook_store[symbol]) >= Consts.ORDERBOOK_LIMITATION:
-                self.data_store.orderbook_queue[symbol] = self._temp_orderbook_store[symbol]
-                self._temp_orderbook_store[symbol] = list()
+            if len(self._temp_orderbook_store[sai_symbol]) >= Consts.ORDERBOOK_LIMITATION:
+                self.data_store.orderbook_queue[sai_symbol] = self._temp_orderbook_store[sai_symbol]
+                self._temp_orderbook_store[sai_symbol] = list()
 
     def candle_receiver(self, data):
         with self._lock_dic[Consts.CANDLE]:
             kline = data['k']
             symbol = kline['s']
-            self._temp_candle_store.setdefault(symbol, list())
-            self._temp_candle_store[symbol].append(dict(
+            sai_symbol = binance_to_sai_symbol_converter_in_subscriber(symbol)
+            self._temp_candle_store.setdefault(sai_symbol, list())
+            self._temp_candle_store[sai_symbol].append(dict(
                 high=kline['h'],
                 low=kline['l'],
                 close=kline['c'],
@@ -144,6 +148,6 @@ class BinanceSubscriber(websocket.WebSocketApp):
                 timestamp=kline['t'],
                 volume=kline['v']
             ))
-            if len(self._temp_candle_store[symbol]) >= Consts.CANDLE_LIMITATION:
-                self.data_store.candle_queue[symbol] = self._temp_candle_store[symbol]
-                self._temp_candle_store[symbol] = list()
+            if len(self._temp_candle_store[sai_symbol]) >= Consts.CANDLE_LIMITATION:
+                self.data_store.candle_queue[sai_symbol] = self._temp_candle_store[sai_symbol]
+                self._temp_candle_store[sai_symbol] = list()

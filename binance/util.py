@@ -17,7 +17,7 @@ def _symbol_customizing(symbol):
 
 
 def sai_to_binance_symbol_converter(symbol):
-    # BTC_XRP -> xrpbtc
+    # BTC_XRP -> XRPBTC
     if '_' not in symbol:
         return symbol
 
@@ -25,10 +25,9 @@ def sai_to_binance_symbol_converter(symbol):
     return '{}{}'.format(_symbol_localizing(trade), market).upper()
 
 
-def sai_to_binance_symbol_converter_in_subscriber(pair):
+def sai_to_binance_symbol_converter_in_subscriber(symbol):
     # BTC_XRP -> xrpbtc
-    market, trade = pair.split('_')
-    return '{}{}'.format(_symbol_localizing(trade), market).lower()
+    return sai_to_binance_symbol_converter(symbol).lower()
 
 
 def binance_to_sai_symbol_converter(symbol):
@@ -49,6 +48,10 @@ def binance_to_sai_symbol_converter(symbol):
         return None
 
     return '{}_{}'.format(market, _symbol_customizing(coin)).upper()
+
+
+def binance_to_sai_symbol_converter_in_subscriber(symbol):
+    return binance_to_sai_symbol_converter(symbol.upper())
 
 
 def sai_to_binance_trade_type_converter(trade_type):
