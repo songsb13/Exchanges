@@ -146,7 +146,7 @@ class BinanceSubscriber(websocket.WebSocketApp):
                 close=kline['c'],
                 open=kline['o'],
                 timestamp=kline['t'],
-                volume=kline['v']
+                amount=kline['v']
             ))
             if len(self._temp_candle_store[sai_symbol]) >= Consts.CANDLE_LIMITATION:
                 self.data_store.candle_queue[sai_symbol] = self._temp_candle_store[sai_symbol]
