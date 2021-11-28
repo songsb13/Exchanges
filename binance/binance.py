@@ -304,11 +304,10 @@ class Binance(BaseExchange):
 
             return ExchangeResult(True, data_dic)
 
-    def get_candle(self, symbol):
+    def get_candle(self, sai_symbol):
         debugger.debug(DebugMessage.ENTRANCE.format(name=self.name, fn="get_candle", data=str(locals())))
-        binance_symbol = sai_to_binance_symbol_converter(symbol)
         with self._lock_dic['candle']:
-            candle_dict = self.data_store.candle_queue.get(binance_symbol, None)
+            candle_dict = self.data_store.candle_queue.get(sai_symbol, None)
 
             if not candle_dict:
                 return ExchangeResult(False, message=WarningMessage.CANDLE_NOT_STORED.format(name=self.name),
