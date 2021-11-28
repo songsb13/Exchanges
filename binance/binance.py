@@ -426,8 +426,8 @@ class Binance(BaseExchange):
             price = result.data['price']
             amount = result.data['origQty']
             result.data.update({
-                'sai_average_price': price,
-                'sai_amount': amount,
+                'sai_average_price': Decimal(price).quantize(Decimal(10) ** - 8),
+                'sai_amount': Decimal(amount).quantize(Decimal(10) ** - 8),
                 'sai_order_id': result.data['orderId']
 
             })
@@ -465,8 +465,8 @@ class Binance(BaseExchange):
             price = result.data['price']
             amount = result.data['origQty']
             result.data.update({
-                'sai_average_price': price,
-                'sai_amount': amount,
+                'sai_average_price': Decimal(price).quantize(Decimal(10) ** - 8),
+                'sai_amount': Decimal(amount).quantize(Decimal(10) ** - 8),
                 'sai_order_id': result.data['orderId']
             })
 
@@ -494,7 +494,7 @@ class Binance(BaseExchange):
 
         if result.success:
             sai_data = {
-                'sai_id': result.data['id'],
+                'sai_id': str(result.data['id']),
             }
             result.data = sai_data
 
