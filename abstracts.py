@@ -134,73 +134,121 @@ class BaseExchange(object):
 
     def set_subscribe_candle(self, symbol):
         """
-
+            Execute subscribe candle.
+            Args:
+                symbol(str, list): It can be inserted [BTC-XRP, BTC-ETH] or 'BTC-XRP'
+            Returns:
+                True
         """
 
     def set_subscribe_orderbook(self, symbol):
         """
-
+            Execute subscribe orderbook.
+            Args:
+                symbol(str, list): It can be inserted [BTC-XRP, BTC-ETH] or 'BTC-XRP'
+            Returns:
+                True
         """
 
     def get_orderbook(self):
         """
+            Get exchange's orderbooks that depend on orderbooks's queue in data_store
 
+            Returns:
+                get_orderbook is always return success=True, message=str()
+                Return result object with orderbook ResultObject(:obj: success, data, message, time)
+                    success(bool): True if successfully communicate to API server else False
+                    orderbook_data(dict): {'BTC_ETH': [{'bids': 0.3, 'asks': 0.35}, ..], 'BTC_XRP': ...}
         """
 
-    def get_candle(self, symbol):
+    def get_candle(self, sai_symbol):
         """
-
+            Get exchange's candle that depend on candle's queue in data_store
+            Args:
+                sai_symbol(str): sai_symbol, BTC_XRP
+            Returns:
+                get_candle is always return success=True, message=str()
+                Return result object with orderbook ResultObject(:obj: success, data, message, time)
+                    success(bool): True if successfully communicate to API server else False
+                    candle_data(dict): {'BTC_ETH': [{
+                                            'high': 0.3,
+                                            'low': 0.35,
+                                            'close': 0.35,
+                                            'open': 0.35,
+                                            'timestamp': 0.35,
+                                            amount: 0.003
+                                        }, ..], 'BTC_XRP': ...}
         """
 
     def withdraw(self, coin, amount, to_address, payment_id=None):
         """
-        withdraw your coin from balance
-        :param coin: ALT symbol --> ETH, LTC ...
-        :param amount: float, or str, --> 0.001
-        :param to_address: ALT address
-        :param payment_id: include if required
-        :return: success, data, message, time
+            Execute withdraw
+
+            Args:
+                coin(str): withdraw coin
+                amount(decimal): withdraw amount
+                to_address(str): destination address
+                payment_id(str): destination tag or payment id if it is need.
+
+            Returns:
+                Return result object with sai_id
+                    success(bool): True if successfully communicate to API server else False
+                    sai_id(str): withdraw id
+                    message(str): Return error result message if fail to communicate to API server
+                    time(int): Wait time if fail to communicate to API server.
+
         """
 
-    def buy(self, sai_symbol, amount, trade_type, price=None):
+    def buy(self, sai_symbol, trade_type, amount=None, price=None):
         """
-        Buy coin
-        :param coin: ALT symbol --> ETH, LTC ...
-        :param amount: float, or str, --> 0.001
-        :param price: type is dependent of exchange, common type is str or float. --> 0.001
-        :return: success, data, message, time
+            Execute Buy
+
+            Args:
+                sai_symbol(str): sai_symbol, BTC_XRP
+                trade_type(str): trade_type, it is depend on BaseTradeType.
+                amount(none, decimal): buy amount
+                price(none, decimal): buy price
+
+            Returns:
+                Return result object with sai_id
+                    success(bool): True if successfully communicate to API server else False
+                    data(dict): get executed info with sai_data
+                        sai_average_price(decimal): executed average_price
+                        sai_amount(decimal): executed amount
+                        sai_order_id(str): order id
+                    message(str): Return error result message if fail to communicate to API server
+                    time(int): Wait time if fail to communicate to API server.
         """
 
     def sell(self, sai_symbol, amount, trade_type, price=None):
         """
-        Sell coin
-        :param coin: ALT symbol --> ETH, LTC ...
-        :param amount: float, or str, --> 0.001
-        :param price: type is dependent of exchange, common type is str or float. --> 0.001
-        :return:
+            Execute Sell
+
+            Args:
+                sai_symbol(str): sai_symbol, BTC_XRP
+                trade_type(str): trade_type, it is depend on BaseTradeType.
+                amount(none, decimal): buy amount
+                price(none, decimal): buy price
+
+            Returns:
+                Return result object with sai_id
+                    success(bool): True if successfully communicate to API server else False
+                    data(dict): get executed info with sai_data
+                        sai_average_price(decimal): executed average_price
+                        sai_amount(decimal): executed amount
+                        sai_order_id(str): order id
+                    message(str): Return error result message if fail to communicate to API server
+                    time(int): Wait time if fail to communicate to API server.
         """
 
     def base_to_alt(self, coin, alt_amount, td_fee, tx_fee):
         """
-        this function use to buy coin dependent of parameter currency_pair, alt_amount and
-        calculate alt_amount withdrawn other exchange.
-
-        :param coin: ALT symbol.
-        :param alt_amount: alt amount to buy
-        :param td_fee: trading fee, type is float or int
-        :param tx_fee: transaction fee dict, tx_fee[customized_symbol]
-        :return: success, alt amount to send subtracted fees, message, time
-        """
-
-    def alt_to_base(self, sai_symbol, btc_amount, alt_amount):
-        """
-        this function use to sell coin dependent of parameter currency_pair, btc_amount and
-        calculate btc_amount be withdrawn other exchange.
-
-        :param sai_symbol: BTC_ALT custom symbol.
-        :param btc_amount: empty parameter
-        :param alt_amount: alt amount to sell
-        :return: None
+            It is formula function that calculate withdraw amount.
+            Args:
+                coin: coin
+                alt_amount: alt_amount
+                td_fee: coin's trading_fee
+                tx_fee: coin's transaction_fee
         """
 
     def get_precision(self, sai_symbol=None):
