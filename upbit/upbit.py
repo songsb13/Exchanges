@@ -300,11 +300,10 @@ class BaseUpbit(BaseExchange):
                                       wait_time=1)
             return ExchangeResult(True, data_dic)
 
-    def get_candle(self, symbol):
+    def get_candle(self, sai_symbol):
         debugger.debug(DebugMessage.ENTRANCE.format(name=self.name, fn="get_candle", data=str(locals())))
         with self._lock_dic['candle']:
-            upbit_symbol = sai_to_upbit_symbol_converter(symbol)
-            result = self.data_store.candle_queue.get(symbol, None)
+            result = self.data_store.candle_queue.get(sai_symbol, None)
             if result is None:
                 return ExchangeResult(False, message=WarningMsg.CANDLE_NOT_STORED.format(name=self.name), wait_time=1)
             return ExchangeResult(True, result)
