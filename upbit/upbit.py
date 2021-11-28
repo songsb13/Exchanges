@@ -361,8 +361,20 @@ class BaseUpbit(BaseExchange):
             stepped_price = trading_validation_result.data
             default_parameters.update(dict(price=stepped_price, volume=amount))
 
-        return self._private_api(Consts.POST, Urls.ORDERS, default_parameters)
-    
+        result = self._private_api(Consts.POST, Urls.ORDERS, default_parameters)
+
+        if result.success:
+            price = result.data['avg_price']
+            amount = result.data['volume']
+            result.data.update({
+                'sai_average_price': Decimal(price).quantize(Decimal(10) ** - 8),
+                'sai_amount': Decimal(amount).quantize(Decimal(10) ** - 8),
+                'sai_order_id': result.data['uuid']
+
+            })
+
+        return result
+
     def sell(self, sai_symbol, trade_type, amount=None, price=None):
         debugger.debug(DebugMessage.ENTRANCE.format(name=self.name, fn="sell", data=str(locals())))
 
@@ -393,8 +405,19 @@ class BaseUpbit(BaseExchange):
             stepped_price = trading_validation_result.data
             default_parameters.update(dict(price=stepped_price))
         
-        return self._private_api(Consts.POST, Urls.ORDERS, default_parameters)
-    
+        result = self._private_api(Consts.POST, Urls.ORDERS, default_parameters)
+
+        if result.success:
+            price = result.data['avg_price']
+            amount = result.data['volume']
+            result.data.update({
+                'sai_average_price': Decimal(price).quantize(Decimal(10) ** - 8),
+                'sai_amount': Decimal(amount).quantize(Decimal(10) ** - 8),
+                'sai_order_id': result.data['uuid']
+            })
+
+        return result
+
     def base_to_alt(self, coin, alt_amount, td_fee, tx_fee):
         debugger.debug(DebugMessage.ENTRANCE.format(name=self.name, fn="base_to_alt", data=str(locals())))
         alt_amount *= 1 - Decimal(td_fee)
