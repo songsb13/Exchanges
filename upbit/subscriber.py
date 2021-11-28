@@ -4,6 +4,8 @@ import websocket
 from websocket import WebSocketConnectionClosedException
 from Util.pyinstaller_patch import *
 from enum import Enum
+
+from Exchanges.upbit.util import upbit_to_sai_symbol_converter, sai_to_upbit_trade_type_converter
 from Exchanges.upbit.setting import Urls
 from Exchanges.settings import Consts
 
@@ -126,31 +128,36 @@ class UpbitSubscriber(websocket.WebSocketApp):
 
     def orderbook_receiver(self, data):
         with self._lock_dic[Consts.ORDERBOOK]:
-            market = data['code']
-            # 1. insert data to temp_orderbook_store if type_ is 'orderbook'
-            # 2. if more than 100 are filled, insert to orderbook_queue for using 'get_curr_avg_orderbook'
-            if market not in self._temp_orderbook_store:
-                self._temp_orderbook_store.setdefault(market, list())
-        
-            self._temp_orderbook_store[market] += data['orderbook_units']
-        
-            if len(self._temp_orderbook_store[market]) >= Consts.ORDERBOOK_LIMITATION:
-                self.data_store.orderbook_queue[market] = self._temp_orderbook_store[market]
-                self._temp_orderbook_store[market] = list()
+            symbol = data['code']
+            sai_symbol = upbit_to_sai_symbol_converter(symbol)
+            if sai_symbol not in self._temp_orderbook_store:
+                self._temp_orderbook_store.setdefault(sai_symbol, list())
+
+            for each in data['orderbook_units']:
+                self._temp_orderbook_store[sai_symbol].append(dict(
+                    bids=dict(price=each['bid_price'], amount=each['bid_size']),
+                    asks=dict(price=each['ask_price'], amount=each['ask_size'])
+                ))
+
+            if len(self._temp_orderbook_store[sai_symbol]) >= Consts.ORDERBOOK_LIMITATION:
+                self.data_store.orderbook_queue[sai_symbol] = self._temp_orderbook_store[sai_symbol]
+                self._temp_orderbook_store[sai_symbol] = list()
     
     def candle_receiver(self, data):
         with self._lock_dic[Consts.CANDLE]:
-            market = data['code']
-            candle = dict(
+            symbol = data['code']
+            sai_symbol = upbit_to_sai_symbol_converter(symbol)
+            if sai_symbol not in self._temp_candle_store:
+                self._temp_candle_store.setdefault(sai_symbol, list())
+
+            self._temp_candle_store[sai_symbol].append(dict(
                 timestamp=data['trade_timestamp'],
                 open=data['opening_price'],
                 close=data['trade_price'],
                 high=data['high_price'],
-                low=data['low_price']
-            )
-            if market not in self._temp_candle_store:
-                self._temp_candle_store.setdefault(market, list())
-            self._temp_candle_store[market].append(candle)
-            if len(self._temp_candle_store[market]) >= Consts.CANDLE_LIMITATION:
-                self.data_store.candle_queue[market] = self._temp_candle_store[market]
-                self._temp_candle_store[market] = list()
+                low=data['low_price'],
+                amount=data['trade_volume']
+            ))
+            if len(self._temp_candle_store[sai_symbol]) >= Consts.CANDLE_LIMITATION:
+                self.data_store.candle_queue[sai_symbol] = self._temp_candle_store[sai_symbol]
+                self._temp_candle_store[sai_symbol] = list()
