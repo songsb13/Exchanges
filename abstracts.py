@@ -251,94 +251,118 @@ class BaseExchange(object):
                 tx_fee: coin's transaction_fee
         """
 
-    def get_precision(self, sai_symbol=None):
-        """
-        this function is returned minimum decimal point
-
-        :param sai_symbol: BTC_XXX
-        :return: success, data, message, time
-        """
-
     async def _async_public_api(self, path, extra=None):
         """
-        For using async public API
-
-        :param path: URL path without Base URL, '/url/path/'
-        :param extra: Parameter if required.
-        :return:
-        return 4 format
-        1. success: True if status is 200 else False
-        2. data: response data
-        3. message: if success is False, logging with this message.
-        4. time: if success is False, will be sleep this time.
+            This function is to use the async public apis.
+            Args:
+                path(str): The URL path without a base URL, '/url/path/'
+                extra(dict, optional): Required parameter to send the API
+            Returns:
+                ResultObject(:obj: success, data, message, time)
+                    success(bool): True if successfully communicate to API server else False
+                    data: Data from API server, Format is depend on API Server
+                    message(str): Return error result message if fail to communicate to API server
+                    time(int): Wait time if fail to communicate to API server.
         """
 
     async def _async_private_api(self, method, path, extra=None):
         """
-        For using async private API
-        :param method: Get or Post
-        :param path: URL path without Base URL, '/url/path/'
-        :param extra: Parameter if required.
-        :return:
-        return 4 format
-        1. success: True if status is 200 else False
-        2. data: response data
-        3. message: if success is False, logging with this message.
-        4. time: if success is False, will be sleep this time.
-        """
-
-    async def _get_deposit_addrs(self, symbol):
-        """
-        you can get deposit_address
-        :param symbol: symbol of exchange's coin
-        :return: success, address, message, time
-        """
-
-    async def _get_balance(self):
-        """
-        you can get balance dependent of exchange
-        this function be looped up to 3 times
-
-        :return: success, data, message if you fail to get, time
+            This function is to use the async private apis
+            Args:
+                path(str): The URL path without a base URL, '/url/path/'
+                extra(dict, optional): Required parameter to send the API
+            Returns:
+                ResultObject(:obj: success, data, message, time)
+                    success(bool): True if successfully communicate to API server else False
+                    data: Data from API server, Format is depend on API Server
+                    message(str): Return error result message if fail to communicate to API server
+                    time(int): Wait time if fail to communicate to API server.
         """
 
     async def get_deposit_addrs(self, coin_list=None):
         """
-        use with _get_deposit_addrs
-        :param coin_list: None or custom symbol list --> ['BTC_XXX', ...]
-        :return: exchange deposit addrs, type is have to dictonary --> {'BTC': BTCaddrs, ...}
+            Get deposit address function.
+            Args:
+                coin_list:
+            Returns:
+                Return result object with deposit address dictionary
+                    ResultObject(:obj: success, data, message, time)
+                    success(bool): True if successfully communicate to API server else False
+                    data(dict): {'BTC': {address}, 'XRP': {address},'XRPTAG': {tag}}
+                    message(str): Return error result message if fail to communicate to API server
+                    time(int): Wait time if fail to communicate to API server.
         """
 
     async def get_balance(self):
         """
-        use with _get_balance
-        :return: user balance, type is have to dictonary --> {'BTC': float(amount), ...}
+            Get balance function.
+            
+            Returns:
+                Return result object with balance dictionary
+                    ResultObject(:obj: success, data, message, time)
+                    success(bool): True if successfully communicate to API server else False
+                    data(dict): {'BTC': {address}, 'XRP': {address},'XRPTAG': {tag}}
+                    message(str): Return error result message if fail to communicate to API server
+                    time(int): Wait time if fail to communicate to API server.
+
         """
 
     async def get_trading_fee(self):
         """
-        use with _get_trading_fee
-        :return: trading fee variable exchanges. type is float --> 0.01
+            GET market trading fee
+            
+            Returns:
+                Return result object with BTC market trading fee
+                    ResultObject(:obj: success, data, message, time)
+                    success(bool): always return True
+                    data(decimal): trading fee
         """
 
     async def get_transaction_fee(self):
         """
-        use with _get_transaction_fee
-        :return:  dependent of exchange, common type is have to dictonary --> {'BTC': Decimal(fee), ...}
+            GET alt transaction fee.
+            
+            Returns:
+                Return result object with transaction fee dictionary
+                    ResultObject(:obj: success, data, message, time)
+                    success(bool): True if successfully communicate to API server else False
+                    data(dict): {'BTC': Decimal(fee), ..}
+                    message(str): Return error result message if fail to communicate to API server
+                    time(int): Wait time if fail to communicate to API server.
         """
 
-    async def get_curr_avg_orderbook(self, coin_list, btc_sum=1):
+    async def get_curr_avg_orderbook(self, symbol_list, btc_sum=1):
         """
-        you can get orderbook average
-        :param coin_list: custom symbol set [BTC_XRP, ...]
-        :param btc_sum: be calculate average base on btc_sum
-        :return: dict, set of custom symbol with its ask & bid average. {BTC_XRP:{asks:Decimal, bids:Decimal}, ...}
+            Get orderbook's bid&ask average price.
+            
+            Args:
+                symbol_list(list): sai_symbol_list,
+                btc_sum(float):
+            
+            Returns:
+                Return result object with average dictionary
+                ResultObject(:obj: success, data, message, time)
+                success(bool): True if successfully communicate to API server else False
+                data(dict): {'BTC': {'asks': Decimal(price), 'bids': Decimal(price)}, ..}
+                message(str): Return error result message if fail to communicate to API server
+                time(int): Wait time if fail to communicate to API server.
+
         """
 
-    async def compare_orderbook(self, other, coins, default_btc=1):
+    async def compare_orderbook(self, other_exchange, sai_symbol_list, default_btc=1.0):
         """
-        :param other: Other exchange's compare_orderbook object
-        :param coins: Custom symbol list --> [BTC_LTC, ...]
-        :param default_btc: dfc
-        :return: tuple, 2 different exchange orderbook & profit percent of main & sec exchanges
+            Compare orderbook
+            
+            Args:
+                other_exchange(object): exchange object.
+                sai_symbol_list(list): symbol_list for calculating average orderbook
+                default_btc(float):
+            
+            Returns:
+                Return result object with main&other orderbook data and profit data.
+                ResultObject(:obj: success, data, message, time)
+                success(bool): True if successfully communicate to API server else False
+                data(tuple): main_orderbook_data(dict), other_orderbook_data(dict), profit_data(dict)
+                message(str): Return error result message if fail to communicate to API server
+                time(int): Wait time if fail to communicate to API server.
         """
