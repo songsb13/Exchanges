@@ -477,7 +477,7 @@ class BaseUpbit(BaseExchange):
 
         return ExchangeResult(True, fees)
 
-    async def get_deposit_addrs(self, coin_list):
+    async def get_deposit_addrs(self, coin_list=None):
         debugger.debug(DebugMessage.ENTRANCE.format(name=self.name, fn="get_deposit_addrs", data=str(locals())))
         result = await self._async_private_api(Consts.GET, Urls.DEPOSIT_ADDRESS)
         if result.success:
@@ -508,7 +508,9 @@ class BaseUpbit(BaseExchange):
         return result
 
     async def get_trading_fee(self):
-        dic_ = dict(KRW=0.0005, BTC=0.0025, USDT=0.0025)
+        dic_ = dict(KRW=Decimal(0.0005).quantize(Decimal(10) ** -8),
+                    BTC=Decimal(0.0025).quantize(Decimal(10) ** -8),
+                    USDT=Decimal(0.0025).quantize(Decimal(10) ** -8))
         return ExchangeResult(True, dic_['BTC'])
 
     async def get_balance(self):
@@ -520,7 +522,7 @@ class BaseUpbit(BaseExchange):
 
         return result
 
-    async def get_curr_avg_orderbook(self, coin_list, btc_sum=1):
+    async def get_curr_avg_orderbook(self, coin_list, btc_sum=1.0):
         debugger.debug(DebugMessage.ENTRANCE.format(name=self.name, fn="get_curr_avg_orderbook", data=str(locals())))
         with self._lock_dic['orderbook']:
             data_dic = self.data_store.orderbook_queue
@@ -548,11 +550,11 @@ class BaseUpbit(BaseExchange):
                 
                 return ExchangeResult(True, avg_order_book)
     
-    async def compare_orderbook(self, other, symbol_list, default_btc=1):
+    async def compare_orderbook(self, other_exchange, sai_symbol_list, default_btc=1.0):
         debugger.debug(DebugMessage.ENTRANCE.format(name=self.name, fn="compare_orderbook", data=str(locals())))
         upbit_res, other_res = await asyncio.gather(
-            self.get_curr_avg_orderbook(symbol_list, default_btc),
-            other.get_curr_avg_orderbook(symbol_list, default_btc)
+            self.get_curr_avg_orderbook(sai_symbol_list, default_btc),
+            other_exchange.get_curr_avg_orderbook(sai_symbol_list, default_btc)
         )
         
         u_suc, u_orderbook, u_msg = upbit_res
@@ -560,13 +562,13 @@ class BaseUpbit(BaseExchange):
         
         if u_suc and o_suc:
             m_to_s = dict()
-            for currency_pair in symbol_list:
+            for currency_pair in sai_symbol_list:
                 m_ask = u_orderbook[currency_pair][Consts.ASKS]
                 s_bid = o_orderbook[currency_pair][Consts.BIDS]
                 m_to_s[currency_pair] = float(((s_bid - m_ask) / m_ask))
             
             s_to_m = dict()
-            for currency_pair in symbol_list:
+            for currency_pair in sai_symbol_list:
                 m_bid = u_orderbook[currency_pair][Consts.BIDS]
                 s_ask = o_orderbook[currency_pair][Consts.ASKS]
                 s_to_m[currency_pair] = float(((m_bid - s_ask) / s_ask))
