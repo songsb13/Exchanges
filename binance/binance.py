@@ -528,15 +528,6 @@ class Binance(BaseExchange):
             result_text = await rq.text()
             return self._get_results(result_text, path, extra, fn='_async_private_api')
 
-    async def _get_balance(self):
-        for _ in range(3):
-            result_object = await self._async_private_api(Consts.GET, Urls.ACCOUNT)
-            if result_object.success:
-                break
-            time.sleep(result_object.wait_time)
-
-        return result_object
-
     async def get_deposit_addrs(self, coin_list=None):
         debugger.debug(DebugMessage.ENTRANCE.format(name=self.name, fn="get_deposit_addrs", data=str(locals())))
 
@@ -646,7 +637,8 @@ class Binance(BaseExchange):
             return ExchangeResult(False, message=WarningMessage.EXCEPTION_RAISED.format(name=self.name), wait_time=1)
 
     async def get_trading_fee(self):
-        return ExchangeResult(True, 0.001)
+        dic_ = dict(BTC=Decimal(0.001).quantize(Decimal(10) ** -8))
+        return ExchangeResult(True, dic_['BTC'])
 
     async def get_transaction_fee(self):
         debugger.debug(DebugMessage.ENTRANCE.format(name=self.name, fn="get_transaction_fee", data=str(locals())))
@@ -670,7 +662,7 @@ class Binance(BaseExchange):
 
     async def get_balance(self):
         debugger.debug(DebugMessage.ENTRANCE.format(name=self.name, fn="get_balance", data=str(locals())))
-        result_object = await self._get_balance()
+        result_object = await self._async_private_api(Consts.GET, Urls.ACCOUNT)
 
         if result_object.success:
             balance = dict()
@@ -683,14 +675,14 @@ class Binance(BaseExchange):
 
         return result_object
     
-    async def get_curr_avg_orderbook(self, symbol_list, btc_sum=1):
+    async def get_curr_avg_orderbook(self, sai_symbol_list, btc_sum=1.0):
         debugger.debug(DebugMessage.ENTRANCE.format(name=self.name, fn="get_curr_avg_orderbook", data=str(locals())))
         try:
             if not self.data_store.orderbook_queue:
                 return ExchangeResult(False, message=WarningMessage.ORDERBOOK_NOT_STORED.format(name=self.name), wait_time=1)
 
             avg_orderbook = dict()
-            for symbol in symbol_list:
+            for symbol in sai_symbol_list:
                 binance_symbol = sai_to_binance_symbol_converter(symbol)
 
                 with self._lock_dic['orderbook']:
@@ -724,12 +716,12 @@ class Binance(BaseExchange):
         except:
             return ExchangeResult(False, message=WarningMessage.EXCEPTION_RAISED.format(name=self.name), wait_time=1)
 
-    async def compare_orderbook(self, other_exchange, symbol_list, default_btc=1):
+    async def compare_orderbook(self, other_exchange, sai_symbol_list, default_btc=1.0):
         debugger.debug(DebugMessage.ENTRANCE.format(name=self.name, fn="compare_orderbook", data=str(locals())))
         for _ in range(3):
             binance_result_object, other_result_object = await asyncio.gather(
-                self.get_curr_avg_orderbook(symbol_list, default_btc),
-                other_exchange.get_curr_avg_orderbook(symbol_list, default_btc)
+                self.get_curr_avg_orderbook(sai_symbol_list, default_btc),
+                other_exchange.get_curr_avg_orderbook(sai_symbol_list, default_btc)
             )
 
             success = (binance_result_object.success and other_result_object.success)
@@ -737,7 +729,7 @@ class Binance(BaseExchange):
 
             if success:
                 m_to_s, s_to_m = dict(), dict()
-                for symbol in symbol_list:
+                for symbol in sai_symbol_list:
                     m_ask = binance_result_object.data[symbol][Consts.ASKS]
                     s_bid = other_result_object.data[symbol][Consts.BIDS]
                     m_to_s[symbol] = float(((s_bid - m_ask) / m_ask).quantize(Decimal(10) ** -8))
