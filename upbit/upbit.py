@@ -308,6 +308,12 @@ class BaseUpbit(BaseExchange):
                 return ExchangeResult(False, message=WarningMsg.CANDLE_NOT_STORED.format(name=self.name), wait_time=1)
             return ExchangeResult(True, result)
 
+    def get_trading_fee(self):
+        dic_ = dict(KRW=Decimal(0.0005).quantize(Decimal(10) ** -8),
+                    BTC=Decimal(0.0025).quantize(Decimal(10) ** -8),
+                    USDT=Decimal(0.0025).quantize(Decimal(10) ** -8))
+        return ExchangeResult(True, dic_)
+
     def withdraw(self, coin, amount, to_address, payment_id=None):
         debugger.debug(DebugMessage.ENTRANCE.format(name=self.name, fn="withdraw", data=str(locals())))
         params = {
@@ -506,12 +512,6 @@ class BaseUpbit(BaseExchange):
             result.data = result_dict
 
         return result
-
-    async def get_trading_fee(self):
-        dic_ = dict(KRW=Decimal(0.0005).quantize(Decimal(10) ** -8),
-                    BTC=Decimal(0.0025).quantize(Decimal(10) ** -8),
-                    USDT=Decimal(0.0025).quantize(Decimal(10) ** -8))
-        return ExchangeResult(True, dic_['BTC'])
 
     async def get_balance(self):
         debugger.debug(DebugMessage.ENTRANCE.format(name=self.name, fn="get_balance", data=str(locals())))
