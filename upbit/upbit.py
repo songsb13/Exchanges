@@ -466,8 +466,12 @@ class BaseUpbit(BaseExchange):
 
     async def get_transaction_fee(self):
         debugger.debug(DebugMessage.ENTRANCE.format(name=self.name, fn="get_transaction_fee", data=str(locals())))
-        result = requests.get(Urls.Web.BASE + Urls.Web.TRANSACTION_FEE_PAGE)
-        raw_data = json.loads(result.text)
+        async with aiohttp.ClientSession() as s:
+            url = Urls.Web.BASE + Urls.Web.TRANSACTION_FEE_PAGE
+            rq = await s.get(url)
+
+            result_text = await rq.text()
+        raw_data = json.loads(result_text)
 
         success = raw_data.get('success', False)
         if not success:
