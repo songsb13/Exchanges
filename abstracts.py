@@ -180,6 +180,17 @@ class BaseExchange(object):
                                         }, ..], 'BTC_XRP': ...}
         """
 
+    def get_trading_fee(self):
+        """
+            GET market trading fee
+
+            Returns:
+                Return result object with BTC market trading fee
+                    ResultObject(:obj: success, data, message, time)
+                    success(bool): always return True
+                    data(decimal): trading fee dictionary
+        """
+
     def withdraw(self, coin, amount, to_address, payment_id=None):
         """
             Execute withdraw
@@ -305,17 +316,6 @@ class BaseExchange(object):
                     message(str): Return error result message if fail to communicate to API server
                     time(int): Wait time if fail to communicate to API server.
 
-        """
-
-    async def get_trading_fee(self):
-        """
-            GET market trading fee
-            
-            Returns:
-                Return result object with BTC market trading fee
-                    ResultObject(:obj: success, data, message, time)
-                    success(bool): always return True
-                    data(decimal): trading fee
         """
 
     async def get_transaction_fee(self):
