@@ -101,11 +101,12 @@ class BaseExchange(object):
                     time(int): Wait time if fail to communicate to API server.
         """
 
-    def get_deposit_history(self, coin):
+    def get_deposit_history(self, coin, number):
         """
             Get deposit history based on coin
             Args:
                 coin(str): ALT coin name
+                number(int): To determine number of histories
             Returns:
                 Return result object with sai_data
 
