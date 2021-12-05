@@ -389,6 +389,10 @@ class Binance(BaseExchange):
 
         return result
 
+    def get_trading_fee(self):
+        dic_ = dict(BTC=Decimal(0.001).quantize(Decimal(10) ** -8))
+        return ExchangeResult(True, dic_)
+
     def buy(self, sai_symbol, trade_type, amount=None, price=None):
         debugger.debug(DebugMessage.ENTRANCE.format(name=self.name, fn="buy", data=str(locals())))
 
@@ -478,7 +482,6 @@ class Binance(BaseExchange):
         alt_amount -= Decimal(tx_fee[coin])
         alt_amount = alt_amount
         return alt_amount
-
 
     def withdraw(self, coin, amount, to_address, payment_id=None):
         debugger.debug(DebugMessage.ENTRANCE.format(name=self.name, fn="withdraw", data=str(locals())))
@@ -635,10 +638,6 @@ class Binance(BaseExchange):
 
         except Exception as ex:
             return ExchangeResult(False, message=WarningMessage.EXCEPTION_RAISED.format(name=self.name), wait_time=1)
-
-    async def get_trading_fee(self):
-        dic_ = dict(BTC=Decimal(0.001).quantize(Decimal(10) ** -8))
-        return ExchangeResult(True, dic_['BTC'])
 
     async def get_transaction_fee(self):
         debugger.debug(DebugMessage.ENTRANCE.format(name=self.name, fn="get_transaction_fee", data=str(locals())))
