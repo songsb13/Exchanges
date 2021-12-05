@@ -46,9 +46,9 @@ class Binance(BaseExchange):
 
         self._subscriber = None
 
-    def _get_results(self, request, path, extra, fn):
+    def _get_results(self, response, path, extra, fn):
         try:
-            result = json.loads(request)
+            result = json.loads(response)
         except:
             debugger.debug(DebugMessage.FATAL.format(name=self.name, fn=fn))
             return ExchangeResult(False, message=WarningMessage.EXCEPTION_RAISED.format(name=self.name), wait_time=1)
@@ -370,14 +370,14 @@ class Binance(BaseExchange):
 
         return result
 
-    def get_deposit_history(self, coin):
+    def get_deposit_history(self, coin, number):
         debugger.debug(DebugMessage.ENTRANCE.format(name=self.name, fn="get_deposit_history", data=str(locals())))
         params = dict(coin=coin, status=DepositStatus.SUCCESS)
 
         result = self._private_api(Consts.GET, Urls.GET_DEPOSIT_HISTORY, params)
 
         if result.success and result.data:
-            latest_data = result.data[0]
+            latest_data = result.data[:number]
             result_dict = dict(
                 sai_deposit_amount=latest_data['amount'],
                 sai_coin=latest_data['coin']

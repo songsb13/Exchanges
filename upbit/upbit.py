@@ -42,9 +42,9 @@ class BaseUpbit(BaseExchange):
 
         self._subscriber = None
 
-    def _get_results(self, request, path, extra, fn):
+    def _get_results(self, response, path, extra, fn):
         try:
-            res = json.loads(request)
+            res = json.loads(response)
         except:
             debugger.exception(DebugMessage.FATAL.format(name=self.name, fn=fn))
             return ExchangeResult(False, message=WarningMsg.EXCEPTION_RAISED.format(name=self.name), wait_time=1)
@@ -265,7 +265,7 @@ class BaseUpbit(BaseExchange):
 
         return result
 
-    def get_deposit_history(self, coin):
+    def get_deposit_history(self, coin, number):
         debugger.debug(DebugMessage.ENTRANCE.format(name=self.name, fn="get_deposit_history", data=str(locals())))
         params = dict(
             currency=coin,
@@ -274,7 +274,7 @@ class BaseUpbit(BaseExchange):
         result = self._private_api(Consts.GET, Urls.GET_DEPOSIT_HISTORY, params)
 
         if result.success:
-            latest_data = result.data[0]
+            latest_data = result.data[:number]
             result_dict = dict(
                 sai_deposit_amount=latest_data['amount'],
                 sai_coin=latest_data['currency']
