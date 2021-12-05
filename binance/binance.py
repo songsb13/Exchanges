@@ -46,9 +46,9 @@ class Binance(BaseExchange):
 
         self._subscriber = None
 
-    def _get_results(self, request, path, extra, fn):
+    def _get_results(self, response, path, extra, fn):
         try:
-            result = json.loads(request)
+            result = json.loads(response)
         except:
             debugger.debug(DebugMessage.FATAL.format(name=self.name, fn=fn))
             return ExchangeResult(False, message=WarningMessage.EXCEPTION_RAISED.format(name=self.name), wait_time=1)

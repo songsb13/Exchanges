@@ -42,9 +42,9 @@ class BaseUpbit(BaseExchange):
 
         self._subscriber = None
 
-    def _get_results(self, request, path, extra, fn):
+    def _get_results(self, response, path, extra, fn):
         try:
-            res = json.loads(request)
+            res = json.loads(response)
         except:
             debugger.exception(DebugMessage.FATAL.format(name=self.name, fn=fn))
             return ExchangeResult(False, message=WarningMsg.EXCEPTION_RAISED.format(name=self.name), wait_time=1)
