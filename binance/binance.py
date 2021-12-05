@@ -262,10 +262,9 @@ class Binance(BaseExchange):
             coin: it can be list or string, [xrpbtc, ethbtc] or 'xrpbtc'
         """
         debugger.debug(DebugMessage.ENTRANCE.format(name=self.name, fn="set_subscribe_candle", data=str(locals())))
-        for _ in range(10):
-            time.sleep(1)
-            if self._subscriber.keep_running:
-                break
+
+        if not self._subscriber.keep_running:
+            return False
 
         binance_symbol_list = list(map(sai_to_binance_symbol_converter_in_subscriber, symbol)) if isinstance(symbol,
                                                                                                              list) \
@@ -281,10 +280,9 @@ class Binance(BaseExchange):
             coin: it can be list or string, [xrpbtc, ethbtc] or 'xrpbtc'
         """
         debugger.debug(DebugMessage.ENTRANCE.format(name=self.name, fn="set_subscribe_orderbook", data=str(locals())))
-        for _ in range(10):
-            time.sleep(1)
-            if self._subscriber.keep_running:
-                break
+
+        if not self._subscriber.keep_running:
+            return False
 
         binance_symbol_list = list(map(sai_to_binance_symbol_converter_in_subscriber, symbol)) if isinstance(symbol,
                                                                                                              list) \

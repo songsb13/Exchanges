@@ -197,6 +197,10 @@ class BaseUpbit(BaseExchange):
             symbol: it can be list or string, [BTC-XRP, BTC-ETH] or 'BTC-XRP'
         """
         debugger.debug(DebugMessage.ENTRANCE.format(name=self.name, fn="set_subscribe_candle", data=str(locals())))
+
+        if not self._subscriber.keep_running:
+            return False
+
         coin = list(map(sai_to_upbit_symbol_converter, symbol)) if isinstance(symbol, list) \
             else sai_to_upbit_symbol_converter(symbol)
         with self._lock_dic['candle']:
@@ -210,6 +214,10 @@ class BaseUpbit(BaseExchange):
             symbol: it can be list or string, [BTC-XRP, BTC-ETH] or 'BTC-XRP'
         """
         debugger.debug(DebugMessage.ENTRANCE.format(name=self.name, fn="set_subscribe_orderbook", data=str(locals())))
+
+        if not self._subscriber.keep_running:
+            return False
+
         coin = list(map(sai_to_upbit_symbol_converter, symbol)) if isinstance(symbol, list) \
             else sai_to_upbit_symbol_converter(symbol)
         with self._lock_dic['orderbook']:
