@@ -64,7 +64,10 @@ class BinanceSubscriber(websocket.WebSocketApp):
         set_to_list = list(self.unsubscribe_set)
         data = json.dumps({"method": "UNSUBSCRIBE", "params": set_to_list, 'id': self._unsub_id})
         self.send(data)
-
+    
+    def is_running(self):
+        return self.keep_running
+    
     def start_run_forever_thread(self):
         debugger.debug('BinanceSubscriber::: start_run_forever_thread')
         self.subscribe_thread = threading.Thread(target=self.run_forever, daemon=True)

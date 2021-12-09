@@ -20,6 +20,7 @@ from Exchanges.binance.setting import Urls, OrderStatus, DepositStatus
 from Exchanges.abstracts import BaseExchange
 from Exchanges.objects import ExchangeResult, DataStore
 from Exchanges.binance.subscriber import BinanceSubscriber
+from Exchanges.threads import CallbackThread
 from Util.pyinstaller_patch import debugger
 
 decimal.getcontext().prec = 8
@@ -263,16 +264,13 @@ class Binance(BaseExchange):
         """
         debugger.debug(DebugMessage.ENTRANCE.format(name=self.name, fn="set_subscribe_candle", data=str(locals())))
 
-        if not self._subscriber.keep_running:
-            return False
-
-        binance_symbol_list = list(map(sai_to_binance_symbol_converter_in_subscriber, symbol)) if isinstance(symbol,
-                                                                                                             list) \
+        binance_symbol_list = list(map(sai_to_binance_symbol_converter_in_subscriber, symbol)) if isinstance(symbol, list) \
             else sai_to_binance_symbol_converter_in_subscriber(symbol)
-        with self._lock_dic['candle']:
-            self._subscriber.subscribe_candle(binance_symbol_list)
-
-        return True
+        
+        callback_thread = CallbackThread(self._subscriber, binance_symbol_list,
+                                         self._subscriber.is_running, fn_name='binance_set_subscribe_candle', context=self._lock_dic['candle'])
+        
+        callback_thread.start()
 
     def set_subscribe_orderbook(self, symbol):
         """
@@ -281,16 +279,13 @@ class Binance(BaseExchange):
         """
         debugger.debug(DebugMessage.ENTRANCE.format(name=self.name, fn="set_subscribe_orderbook", data=str(locals())))
 
-        if not self._subscriber.keep_running:
-            return False
-
-        binance_symbol_list = list(map(sai_to_binance_symbol_converter_in_subscriber, symbol)) if isinstance(symbol,
-                                                                                                             list) \
+        binance_symbol_list = list(map(sai_to_binance_symbol_converter_in_subscriber, symbol)) if isinstance(symbol, list) \
             else sai_to_binance_symbol_converter_in_subscriber(symbol)
-        with self._lock_dic['orderbook']:
-            self._subscriber.subscribe_orderbook(binance_symbol_list)
+        
+        callback_thread = CallbackThread(self._subscriber, binance_symbol_list,
+                                         self._subscriber.is_running, fn_name='binance_set_subscribe_orderbook', context=self._lock_dic['orderbook'])
 
-        return True
+        callback_thread.start()
 
     def get_orderbook(self):
         debugger.debug(DebugMessage.ENTRANCE.format(name=self.name, fn="get_orderbook", data=str(locals())))
