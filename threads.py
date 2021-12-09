@@ -29,3 +29,5 @@ class CallbackThread(threading.Thread):
                 self._callback(**self._parameters)
         else:
             self._callback(**self._parameters)
+        
+        return
