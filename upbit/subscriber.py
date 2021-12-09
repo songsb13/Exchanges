@@ -57,7 +57,10 @@ class UpbitSubscriber(websocket.WebSocketApp):
             data += self.subscribe_set[key]
     
         self.send(json.dumps(data))
-
+    
+    def is_running(self):
+        return self.keep_running
+    
     def start_run_forever_thread(self):
         debugger.debug('UpbitSubscriber::: start_run_forever_thread')
         self.subscribe_thread = threading.Thread(target=self.run_forever, daemon=True)

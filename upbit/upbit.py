@@ -20,6 +20,7 @@ from Exchanges.upbit.util import sai_to_upbit_symbol_converter, upbit_to_sai_sym
 
 from Exchanges.abstracts import BaseExchange
 from Exchanges.objects import DataStore, ExchangeResult
+from Exchanges.threads import CallbackThread
 
 from decimal import Decimal, ROUND_DOWN
 import decimal
@@ -198,15 +199,13 @@ class BaseUpbit(BaseExchange):
         """
         debugger.debug(DebugMessage.ENTRANCE.format(name=self.name, fn="set_subscribe_candle", data=str(locals())))
 
-        if not self._subscriber.keep_running:
-            return False
-
-        coin = list(map(sai_to_upbit_symbol_converter, symbol)) if isinstance(symbol, list) \
+        upbit_symbol_list = list(map(sai_to_upbit_symbol_converter, symbol)) if isinstance(symbol, list) \
             else sai_to_upbit_symbol_converter(symbol)
-        with self._lock_dic['candle']:
-            self._subscriber.subscribe_candle(coin)
 
-        return True
+        callback_thread = CallbackThread(self._subscriber, upbit_symbol_list,
+                                         self._subscriber.is_running, fn_name='upbit_set_subscribe_candle', context=self._lock_dic['candle'])
+
+        callback_thread.start()
 
     def set_subscribe_orderbook(self, symbol):
         """
@@ -215,15 +214,12 @@ class BaseUpbit(BaseExchange):
         """
         debugger.debug(DebugMessage.ENTRANCE.format(name=self.name, fn="set_subscribe_orderbook", data=str(locals())))
 
-        if not self._subscriber.keep_running:
-            return False
-
-        coin = list(map(sai_to_upbit_symbol_converter, symbol)) if isinstance(symbol, list) \
+        upbit_symbol_list = list(map(sai_to_upbit_symbol_converter, symbol)) if isinstance(symbol, list) \
             else sai_to_upbit_symbol_converter(symbol)
-        with self._lock_dic['orderbook']:
-            self._subscriber.subscribe_orderbook(coin)
+        callback_thread = CallbackThread(self._subscriber, upbit_symbol_list,
+                                         self._subscriber.is_running, fn_name='upbit_set_subscribe_orderbook', context=self._lock_dic['orderbook'])
 
-        return True
+        callback_thread.start()
 
     def get_ticker(self, sai_symbol):
         debugger.debug(DebugMessage.ENTRANCE.format(name=self.name, fn="get_ticker", data=str(locals())))
