@@ -11,7 +11,7 @@ from urllib.parse import urlencode
 from Util.pyinstaller_patch import debugger
 
 from Exchanges.settings import Consts, SaiOrderStatus, BaseTradeType
-from Exchanges.messages import WarningMessage as WarningMsg
+from Exchanges.messages import WarningMessage
 from Exchanges.messages import DebugMessage
 
 from Exchanges.upbit.setting import Urls, OrderStatus, DepositStatus, LocalConsts, WithdrawalStatus
@@ -48,7 +48,7 @@ class BaseUpbit(BaseExchange):
             res = json.loads(response)
         except:
             debugger.exception(DebugMessage.FATAL.format(name=self.name, fn=fn))
-            return ExchangeResult(False, message=WarningMsg.EXCEPTION_RAISED.format(name=self.name), wait_time=1)
+            return ExchangeResult(False, message=WarningMessage.EXCEPTION_RAISED.format(name=self.name), wait_time=1)
 
         raw_error = res.get('error', dict())
 
@@ -57,10 +57,10 @@ class BaseUpbit(BaseExchange):
         else:
             raw_error_message = raw_error.get('message', None)
             if raw_error_message is None:
-                error_message = WarningMsg.FAIL_RESPONSE_DETAILS.format(name=self.name, body=raw_error_message,
+                error_message = WarningMessage.FAIL_RESPONSE_DETAILS.format(name=self.name, body=raw_error_message,
                                                                         path=path, parameter=extra)
             else:
-                error_message = WarningMsg.MESSAGE_NOT_FOUND.format(name=self.name)
+                error_message = WarningMessage.MESSAGE_NOT_FOUND.format(name=self.name)
 
             return ExchangeResult(False, message=error_message, wait_time=1)
 
@@ -108,7 +108,7 @@ class BaseUpbit(BaseExchange):
                 return ExchangeResult(True, stepped_price)
         else:
             sai_symbol = upbit_to_sai_symbol_converter(symbol)  # for logging
-            return ExchangeResult(False, message=WarningMsg.STEP_SIZE_NOT_FOUND.format(
+            return ExchangeResult(False, message=WarningMessage.STEP_SIZE_NOT_FOUND.format(
                 name=self.name,
                 sai_symbol=sai_symbol,
             ))
@@ -120,7 +120,7 @@ class BaseUpbit(BaseExchange):
         minimum = LocalConsts.LOT_SIZES[market]['minimum']
         maximum = LocalConsts.LOT_SIZES[market]['maximum']
         if not minimum <= total_price <= maximum:
-            msg = WarningMsg.WRONG_LOT_SIZE.format(
+            msg = WarningMessage.WRONG_LOT_SIZE.format(
                 name=self.name,
                 market=market,
                 minimum=minimum,
@@ -290,7 +290,7 @@ class BaseUpbit(BaseExchange):
                 if history_id == uuid:
                     return True
             else:
-                debugger.debug(WarningMsg.HAS_NO_WITHDRAW_ID.format(name=self.name, withdrawal_id=uuid))
+                debugger.debug(WarningMessage.HAS_NO_WITHDRAW_ID.format(name=self.name, withdrawal_id=uuid))
                 return False
         else:
             debugger.debug(result.message)
@@ -317,7 +317,7 @@ class BaseUpbit(BaseExchange):
             data_dic = self.data_store.orderbook_queue
 
             if not self.data_store.orderbook_queue:
-                return ExchangeResult(False, message=WarningMsg.ORDERBOOK_NOT_STORED.format(name=self.name),
+                return ExchangeResult(False, message=WarningMessage.ORDERBOOK_NOT_STORED.format(name=self.name),
                                       wait_time=1)
             return ExchangeResult(True, data_dic)
 
@@ -326,7 +326,7 @@ class BaseUpbit(BaseExchange):
         with self._lock_dic['candle']:
             result = self.data_store.candle_queue.get(sai_symbol, None)
             if result is None:
-                return ExchangeResult(False, message=WarningMsg.CANDLE_NOT_STORED.format(name=self.name), wait_time=1)
+                return ExchangeResult(False, message=WarningMessage.CANDLE_NOT_STORED.format(name=self.name), wait_time=1)
             return ExchangeResult(True, result)
 
     def get_trading_fee(self):
@@ -496,7 +496,7 @@ class BaseUpbit(BaseExchange):
 
         success = raw_data.get('success', False)
         if not success:
-            return ExchangeResult(False, '', message=WarningMsg.TRANSACTION_FAILED.format(name=self.name))
+            return ExchangeResult(False, '', message=WarningMessage.TRANSACTION_FAILED.format(name=self.name))
 
         data = json.loads(raw_data['data'])
 
@@ -553,7 +553,7 @@ class BaseUpbit(BaseExchange):
             data_dic = self.data_store.orderbook_queue
             
             if not self.data_store.orderbook_queue:
-                return ExchangeResult(False, message=WarningMsg.ORDERBOOK_NOT_STORED.format(name=self.name), wait_time=1)
+                return ExchangeResult(False, message=WarningMessage.ORDERBOOK_NOT_STORED.format(name=self.name), wait_time=1)
             
             avg_order_book = dict()
             for pair, item in data_dic.items():
