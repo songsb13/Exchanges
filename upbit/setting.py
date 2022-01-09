@@ -19,6 +19,7 @@ class Urls(object):
     WITHDRAW = '/withdraws/coin'
     ACCOUNT = '/accounts'
     ORDERBOOK = '/orderbook'
+    GET_WITHDRAW_HISTORY = '/withdraws'
     DEPOSIT_ADDRESS = '/v1/deposits/coin_addresses'
     ABLE_WITHDRAWS = '/withdraws/chance'
     GET_DEPOSIT_HISTORY = '/deposits'
@@ -52,6 +53,17 @@ class OrderStatus(object):
     WATCH = 'watch'
     DONE = 'done'
     CANCEL = 'cancel'
+
+
+class WithdrawStatus(object):
+    SUBMITTING = 'submitting'
+    SUBMITTED = 'submitted'
+    ALMOST_ACCEPTED = 'almost_accepted'
+    REJECTED = 'rejected'
+    ACCEPTED = 'accepted'
+    PROCESSING = 'processing'
+    DONE = 'done'
+    CANCELED = 'canceled'
 
 
 class LocalConsts(object):

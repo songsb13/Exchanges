@@ -14,7 +14,7 @@ from Exchanges.settings import Consts, SaiOrderStatus, BaseTradeType
 from Exchanges.messages import WarningMessage as WarningMsg
 from Exchanges.messages import DebugMessage
 
-from Exchanges.upbit.setting import Urls, OrderStatus, DepositStatus, LocalConsts
+from Exchanges.upbit.setting import Urls, OrderStatus, DepositStatus, LocalConsts, WithdrawStatus
 from Exchanges.upbit.subscriber import UpbitSubscriber
 from Exchanges.upbit.util import sai_to_upbit_symbol_converter, upbit_to_sai_symbol_converter, sai_to_upbit_trade_type_converter
 
@@ -278,6 +278,28 @@ class BaseUpbit(BaseExchange):
             result.data = result_dict
 
         return result
+
+    def is_withdraw_completed(self, coin, uuid):
+        params = dict(currency=coin, uuid=uuid, state=WithdrawStatus.DONE)
+        result = self._private_api(Consts.GET, Urls.GET_WITHDRAW_HISTORY, params)
+
+        if result.success and result.data:
+            for each in result.data:
+                history_id = each['uuid']
+                if history_id == uuid:
+                    return True
+            else:
+                debugger.debug('data에 uuid가 존재하지 않습니다. = [{}]'.format(result.data))
+                time.sleep(10)
+                return False
+        else:
+            if result.data:
+                debugger.debug('withdraw_completed는 성공했으나 출금된 uuid를 발견하지 못했습니다.')
+            else:
+                debugger.debug('withdraw_completed에 실패했습니다.')
+            debugger.debug(result.message)
+            time.sleep(10)
+            return False
 
     def get_available_symbols(self):
         debugger.debug(DebugMessage.ENTRANCE.format(name=self.name, fn="get_available_symbols", data=''))

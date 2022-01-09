@@ -24,6 +24,7 @@ class Urls(object):
     ALL_ORDERS = '/api/v3/allOrders'
     DEPOSITS = '/sapi/v1/capital/deposit/address'
     WITHDRAW = '/sapi/v1/capital/withdraw/apply'
+    GET_WITHDRAW_HISTORY = '/sapi/v1/capital/withdraw/history'
     GET_DEPOSIT_HISTORY = '/sapi/v1/capital/deposit/hisrec'
     GET_ALL_INFORMATION = '/sapi/v1/capital/config/getall'
 
@@ -55,3 +56,13 @@ class OrderStatus(object):
     FILLED = 'FILLED'
     CANCELED = 'CANCELED'
     EXPIRED = 'EXPIRED'
+
+
+class WithdrawStatus(object):
+    EMAIL_SENT = 0
+    CANCELLED = 1
+    AWAITING_APPROVAL = 2
+    REJECTED = 3
+    PROCESSING = 4
+    FAILURE = 5
+    COMPLETED = 6
