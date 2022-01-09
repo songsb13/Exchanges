@@ -17,6 +17,8 @@ class WarningMessage(object):
 
     HAS_NO_WITHDRAW_ID = '[{name}] 데이터에 해당 출금 ID가 존재하지 않습니다. = [{withdrawal_id}]'
 
+    FUNCTION_FAILED = '[{name}][{function_name}]함수 값을 가져오는데 실패했습니다.'
+
 
 class CriticalMessage(object):
     pass

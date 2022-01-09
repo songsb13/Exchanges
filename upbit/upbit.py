@@ -282,19 +282,18 @@ class BaseUpbit(BaseExchange):
     def is_withdrawal_completed(self, coin, uuid):
         debugger.debug(DebugMessage.ENTRANCE.format(name=self.name, fn="is_withdrawal_completed", data=str(locals())))
         params = dict(currency=coin, uuid=uuid, state=WithdrawalStatus.DONE)
-        result = self._private_api(Consts.GET, Urls.GET_WITHDRAW_HISTORY, params)
+        result = self._private_api(Consts.GET, Urls.GET_WITHDRAWAL_HISTORY, params)
 
         if result.success and result.data:
-            for each in result.data:
-                history_id = each['uuid']
+            for history in result.data:
+                history_id = history['uuid']
                 if history_id == uuid:
-                    return True
+                    return ExchangeResult(success=True, data=history)
             else:
-                debugger.debug(WarningMessage.HAS_NO_WITHDRAW_ID.format(name=self.name, withdrawal_id=uuid))
-                return False
+                message = WarningMessage.HAS_NO_WITHDRAW_ID.format(name=self.name, withdrawal_id=uuid)
+                return ExchangeResult(success=False, message=message)
         else:
-            debugger.debug(result.message)
-            return False
+            return ExchangeResult(success=False, message=result.message)
 
     def get_available_symbols(self):
         debugger.debug(DebugMessage.ENTRANCE.format(name=self.name, fn="get_available_symbols", data=''))

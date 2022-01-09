@@ -382,20 +382,20 @@ class Binance(BaseExchange):
 
         return result
 
-    def is_withdraw_completed(self, coin, id_):
+    def is_withdrawal_completed(self, coin, id_):
         params = dict(coin=coin, status=WithdrawalStatus.COMPLETED)
-        result = self._private_api(Consts.GET, Urls.GET_WITHDRAW_HISTORY, params)
+        result = self._private_api(Consts.GET, Urls.GET_WITHDRAWAL_HISTORY, params)
 
         if result.success and result.data:
-            for each in result.data:
-                history_id = each['id']
+            for history_dict in result.data:
+                history_id = history_dict['id']
                 if history_id == id_:
-                    return True
+                    return ExchangeResult(success=True, data=history_dict)
             else:
-                debugger.debug(WarningMessage.HAS_NO_WITHDRAW_ID.format(name=self.name, withdrawal_id=uuid))
-                return False
+                message = WarningMessage.HAS_NO_WITHDRAW_ID.format(name=self.name, withdrawal_id=history_id)
+                return ExchangeResult(success=False, message=message)
         else:
-            return False
+            return ExchangeResult(success=False, message=result.message)
 
     def get_trading_fee(self):
         dic_ = dict(BTC=Decimal(0.001).quantize(Decimal(10) ** -8))

@@ -19,7 +19,7 @@ class Urls(object):
     WITHDRAW = '/withdraws/coin'
     ACCOUNT = '/accounts'
     ORDERBOOK = '/orderbook'
-    GET_WITHDRAW_HISTORY = '/withdraws'
+    GET_WITHDRAWAL_HISTORY = '/withdraws'
     DEPOSIT_ADDRESS = '/v1/deposits/coin_addresses'
     ABLE_WITHDRAWS = '/withdraws/chance'
     GET_DEPOSIT_HISTORY = '/deposits'
