@@ -15,6 +15,8 @@ class WarningMessage(object):
                          '해당 거래소의 [{symbol}]는 주문 총액이 [{min_notional}]이상이어야 합니다.'
     FAIL_RESPONSE_DETAILS = '{name}, body: [{body}], path: [{path}], parameter: [{parameter}]'
 
+    HAS_NO_WITHDRAW_ID = '[{name}] 데이터에 해당 출금 ID가 존재하지 않습니다. = [{withdrawal_id}]'
+
 
 class CriticalMessage(object):
     pass

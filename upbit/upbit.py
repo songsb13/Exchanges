@@ -290,16 +290,10 @@ class BaseUpbit(BaseExchange):
                 if history_id == uuid:
                     return True
             else:
-                debugger.debug('data에 uuid가 존재하지 않습니다. = [{}]'.format(result.data))
-                time.sleep(10)
+                debugger.debug(WarningMsg.HAS_NO_WITHDRAW_ID.format(name=self.name, withdrawal_id=uuid))
                 return False
         else:
-            if result.data:
-                debugger.debug('withdraw_completed는 성공했으나 출금된 uuid를 발견하지 못했습니다.')
-            else:
-                debugger.debug('withdraw_completed에 실패했습니다.')
             debugger.debug(result.message)
-            time.sleep(10)
             return False
 
     def get_available_symbols(self):

@@ -392,6 +392,7 @@ class Binance(BaseExchange):
                 if history_id == id_:
                     return True
             else:
+                debugger.debug(WarningMessage.HAS_NO_WITHDRAW_ID.format(name=self.name, withdrawal_id=uuid))
                 return False
         else:
             return False
