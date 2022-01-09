@@ -450,10 +450,10 @@ class BaseUpbit(BaseExchange):
 
         return result
 
-    def base_to_alt(self, coin, alt_amount, td_fee, tx_fee):
+    def base_to_alt(self, coin, alt_amount, from_exchange_trading_fee, to_exchange_transaction_fee):
         debugger.debug(DebugMessage.ENTRANCE.format(name=self.name, fn="base_to_alt", data=str(locals())))
-        alt_amount *= 1 - Decimal(td_fee)
-        alt_amount -= Decimal(tx_fee[coin])
+        alt_amount *= 1 - Decimal(from_exchange_trading_fee)
+        alt_amount -= Decimal(to_exchange_transaction_fee[coin])
         alt_amount = alt_amount
 
         return alt_amount
