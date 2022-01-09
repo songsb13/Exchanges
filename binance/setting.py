@@ -58,7 +58,7 @@ class OrderStatus(object):
     EXPIRED = 'EXPIRED'
 
 
-class WithdrawStatus(object):
+class WithdrawalStatus(object):
     EMAIL_SENT = 0
     CANCELLED = 1
     AWAITING_APPROVAL = 2

@@ -14,7 +14,7 @@ from Exchanges.settings import Consts, SaiOrderStatus, BaseTradeType
 from Exchanges.messages import WarningMessage as WarningMsg
 from Exchanges.messages import DebugMessage
 
-from Exchanges.upbit.setting import Urls, OrderStatus, DepositStatus, LocalConsts, WithdrawStatus
+from Exchanges.upbit.setting import Urls, OrderStatus, DepositStatus, LocalConsts, WithdrawalStatus
 from Exchanges.upbit.subscriber import UpbitSubscriber
 from Exchanges.upbit.util import sai_to_upbit_symbol_converter, upbit_to_sai_symbol_converter, sai_to_upbit_trade_type_converter
 
@@ -279,8 +279,9 @@ class BaseUpbit(BaseExchange):
 
         return result
 
-    def is_withdraw_completed(self, coin, uuid):
-        params = dict(currency=coin, uuid=uuid, state=WithdrawStatus.DONE)
+    def is_withdrawal_completed(self, coin, uuid):
+        debugger.debug(DebugMessage.ENTRANCE.format(name=self.name, fn="is_withdrawal_completed", data=str(locals())))
+        params = dict(currency=coin, uuid=uuid, state=WithdrawalStatus.DONE)
         result = self._private_api(Consts.GET, Urls.GET_WITHDRAW_HISTORY, params)
 
         if result.success and result.data:

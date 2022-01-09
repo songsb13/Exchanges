@@ -16,7 +16,7 @@ from Exchanges.settings import Consts, BaseMarkets, BaseTradeType, SaiOrderStatu
 from Exchanges.messages import WarningMessage, DebugMessage
 from Exchanges.binance.util import sai_to_binance_symbol_converter, binance_to_sai_symbol_converter, \
     sai_to_binance_trade_type_converter, sai_to_binance_symbol_converter_in_subscriber, _symbol_customizing, _symbol_localizing
-from Exchanges.binance.setting import Urls, OrderStatus, DepositStatus, WithdrawStatus
+from Exchanges.binance.setting import Urls, OrderStatus, DepositStatus, WithdrawalStatus
 from Exchanges.abstracts import BaseExchange
 from Exchanges.objects import ExchangeResult, DataStore
 from Exchanges.binance.subscriber import BinanceSubscriber
@@ -383,7 +383,7 @@ class Binance(BaseExchange):
         return result
 
     def is_withdraw_completed(self, coin, id_):
-        params = dict(coin=coin, status=WithdrawStatus.COMPLETED)
+        params = dict(coin=coin, status=WithdrawalStatus.COMPLETED)
         result = self._private_api(Consts.GET, Urls.GET_WITHDRAW_HISTORY, params)
 
         if result.success and result.data:

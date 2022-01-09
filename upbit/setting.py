@@ -55,7 +55,7 @@ class OrderStatus(object):
     CANCEL = 'cancel'
 
 
-class WithdrawStatus(object):
+class WithdrawalStatus(object):
     SUBMITTING = 'submitting'
     SUBMITTED = 'submitted'
     ALMOST_ACCEPTED = 'almost_accepted'
