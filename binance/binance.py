@@ -8,6 +8,7 @@ import aiohttp
 import asyncio
 import threading
 import decimal
+import datetime
 
 from urllib.parse import urlencode
 from decimal import Decimal, ROUND_DOWN, getcontext
@@ -390,7 +391,17 @@ class Binance(BaseExchange):
             for history_dict in result.data:
                 history_id = history_dict['id']
                 if history_id == id_:
-                    return ExchangeResult(success=True, data=history_dict)
+                    sai_dict = dict(
+                        sai_withdrawn_address=history_dict['address'],
+                        sai_withdrawn_amount=Decimal(history_dict['amount']).quantize(Decimal(10) ** -8),
+                        sai_withdrawn_time=datetime.datetime.strptime(history_dict['applyTime'], '%Y-%m-%d %H:%M:%S'),
+                        sai_coin=history_dict['coin'],
+                        sai_network=history_dict['network'],
+                        sai_transaction_fee=Decimal(history_dict['transactionFee']).quantize(Decimal(10) ** -8),
+                        sai_transaction_id=history_dict['txId'],
+                    )
+                    result_dict = {**history_dict, **sai_dict}
+                    return ExchangeResult(success=True, data=result_dict)
             else:
                 message = WarningMessage.HAS_NO_WITHDRAW_ID.format(name=self.name, withdrawal_id=history_id)
                 return ExchangeResult(success=False, message=message)

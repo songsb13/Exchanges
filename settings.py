@@ -26,6 +26,8 @@ class Consts(object):
     ORDERBOOK = 'orderbook'
     TICKER = 'ticker'
 
+    NOT_FOUND = 'not found'
+
 
 class BaseMarkets(object):
     BTC = 'BTC'

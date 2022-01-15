@@ -6,6 +6,7 @@ import numpy as np
 import asyncio
 import requests
 import threading
+import datetime
 
 from urllib.parse import urlencode
 from Util.pyinstaller_patch import debugger
@@ -285,10 +286,21 @@ class BaseUpbit(BaseExchange):
         result = self._private_api(Consts.GET, Urls.GET_WITHDRAWAL_HISTORY, params)
 
         if result.success and result.data:
-            for history in result.data:
+            for history_dict in result.data:
                 history_id = history['uuid']
                 if history_id == uuid:
-                    return ExchangeResult(success=True, data=history)
+                    sai_dict = dict(
+                        sai_withdrawn_address=Consts.NOT_FOUND,
+                        sai_withdrawn_amount=Decimal(history_dict['amount']).quantize(Decimal(10) ** -8),
+                        sai_withdrawn_time=datetime.datetime.fromisoformat(history_dict['done_at']),
+                        sai_coin=history_dict['currency'],
+                        sai_network=Consts.NOT_FOUND,
+                        sai_transaction_fee=Decimal(history_dict['fee']).quantize(Decimal(10) ** -8),
+                        sai_transaction_id=history_dict['txid'],
+                    )
+                    result_dict = {**history_dict, **sai_dict}
+
+                    return ExchangeResult(success=True, data=result_dict)
             else:
                 message = WarningMessage.HAS_NO_WITHDRAW_ID.format(name=self.name, withdrawal_id=uuid)
                 return ExchangeResult(success=False, message=message)
