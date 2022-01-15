@@ -287,7 +287,7 @@ class BaseUpbit(BaseExchange):
 
         if result.success and result.data:
             for history_dict in result.data:
-                history_id = history['uuid']
+                history_id = history_dict['uuid']
                 if history_id == uuid:
                     sai_dict = dict(
                         sai_withdrawn_address=Consts.NOT_FOUND,
