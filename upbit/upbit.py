@@ -585,32 +585,3 @@ class BaseUpbit(BaseExchange):
                             break
                 
                 return ExchangeResult(True, avg_order_book)
-    
-    async def compare_orderbook(self, other_exchange, sai_symbol_list, default_btc=1.0):
-        debugger.debug(DebugMessage.ENTRANCE.format(name=self.name, fn="compare_orderbook", data=str(locals())))
-        upbit_res, other_res = await asyncio.gather(
-            self.get_curr_avg_orderbook(sai_symbol_list, default_btc),
-            other_exchange.get_curr_avg_orderbook(sai_symbol_list, default_btc)
-        )
-        
-        u_suc, u_orderbook, u_msg = upbit_res
-        o_suc, o_orderbook, o_msg = other_res
-        
-        if u_suc and o_suc:
-            m_to_s = dict()
-            for currency_pair in sai_symbol_list:
-                m_ask = u_orderbook[currency_pair][Consts.ASKS]
-                s_bid = o_orderbook[currency_pair][Consts.BIDS]
-                m_to_s[currency_pair] = float(((s_bid - m_ask) / m_ask))
-            
-            s_to_m = dict()
-            for currency_pair in sai_symbol_list:
-                m_bid = u_orderbook[currency_pair][Consts.BIDS]
-                s_ask = o_orderbook[currency_pair][Consts.ASKS]
-                s_to_m[currency_pair] = float(((m_bid - s_ask) / s_ask))
-            result = (
-                u_orderbook,
-                o_orderbook,
-                {Consts.PRIMARY_TO_SECONDARY: m_to_s, Consts.SECONDARY_TO_PRIMARY: s_to_m}
-            )
-            return ExchangeResult(True, result)

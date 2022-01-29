@@ -733,36 +733,3 @@ class Binance(BaseExchange):
 
         except:
             return ExchangeResult(False, message=WarningMessage.EXCEPTION_RAISED.format(name=self.name), wait_time=1)
-
-    async def compare_orderbook(self, other_exchange, sai_symbol_list, default_btc=1.0):
-        debugger.debug(DebugMessage.ENTRANCE.format(name=self.name, fn="compare_orderbook", data=str(locals())))
-        for _ in range(3):
-            binance_result_object, other_result_object = await asyncio.gather(
-                self.get_curr_avg_orderbook(sai_symbol_list, default_btc),
-                other_exchange.get_curr_avg_orderbook(sai_symbol_list, default_btc)
-            )
-
-            success = (binance_result_object.success and other_result_object.success)
-            wait_time = max(binance_result_object.wait_time, other_result_object.wait_time)
-
-            if success:
-                m_to_s, s_to_m = dict(), dict()
-                for symbol in sai_symbol_list:
-                    m_ask = binance_result_object.data[symbol][Consts.ASKS]
-                    s_bid = other_result_object.data[symbol][Consts.BIDS]
-                    m_to_s[symbol] = float(((s_bid - m_ask) / m_ask).quantize(Decimal(10) ** -8))
-
-                    m_bid = binance_result_object.data[symbol][Consts.BIDS]
-                    s_ask = other_result_object.data[symbol][Consts.ASKS]
-                    s_to_m[symbol] = float(((m_bid - s_ask) / s_ask).quantize(Decimal(10) ** -8))
-
-                res = binance_result_object.data, other_result_object.data, {Consts.PRIMARY_TO_SECONDARY: m_to_s,
-                                                                             Consts.SECONDARY_TO_PRIMARY: s_to_m}
-
-                return ExchangeResult(True, res)
-            else:
-                time.sleep(wait_time)
-
-        else:
-            error_message = binance_result_object.message + '\n' + other_result_object.message
-            return ExchangeResult(False, message=error_message, wait_time=1)
