@@ -558,7 +558,7 @@ class BaseUpbit(BaseExchange):
 
         return result
 
-    async def get_curr_avg_orderbook(self, coin_list, btc_sum=1.0):
+    def get_curr_avg_orderbook(self, coin_list, btc_sum=1.0):
         debugger.debug(DebugMessage.ENTRANCE.format(name=self.name, fn="get_curr_avg_orderbook", data=str(locals())))
         with self._lock_dic['orderbook']:
             data_dic = self.data_store.orderbook_queue

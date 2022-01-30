@@ -693,7 +693,7 @@ class Binance(BaseExchange):
 
         return result_object
     
-    async def get_curr_avg_orderbook(self, sai_symbol_list, btc_sum=1.0):
+    def get_curr_avg_orderbook(self, sai_symbol_list, btc_sum=1.0):
         debugger.debug(DebugMessage.ENTRANCE.format(name=self.name, fn="get_curr_avg_orderbook", data=str(locals())))
         try:
             if not self.data_store.orderbook_queue:
