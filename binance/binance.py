@@ -678,9 +678,9 @@ class Binance(BaseExchange):
 
         return result
 
-    async def get_balance(self):
+    def get_balance(self):
         debugger.debug(DebugMessage.ENTRANCE.format(name=self.name, fn="get_balance", data=str(locals())))
-        result_object = await self._async_private_api(Consts.GET, Urls.ACCOUNT)
+        result_object = self._private_api(Consts.GET, Urls.ACCOUNT)
 
         if result_object.success:
             balance = dict()
