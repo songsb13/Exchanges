@@ -37,16 +37,14 @@ def binance_to_sai_symbol_converter(symbol):
 
     if symbol.endswith(BaseMarkets.BTC):
         market = BaseMarkets.BTC
-        coin = symbol.replace(market)
     elif symbol.endswith(BaseMarkets.ETH):
         market = BaseMarkets.ETH
-        coin = symbol.replace(market)
     elif symbol.endswith(BaseMarkets.USDT):
         market = BaseMarkets.USDT
-        coin = symbol.replace(market)
     else:
         return None
 
+    coin = symbol.replace(market, '')
     return '{}_{}'.format(market, _symbol_customizing(coin)).upper()
 
 
