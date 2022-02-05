@@ -545,18 +545,18 @@ class Binance(BaseExchange):
     async def get_deposit_addrs(self, coin_list=None):
         debugger.debug(DebugMessage.ENTRANCE.format(name=self.name, fn="get_deposit_addrs", data=str(locals())))
 
-        able_to_trading_coin_list = list()
+        able_to_trading_coin_set = set()
         for data in self.exchange_info['symbols']:
             # check status coin is able to trading.
             if data['status'] == 'TRADING':
-                able_to_trading_coin_list.append(data['baseAsset'])
+                able_to_trading_coin_set.add(data['baseAsset'])
 
         try:
             result_message = str()
             return_deposit_dict = dict()
-            for coin in able_to_trading_coin_list:
+            for coin in able_to_trading_coin_set:
                 coin = _symbol_customizing(coin)
-
+                print(coin)
                 get_deposit_result_object = await self._async_private_api(Consts.GET, Urls.DEPOSITS, {'coin': coin.lower()})
                 
                 if not get_deposit_result_object.success:
