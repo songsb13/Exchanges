@@ -23,7 +23,7 @@ from Exchanges.abstracts import BaseExchange
 from Exchanges.objects import DataStore, ExchangeResult
 from Exchanges.threads import CallbackThread
 
-from decimal import Decimal, ROUND_DOWN
+from decimal import Decimal, ROUND_DOWN, InvalidOperation
 import decimal
 
 decimal.getcontext().prec = 8
@@ -46,12 +46,18 @@ class BaseUpbit(BaseExchange):
 
     def _get_results(self, response, path, extra, fn):
         try:
-            res = json.loads(response)
+            if isinstance(response, requests.models.Response):
+                res = response.json()
+            else:
+                res = json.loads(response)
         except:
             debugger.exception(DebugMessage.FATAL.format(name=self.name, fn=fn))
             return ExchangeResult(False, message=WarningMessage.EXCEPTION_RAISED.format(name=self.name), wait_time=1)
 
-        raw_error = res.get('error', dict())
+        if isinstance(res, dict):
+            raw_error = res.get('error', dict())
+        else:
+            raw_error = dict()
 
         if not raw_error:
             return ExchangeResult(True, res)
@@ -188,7 +194,7 @@ class BaseUpbit(BaseExchange):
 
     def _sign_generator(self, *args):
         payload, *_ = args
-        return 'Bearer {}'.format(jwt.encode(payload, self._secret, ).decode('utf8'))
+        return 'Bearer {}'.format(jwt.encode(payload, self._secret, ))
 
     def set_subscriber(self):
         self._subscriber = UpbitSubscriber(self.data_store, self._lock_dic)
@@ -514,24 +520,33 @@ class BaseUpbit(BaseExchange):
         fees = dict()
         for each in data:
             coin = each['currency']
-            fee = Decimal(each['withdrawFee']).quantize(Decimal(10) ** -6)
-            fees.update({coin: fee})
+            withdraw_fee = Decimal(each['withdrawFee'])
+            if isinstance(withdraw_fee, float):
+                try:
+                    withdraw_fee = Decimal(withdraw_fee).quantize(Decimal(10) ** -8)
+                except InvalidOperation:
+                    withdraw_fee = withdraw_fee.quantize(Decimal(10) ** -4)
+            fees.update({coin: withdraw_fee})
 
         return ExchangeResult(True, fees)
 
-    async def get_deposit_addrs(self, coin_list=None):
+    async def get_deposit_addrs(self, avoid_coin_list=None):
         debugger.debug(DebugMessage.ENTRANCE.format(name=self.name, fn="get_deposit_addrs", data=str(locals())))
-        result = await self._async_private_api(Consts.GET, Urls.DEPOSIT_ADDRESS)
-        if result.success:
+
+        if avoid_coin_list is None:
+            avoid_coin_list = list()
+
+        address_result = await self._async_private_api(Consts.GET, Urls.DEPOSIT_ADDRESS)
+        if address_result.success:
             result_dict = dict()
-            for data in result.data:
+            for data in address_result.data:
                 coin = data['currency']
-                if coin not in coin_list:
+                if coin in avoid_coin_list:
                     continue
 
                 able_result = await self._async_private_api(Consts.GET, Urls.ABLE_WITHDRAWS, {'currency': coin})
 
-                if not result.success:
+                if not able_result.success:
                     continue
 
                 support_list = able_result.data['currency']['wallet_support']
@@ -545,9 +560,9 @@ class BaseUpbit(BaseExchange):
 
                 result_dict[coin] = deposit_address
 
-            result.data = result_dict
+            address_result.data = result_dict
 
-        return result
+        return address_result
 
     def get_balance(self):
         debugger.debug(DebugMessage.ENTRANCE.format(name=self.name, fn="get_balance", data=str(locals())))
