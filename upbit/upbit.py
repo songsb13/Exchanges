@@ -3,7 +3,6 @@ import time
 import json
 import aiohttp
 import numpy as np
-import asyncio
 import requests
 import threading
 import datetime
@@ -23,10 +22,10 @@ from Exchanges.abstracts import BaseExchange
 from Exchanges.objects import DataStore, ExchangeResult
 from Exchanges.threads import CallbackThread
 
-from decimal import Decimal, ROUND_DOWN, InvalidOperation
-import decimal
+from decimal import Decimal, ROUND_DOWN, InvalidOperation, getcontext
 
-decimal.getcontext().prec = 8
+
+getcontext().prec = 8
 
 
 class BaseUpbit(BaseExchange):
@@ -111,7 +110,7 @@ class BaseUpbit(BaseExchange):
         for price, unit in LocalConsts.STEP_SIZE[market]:
             if krw_price >= price:
                 decimal_price = Decimal(price)
-                stepped_price = (decimal_price - Decimal(decimal_price % unit)).quantize(Decimal(10) ** - 8)
+                stepped_price = (decimal_price - Decimal(decimal_price % unit))
                 return ExchangeResult(True, stepped_price)
         else:
             sai_symbol = upbit_to_sai_symbol_converter(symbol)  # for logging
@@ -235,7 +234,7 @@ class BaseUpbit(BaseExchange):
         result = self._public_api(Urls.TICKER, {'markets': symbol})
 
         if result.success:
-            ticker = Decimal(result.data[0]['trade_price']).quantize(Decimal(10) ** -8)
+            ticker = Decimal(result.data[0]['trade_price'])
             result.data = {'sai_price': ticker}
 
         return result
@@ -258,8 +257,8 @@ class BaseUpbit(BaseExchange):
                 total_amount = sum(amount_list)
                 additional = {
                     'sai_status': SaiOrderStatus.CLOSED,
-                    'sai_average_price': Decimal(avg_price).quantize(Decimal(10) ** -6),
-                    'sai_amount': Decimal(total_amount).quantize(Decimal(10) ** -6, rounding=ROUND_DOWN)
+                    'sai_average_price': Decimal(avg_price),
+                    'sai_amount': Decimal(total_amount)
                 }
 
                 result.data = additional
@@ -297,11 +296,11 @@ class BaseUpbit(BaseExchange):
                 if history_id == uuid:
                     sai_dict = dict(
                         sai_withdrawn_address=Consts.NOT_FOUND,
-                        sai_withdrawn_amount=Decimal(history_dict['amount']).quantize(Decimal(10) ** -8),
+                        sai_withdrawn_amount=Decimal(history_dict['amount']),
                         sai_withdrawn_time=datetime.datetime.fromisoformat(history_dict['done_at']),
                         sai_coin=history_dict['currency'],
                         sai_network=Consts.NOT_FOUND,
-                        sai_transaction_fee=Decimal(history_dict['fee']).quantize(Decimal(10) ** -8),
+                        sai_transaction_fee=Decimal(history_dict['fee']),
                         sai_transaction_id=history_dict['txid'],
                     )
                     result_dict = {**history_dict, **sai_dict}
@@ -347,9 +346,9 @@ class BaseUpbit(BaseExchange):
             return ExchangeResult(True, result)
 
     def get_trading_fee(self):
-        dic_ = dict(KRW=Decimal(0.0005).quantize(Decimal(10) ** -8),
-                    BTC=Decimal(0.0025).quantize(Decimal(10) ** -8),
-                    USDT=Decimal(0.0025).quantize(Decimal(10) ** -8))
+        dic_ = dict(KRW=Decimal(0.0005),
+                    BTC=Decimal(0.0025),
+                    USDT=Decimal(0.0025))
         return ExchangeResult(True, dic_)
 
     def withdraw(self, coin, amount, to_address, payment_id=None):
@@ -411,8 +410,8 @@ class BaseUpbit(BaseExchange):
             price = result.data['avg_price']
             amount = result.data['volume']
             result.data.update({
-                'sai_average_price': Decimal(price).quantize(Decimal(10) ** - 8),
-                'sai_amount': Decimal(amount).quantize(Decimal(10) ** - 8),
+                'sai_average_price': Decimal(price),
+                'sai_amount': Decimal(amount),
                 'sai_order_id': result.data['uuid']
 
             })
@@ -455,8 +454,8 @@ class BaseUpbit(BaseExchange):
             price = result.data['avg_price']
             amount = result.data['volume']
             result.data.update({
-                'sai_average_price': Decimal(price).quantize(Decimal(10) ** - 8),
-                'sai_amount': Decimal(amount).quantize(Decimal(10) ** - 8),
+                'sai_average_price': Decimal(price),
+                'sai_amount': Decimal(amount),
                 'sai_order_id': result.data['uuid']
             })
 
@@ -521,11 +520,14 @@ class BaseUpbit(BaseExchange):
         for each in data:
             coin = each['currency']
             withdraw_fee = Decimal(each['withdrawFee'])
+            if isinstance(withdraw_fee, str):
+                number = int(withdraw_fee) if withdraw_fee.isdigit() else float(withdraw_fee)
+
             if isinstance(withdraw_fee, float):
                 try:
-                    withdraw_fee = Decimal(withdraw_fee).quantize(Decimal(10) ** -8)
+                    withdraw_fee = Decimal(withdraw_fee)
                 except InvalidOperation:
-                    withdraw_fee = withdraw_fee.quantize(Decimal(10) ** -4)
+                    withdraw_fee = withdraw_fee
             fees.update({coin: withdraw_fee})
 
         return ExchangeResult(True, fees)

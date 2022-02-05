@@ -5,7 +5,8 @@ import json
 import time
 import aiohttp
 import threading
-import decimal
+
+from decimal import Decimal, getcontext
 import datetime
 
 from urllib.parse import urlencode
@@ -22,7 +23,8 @@ from Exchanges.binance.subscriber import BinanceSubscriber
 from Exchanges.threads import CallbackThread
 from Util.pyinstaller_patch import debugger
 
-decimal.getcontext().prec = 8
+
+getcontext().prec = 8
 
 
 class Binance(BaseExchange):
@@ -148,7 +150,7 @@ class Binance(BaseExchange):
         step_size = self._lot_sizes[symbol]['step_size']
 
         decimal_amount = Decimal(amount)
-        stepped_amount = (decimal_amount - Decimal(decimal_amount % step_size)).quantize(Decimal(10) ** - 8)
+        stepped_amount = (decimal_amount - Decimal(decimal_amount % step_size))
 
         return ExchangeResult(True, stepped_amount)
 
@@ -217,16 +219,6 @@ class Binance(BaseExchange):
         return step_size_result
 
     def _set_lot_sizes(self):
-        def get_quantity(number):
-            if isinstance(number, str):
-                number = int(number) if number.isdigit() else float(number)
-            if isinstance(number, float):
-                try:
-                    number = Decimal(number).quantize(Decimal(10) ** -8)
-                except InvalidOperation:
-                    number = Decimal(number).quantize(Decimal(10) ** -4)
-            return number
-
         lot_size_info = dict()
         for each in self.exchange_info['symbols']:
             symbol = each['symbol']
@@ -237,16 +229,15 @@ class Binance(BaseExchange):
                 if filter_type == 'LOT_SIZE':
                     min_ = filter_.get('minQty', int())
                     max_ = filter_.get('maxQty', int())
-                    min_, max_ = get_quantity(min_), get_quantity(max_)
-                    step_size = Decimal(filter_.get('stepSize', int())).quantize(Decimal(10) ** -8)
+                    step_size = filter_.get('stepSize', int())
                     lot_size_info[symbol].update({
-                        'min_quantity': min_,
-                        'max_quantity': max_,
-                        'step_size': step_size
+                        'min_quantity': Decimal(min_),
+                        'max_quantity': Decimal(max_),
+                        'step_size': Decimal(step_size)
                     })
                     break
                 elif filter_type == 'MIN_NOTIONAL':
-                    min_notional = Decimal(filter_.get('minNotional', int())).quantize(Decimal(10) ** -8)
+                    min_notional = Decimal(filter_.get('minNotional', int()))
                     lot_size_info[symbol].update({
                         'min_notional': min_notional
                     })
@@ -324,7 +315,7 @@ class Binance(BaseExchange):
         binance_symbol = sai_to_binance_symbol_converter(symbol)
         result_object = self._public_api(Urls.TICKER, {'symbol': binance_symbol})
         if result_object.success:
-            ticker = Decimal(result_object.data[0]['trade_price']).quantize(Decimal(10) ** -8)
+            ticker = Decimal(result_object.data[0]['trade_price'])
 
             result_object.data = {'sai_price': ticker}
 
@@ -356,9 +347,8 @@ class Binance(BaseExchange):
         result = self._private_api(Consts.GET, Urls.ORDER, params)
 
         if result.success:
-            cummulative_quote_qty = Decimal(result.data['cummulativeQuoteQty']).quantize(Decimal(10) ** -6,
-                                                                                         rounding=ROUND_DOWN)
-            origin_qty = Decimal(result.data['origQty']).quantize(Decimal(10) ** -6, rounding=ROUND_DOWN)
+            cummulative_quote_qty = Decimal(result.data['cummulativeQuoteQty'])
+            origin_qty = Decimal(result.data['origQty'])
             additional = {'sai_status': SaiOrderStatus.CLOSED if result.data['status'] == OrderStatus.FILLED else SaiOrderStatus.ON_TRADING,
                           'sai_average_price': cummulative_quote_qty,
                           'sai_amount': origin_qty}
@@ -394,11 +384,11 @@ class Binance(BaseExchange):
                 if history_id == id_:
                     sai_dict = dict(
                         sai_withdrawn_address=history_dict['address'],
-                        sai_withdrawn_amount=Decimal(history_dict['amount']).quantize(Decimal(10) ** -8),
+                        sai_withdrawn_amount=Decimal(history_dict['amount']),
                         sai_withdrawn_time=datetime.datetime.strptime(history_dict['applyTime'], '%Y-%m-%d %H:%M:%S'),
                         sai_coin=history_dict['coin'],
                         sai_network=history_dict['network'],
-                        sai_transaction_fee=Decimal(history_dict['transactionFee']).quantize(Decimal(10) ** -8),
+                        sai_transaction_fee=Decimal(history_dict['transactionFee']),
                         sai_transaction_id=history_dict['txId'],
                     )
                     result_dict = {**history_dict, **sai_dict}
@@ -410,7 +400,7 @@ class Binance(BaseExchange):
             return ExchangeResult(success=False, message=result.message)
 
     def get_trading_fee(self):
-        dic_ = dict(BTC=Decimal(0.001).quantize(Decimal(10) ** -8))
+        dic_ = dict(BTC=Decimal(0.001))
         return ExchangeResult(True, dic_)
 
     def buy(self, sai_symbol, trade_type, amount=None, price=None):
@@ -450,8 +440,8 @@ class Binance(BaseExchange):
             price = result.data['price']
             amount = result.data['origQty']
             result.data.update({
-                'sai_average_price': Decimal(price).quantize(Decimal(10) ** - 8),
-                'sai_amount': Decimal(amount).quantize(Decimal(10) ** - 8),
+                'sai_average_price': Decimal(price),
+                'sai_amount': Decimal(amount),
                 'sai_order_id': result.data['orderId']
 
             })
@@ -489,8 +479,8 @@ class Binance(BaseExchange):
             price = result.data['price']
             amount = result.data['origQty']
             result.data.update({
-                'sai_average_price': Decimal(price).quantize(Decimal(10) ** - 8),
-                'sai_amount': Decimal(amount).quantize(Decimal(10) ** - 8),
+                'sai_average_price': Decimal(price),
+                'sai_amount': Decimal(amount),
                 'sai_order_id': result.data['orderId']
             })
 
@@ -507,7 +497,7 @@ class Binance(BaseExchange):
         debugger.debug(DebugMessage.ENTRANCE.format(name=self.name, fn="withdraw", data=str(locals())))
         coin = _symbol_localizing(coin)
         params = {'coin': coin, 'address': to_address,
-                  'amount': Decimal(amount).quantize(Decimal(10) ** - 8), 'name': 'SAICDiffTrader'}
+                  'amount': Decimal(amount), 'name': 'SAICDiffTrader'}
 
         if payment_id:
             tag_dic = {'addressTag': payment_id}
@@ -631,8 +621,8 @@ class Binance(BaseExchange):
                     
                     trading_type = _data['side']
                     n_price = float(_data['price'])
-                    price = Decimal(n_price - (n_price * 0.1)).quantize(Decimal(10) ** -8)
-                    amount = Decimal(_data['origQty']).quantize(Decimal(10) ** -8)
+                    price = Decimal(n_price - (n_price * 0.1))
+                    amount = Decimal(_data['origQty'])
                     if trading_type == 'BUY':
                         amount_price_list.append({
                             'price': price,
@@ -672,7 +662,7 @@ class Binance(BaseExchange):
 
                     if coin == network_coin:
                         withdraw_fee = network_info['withdrawFee']
-                        fees.update({coin: Decimal(withdraw_fee).quantize(Decimal(10) ** -8)})
+                        fees.update({coin: Decimal(withdraw_fee)})
                         break
 
             result.data = fees
@@ -688,7 +678,7 @@ class Binance(BaseExchange):
             for bal in result_object.data['balances']:
                 coin = bal['asset']
                 if float(bal['free']) > 0:
-                    balance[coin.upper()] = Decimal(bal['free']).quantize(Decimal(10)**-8)
+                    balance[coin.upper()] = Decimal(bal['free'])
 
             result_object.data = balance
 
