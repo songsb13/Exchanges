@@ -22,7 +22,7 @@ from Exchanges.abstracts import BaseExchange
 from Exchanges.objects import DataStore, ExchangeResult
 from Exchanges.threads import CallbackThread
 
-from decimal import Decimal, ROUND_DOWN, InvalidOperation, getcontext
+from decimal import Decimal, ROUND_DOWN, InvalidOperation, getcontext, Context
 
 
 getcontext().prec = 8
@@ -346,9 +346,11 @@ class BaseUpbit(BaseExchange):
             return ExchangeResult(True, result)
 
     def get_trading_fee(self):
-        dic_ = dict(KRW=Decimal(0.0005),
-                    BTC=Decimal(0.0025),
-                    USDT=Decimal(0.0025))
+        context = Context(prec=8)
+        dic_ = dict(BTC=context.create_decimal_from_float(0.0025),
+                    KRW=context.create_decimal_from_float(0.0005),
+                    USDT=context.create_decimal_from_float(0.0025))
+
         return ExchangeResult(True, dic_)
 
     def withdraw(self, coin, amount, to_address, payment_id=None):

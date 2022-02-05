@@ -6,7 +6,7 @@ import time
 import aiohttp
 import threading
 
-from decimal import Decimal, getcontext
+from decimal import Decimal, getcontext, Context
 import datetime
 
 from urllib.parse import urlencode
@@ -400,7 +400,8 @@ class Binance(BaseExchange):
             return ExchangeResult(success=False, message=result.message)
 
     def get_trading_fee(self):
-        dic_ = dict(BTC=Decimal(0.001))
+        context = Context(prec=8)
+        dic_ = dict(BTC=context.create_decimal_from_float(0.001))
         return ExchangeResult(True, dic_)
 
     def buy(self, sai_symbol, trade_type, amount=None, price=None):
