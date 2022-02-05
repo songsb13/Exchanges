@@ -1,17 +1,15 @@
 import hmac
-import math
 import hashlib
 import requests
 import json
 import time
 import aiohttp
-import asyncio
 import threading
 import decimal
 import datetime
 
 from urllib.parse import urlencode
-from decimal import Decimal, ROUND_DOWN, getcontext
+from decimal import Decimal, ROUND_DOWN, InvalidOperation
 
 from Exchanges.settings import Consts, BaseMarkets, BaseTradeType, SaiOrderStatus
 from Exchanges.messages import WarningMessage, DebugMessage
@@ -36,6 +34,7 @@ class Binance(BaseExchange):
         
         self.exchange_info = None
         self.all_details = None
+        self._step_sizes = None
         self._get_exchange_info()
         self._get_all_asset_details()
         self._lot_sizes = self._set_lot_sizes()
@@ -50,12 +49,18 @@ class Binance(BaseExchange):
 
     def _get_results(self, response, path, extra, fn):
         try:
-            result = json.loads(response)
+            if isinstance(response, requests.models.Response):
+                result = response.json()
+            else:
+                result = json.loads(response)
         except:
             debugger.debug(DebugMessage.FATAL.format(name=self.name, fn=fn))
             return ExchangeResult(False, message=WarningMessage.EXCEPTION_RAISED.format(name=self.name), wait_time=1)
 
-        raw_error_message = result.get('msg', None)
+        if isinstance(result, dict):
+            raw_error_message = result.get('msg', None)
+        else:
+            raw_error_message = None
 
         if raw_error_message is None:
             return ExchangeResult(True, result)
@@ -112,22 +117,7 @@ class Binance(BaseExchange):
                 break
 
             time.sleep(result_object.wait_time)
-        else:
-            return result_object
-
-        step_size = dict()
-
-        for each in result_object.data['symbols']:
-            symbol = each['symbol']
-            sai_symbol = binance_to_sai_symbol_converter(symbol)
-            market, coin = sai_symbol.split('_')
-            step_size.update({
-                coin: each['filters'][2]['stepSize']
-            })
-
-        self.exchange_info = step_size
-
-        return True
+        return result_object
 
     def _get_all_asset_details(self):
         for _ in range(3):
@@ -227,6 +217,16 @@ class Binance(BaseExchange):
         return step_size_result
 
     def _set_lot_sizes(self):
+        def get_quantity(number):
+            if isinstance(number, str):
+                number = int(number) if number.isdigit() else float(number)
+            if isinstance(number, float):
+                try:
+                    number = Decimal(number).quantize(Decimal(10) ** -8)
+                except InvalidOperation:
+                    number = Decimal(number).quantize(Decimal(10) ** -4)
+            return number
+
         lot_size_info = dict()
         for each in self.exchange_info['symbols']:
             symbol = each['symbol']
@@ -235,8 +235,9 @@ class Binance(BaseExchange):
             for filter_ in filter_data:
                 filter_type = filter_['filterType']
                 if filter_type == 'LOT_SIZE':
-                    min_ = Decimal(filter_.get('minQty', int())).quantize(Decimal(10) ** -8)
-                    max_ = Decimal(filter_.get('maxQty', int())).quantize(Decimal(10) ** -8)
+                    min_ = filter_.get('minQty', int())
+                    max_ = filter_.get('maxQty', int())
+                    min_, max_ = get_quantity(min_), get_quantity(max_)
                     step_size = Decimal(filter_.get('stepSize', int())).quantize(Decimal(10) ** -8)
                     lot_size_info[symbol].update({
                         'min_quantity': min_,
