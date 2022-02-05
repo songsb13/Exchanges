@@ -20,7 +20,7 @@ class Urls(object):
     ACCOUNT = '/accounts'
     ORDERBOOK = '/orderbook'
     GET_WITHDRAWAL_HISTORY = '/withdraws'
-    DEPOSIT_ADDRESS = '/v1/deposits/coin_addresses'
+    DEPOSIT_ADDRESS = '/deposits/coin_addresses'
     ABLE_WITHDRAWS = '/withdraws/chance'
     GET_DEPOSIT_HISTORY = '/deposits'
 
