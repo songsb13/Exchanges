@@ -556,7 +556,6 @@ class Binance(BaseExchange):
             return_deposit_dict = dict()
             for coin in able_to_trading_coin_set:
                 coin = _symbol_customizing(coin)
-                print(coin)
                 get_deposit_result_object = await self._async_private_api(Consts.GET, Urls.DEPOSITS, {'coin': coin.lower()})
                 
                 if not get_deposit_result_object.success:
@@ -656,14 +655,15 @@ class Binance(BaseExchange):
 
         if result.success:
             fees = dict()
+            context = Context(prec=8)
             for each in result.data:
                 coin = each['coin']
                 for network_info in each['networkList']:
                     network_coin = network_info['coin']
 
                     if coin == network_coin:
-                        withdraw_fee = network_info['withdrawFee']
-                        fees.update({coin: Decimal(withdraw_fee)})
+                        withdraw_fee = context.create_decimal(network_info['withdrawFee'])
+                        fees.update({coin: withdraw_fee})
                         break
 
             result.data = fees

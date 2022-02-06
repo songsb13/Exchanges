@@ -519,17 +519,10 @@ class BaseUpbit(BaseExchange):
         data = json.loads(raw_data['data'])
 
         fees = dict()
+        context = Context(prec=8)
         for each in data:
             coin = each['currency']
-            withdraw_fee = Decimal(each['withdrawFee'])
-            if isinstance(withdraw_fee, str):
-                number = int(withdraw_fee) if withdraw_fee.isdigit() else float(withdraw_fee)
-
-            if isinstance(withdraw_fee, float):
-                try:
-                    withdraw_fee = Decimal(withdraw_fee)
-                except InvalidOperation:
-                    withdraw_fee = withdraw_fee
+            withdraw_fee = context.create_decimal(each['withdrawFee'])
             fees.update({coin: withdraw_fee})
 
         return ExchangeResult(True, fees)
