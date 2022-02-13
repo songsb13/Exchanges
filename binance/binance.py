@@ -20,7 +20,7 @@ from Exchanges.binance.setting import Urls, OrderStatus, DepositStatus, Withdraw
 from Exchanges.abstracts import BaseExchange
 from Exchanges.objects import ExchangeResult, DataStore
 from Exchanges.binance.subscriber import BinanceSubscriber
-from Exchanges.threads import CallbackThread
+from Exchanges.threads import ThreadWrapper
 from Util.pyinstaller_patch import debugger
 
 
@@ -260,25 +260,20 @@ class Binance(BaseExchange):
         binance_symbol_list = list(map(sai_to_binance_symbol_converter_in_subscriber, symbol)) if isinstance(symbol, list) \
             else sai_to_binance_symbol_converter_in_subscriber(symbol)
         
-        callback_thread = CallbackThread(self._subscriber, binance_symbol_list,
-                                         self._subscriber.is_running, fn_name='binance_set_subscribe_candle', context=self._lock_dic['candle'])
+        callback_thread = ThreadWrapper(self._subscriber, binance_symbol_list,
+                                        self._subscriber.is_running, fn_name='binance_set_subscribe_candle', context=self._lock_dic['candle'])
         
         callback_thread.start()
 
-    def set_subscribe_orderbook(self, symbol):
+    def set_subscribe_orderbook(self, sai_symbol_list):
         """
             subscribe orderbook.
             coin: it can be list or string, [xrpbtc, ethbtc] or 'xrpbtc'
         """
         debugger.debug(DebugMessage.ENTRANCE.format(name=self.name, fn="set_subscribe_orderbook", data=str(locals())))
 
-        binance_symbol_list = list(map(sai_to_binance_symbol_converter_in_subscriber, symbol)) if isinstance(symbol, list) \
-            else sai_to_binance_symbol_converter_in_subscriber(symbol)
-        
-        callback_thread = CallbackThread(self._subscriber, binance_symbol_list,
-                                         self._subscriber.is_running, fn_name='binance_set_subscribe_orderbook', context=self._lock_dic['orderbook'])
-
-        callback_thread.start()
+        binance_symbol_list = list(map(sai_to_binance_symbol_converter_in_subscriber, sai_symbol_list))
+        self._subscriber.set_orderbook_set(binance_symbol_list)
 
     def get_orderbook(self):
         debugger.debug(DebugMessage.ENTRANCE.format(name=self.name, fn="get_orderbook", data=str(locals())))
@@ -551,6 +546,8 @@ class Binance(BaseExchange):
             if data['status'] == 'TRADING':
                 able_to_trading_coin_set.add(data['baseAsset'])
 
+        able_to_trading_coin_set = ['BTC', 'ETH', 'XRP']
+
         try:
             result_message = str()
             return_deposit_dict = dict()
@@ -687,41 +684,40 @@ class Binance(BaseExchange):
     
     def get_curr_avg_orderbook(self, btc_sum=1.0):
         debugger.debug(DebugMessage.ENTRANCE.format(name=self.name, fn="get_curr_avg_orderbook", data=str(locals())))
-        try:
+        with self._lock_dic['orderbook']:
             if not self.data_store.orderbook_queue:
-                return ExchangeResult(False, message=WarningMessage.ORDERBOOK_NOT_STORED.format(name=self.name), wait_time=1)
+                return ExchangeResult(False, message=WarningMessage.ORDERBOOK_NOT_STORED.format(name=self.name),
+                                      wait_time=1)
+            data_dic = self.data_store.orderbook_queue
 
-            avg_orderbook = dict()
-            for symbol in sai_symbol_list:
-                binance_symbol = sai_to_binance_symbol_converter(symbol)
+        avg_orderbook = dict()
+        for symbol, item in data_dic.items():
+            binance_symbol = sai_to_binance_symbol_converter(symbol)
 
-                with self._lock_dic['orderbook']:
-                    orderbook_list = self.data_store.orderbook_queue.get(binance_symbol, None)
-                    if orderbook_list is None:
-                        continue
-                    data_dict = dict(bids=list(),
-                                     asks=list())
-                    
-                    for data in orderbook_list:
-                        data_dict[Consts.BIDS].append(data[Consts.BIDS])
-                        data_dict[Consts.ASKS].append(data[Consts.ASKS])
-    
-                    avg_orderbook[symbol] = dict()
-                    
-                    for order_type in [Consts.ASKS, Consts.BIDS]:
-                        sum_ = Decimal(0.0)
-                        total_coin_num = Decimal(0.0)
-                        for data in data_dict[order_type]:
-                            price = data['price']
-                            alt_coin_num = data['amount']
-                            sum_ += Decimal(price) * Decimal(alt_coin_num)
-                            total_coin_num += Decimal(alt_coin_num)
-                            if sum_ > btc_sum:
-                                break
-                        avg_orderbook[symbol][order_type] = (sum_ / total_coin_num).quantize(
-                            Decimal(10) ** -8)
+            with self._lock_dic['orderbook']:
+                orderbook_list = self.data_store.orderbook_queue.get(binance_symbol, None)
+                if orderbook_list is None:
+                    continue
+                data_dict = dict(bids=list(),
+                                 asks=list())
 
-            return ExchangeResult(True, avg_orderbook)
+                for data in orderbook_list:
+                    data_dict[Consts.BIDS].append(data[Consts.BIDS])
+                    data_dict[Consts.ASKS].append(data[Consts.ASKS])
 
-        except:
-            return ExchangeResult(False, message=WarningMessage.EXCEPTION_RAISED.format(name=self.name), wait_time=1)
+                avg_orderbook[symbol] = dict()
+
+                for order_type in [Consts.ASKS, Consts.BIDS]:
+                    sum_ = Decimal(0.0)
+                    total_coin_num = Decimal(0.0)
+                    for data in data_dict[order_type]:
+                        price = data['price']
+                        alt_coin_num = data['amount']
+                        sum_ += Decimal(price) * Decimal(alt_coin_num)
+                        total_coin_num += Decimal(alt_coin_num)
+                        if sum_ > btc_sum:
+                            break
+                    avg_orderbook[symbol][order_type] = (sum_ / total_coin_num).quantize(
+                        Decimal(10) ** -8)
+
+        return ExchangeResult(True, avg_orderbook)

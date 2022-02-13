@@ -5,9 +5,10 @@ from websocket import WebSocketConnectionClosedException
 from Util.pyinstaller_patch import *
 from enum import Enum
 
-from Exchanges.upbit.util import upbit_to_sai_symbol_converter, sai_to_upbit_trade_type_converter
+from Exchanges.upbit.util import upbit_to_sai_symbol_converter
 from Exchanges.upbit.setting import Urls
 from Exchanges.settings import Consts
+from Exchanges.objects import BaseSubscriber
 
 from threading import Event
 
@@ -22,7 +23,7 @@ class Tickets(Enum):
     CANDLE = 20
 
 
-class UpbitSubscriber(websocket.WebSocketApp):
+class UpbitSubscriber(BaseSubscriber):
     def __init__(self, data_store, lock_dic):
         """
             data_store: An object for storing orderbook&candle data, using orderbook&candle queue in this object.
@@ -30,20 +31,11 @@ class UpbitSubscriber(websocket.WebSocketApp):
         """
         debugger.debug('UpbitSubscriber::: start')
 
-        super(UpbitSubscriber, self).__init__(Urls.Websocket.BASE, on_message=self.on_message)
+        super(BaseSubscriber, self).__init__(Urls.Websocket.BASE, on_message=self.on_message)
         
         self.data_store = data_store
         self.name = 'upbit_subscriber'
         self._lock_dic = lock_dic
-    
-        self._candle_symbol_set = set()
-        self._orderbook_symbol_set = set()
-        self._temp_orderbook_store = dict()
-        self._temp_candle_store = dict()
-        
-        self.subscribe_set = dict()
-
-        self.start_run_forever_thread()
 
     def _remove_contents(self, symbol, symbol_set):
         try:
@@ -57,7 +49,13 @@ class UpbitSubscriber(websocket.WebSocketApp):
             data += self.subscribe_set[key]
     
         self.send(json.dumps(data))
-    
+
+    def set_orderbook_symbol_set(self, value):
+        self._orderbook_symbol_set = value
+
+    def set_candle_symbol_set(self, value):
+        self._candle_symbol_set = value
+
     def is_running(self):
         return self.keep_running
     
@@ -70,18 +68,18 @@ class UpbitSubscriber(websocket.WebSocketApp):
         self._evt = Event()
         self._evt.set()
     
-    def subscribe_orderbook(self, values):
+    def subscribe_orderbook(self, values=None):
         debugger.debug('UpbitSubscriber::: subscribe_orderbook')
-        if isinstance(values, (list, tuple, set)):
+        if values is not None and isinstance(values, (list, tuple, set)):
             self._orderbook_symbol_set = self._orderbook_symbol_set.union(set(values))
 
         if Consts.ORDERBOOK not in self.subscribe_set:
             self.subscribe_set.setdefault(Consts.ORDERBOOK, list())
         
         self.subscribe_set[Consts.ORDERBOOK] = [{"ticket": "{}".format(Tickets.ORDERBOOK.value)},
-                                                     {"type": Consts.ORDERBOOK,
-                                                      "codes": list(self._orderbook_symbol_set),
-                                                      "isOnlyRealtime": True}]
+                                                {"type": Consts.ORDERBOOK,
+                                                 "codes": list(self._orderbook_symbol_set),
+                                                 "isOnlyRealtime": True}]
     
         self._send_with_subscribe_set()
 

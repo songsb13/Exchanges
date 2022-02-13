@@ -41,8 +41,6 @@ class BinanceSubscriber(websocket.WebSocketApp):
         self._temp_orderbook_store = dict()
         self._temp_candle_store = dict()
 
-        self.start_run_forever_thread()
-
     def _switching_parameters(self, stream, is_subscribe=True):
         try:
             if is_subscribe:
@@ -64,7 +62,7 @@ class BinanceSubscriber(websocket.WebSocketApp):
         set_to_list = list(self.unsubscribe_set)
         data = json.dumps({"method": "UNSUBSCRIBE", "params": set_to_list, 'id': self._unsub_id})
         self.send(data)
-    
+
     def is_running(self):
         return self.keep_running
     
@@ -76,23 +74,23 @@ class BinanceSubscriber(websocket.WebSocketApp):
     def stop(self):
         self._evt.clear()
 
-    def subscribe_orderbook(self, values):
+    def set_subscribe_orderbook(self, values):
         debugger.debug('BinanceSubscriber::: subscribe_orderbook')
         if isinstance(values, (list, tuple, set)):
             for val in values:
-                stream = Urls.Websocket.SELECTED_BOOK_TICKER.format(symbol=val)
+                stream = Urls.Websocket.ORDERBOOK_DEPTH.format(symbol=val)
                 self._switching_parameters(stream, is_subscribe=True)
 
         self._subscribe()
 
     def unsubscribe_orderbook(self, symbol):
         debugger.debug('BinanceSubscriber::: unsubscribe_orderbook')
-        stream = Urls.Websocket.SELECTED_BOOK_TICKER.format(symbol=symbol)
+        stream = Urls.Websocket.ORDERBOOK_DEPTH.format(symbol=symbol)
         self._switching_parameters(stream, is_subscribe=False)
 
         self._unsubscribe()
 
-    def subscribe_candle(self, values):
+    def set_subscribe_candle(self, values):
         debugger.debug('BinanceSubscriber::: subscribe_candle')
         if isinstance(values, (list, tuple, set)):
             for val in values:

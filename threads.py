@@ -4,9 +4,9 @@ import time
 from Util.pyinstaller_patch import debugger
 
 
-class CallbackThread(threading.Thread):
+class ThreadWrapper(threading.Thread):
     def __init__(self, callback, parameters, break_trigger, fn_name, context=None):
-        super(CallbackThread, self).__init__()
+        super(ThreadWrapper, self).__init__()
         self._callback = callback
         self._break_trigger = break_trigger
         self._parameters = parameters
@@ -26,8 +26,9 @@ class CallbackThread(threading.Thread):
         
         if self._context:
             with self._context:
-                self._callback(**self._parameters)
+                for key, item in self._parameters.items():
+                    setattr(self._callback, key, item)
         else:
-            self._callback(**self._parameters)
-        
+            for key, item in self._parameters.items():
+                setattr(self._callback, key, item)
         return
