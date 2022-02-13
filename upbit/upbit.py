@@ -570,14 +570,14 @@ class BaseUpbit(BaseExchange):
 
         return result
 
-    def get_curr_avg_orderbook(self, coin_list, btc_sum=1.0):
+    def get_curr_avg_orderbook(self, btc_sum=1.0):
         debugger.debug(DebugMessage.ENTRANCE.format(name=self.name, fn="get_curr_avg_orderbook", data=str(locals())))
         with self._lock_dic['orderbook']:
-            data_dic = self.data_store.orderbook_queue
-            
             if not self.data_store.orderbook_queue:
-                return ExchangeResult(False, message=WarningMessage.ORDERBOOK_NOT_STORED.format(name=self.name), wait_time=1)
-            
+                return ExchangeResult(False, message=WarningMessage.ORDERBOOK_NOT_STORED.format(name=self.name),
+                                      wait_time=1)
+            data_dic = self.data_store.orderbook_queue
+
             avg_order_book = dict()
             for pair, item in data_dic.items():
                 sai_symbol = upbit_to_sai_symbol_converter(pair)

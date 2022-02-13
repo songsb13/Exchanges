@@ -332,12 +332,11 @@ class BaseExchange(object):
                     time(int): Wait time if fail to communicate to API server.
         """
 
-    async def get_curr_avg_orderbook(self, symbol_list, btc_sum=1):
+    async def get_curr_avg_orderbook(self, btc_sum=1):
         """
             Get orderbook's bid&ask average price.
             
             Args:
-                symbol_list(list): sai_symbol_list,
                 btc_sum(float):
             
             Returns:
