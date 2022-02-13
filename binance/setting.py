@@ -35,6 +35,8 @@ class Urls(object):
 
         SELECTED_BOOK_TICKER = '{symbol}@bookTicker'
         ALL_BOOK_TICKER = '!bookTicker'
+
+        ORDERBOOK_DEPTH = '{symbol}@depth'
         
         CANDLE = '{symbol}@kline_{interval}'
 
