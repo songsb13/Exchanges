@@ -28,6 +28,12 @@ class Consts(object):
 
     NOT_FOUND = 'not found'
 
+    BID_PRICE_KEY = 'bid_price'
+    ASK_PRICE_KEY = 'ask_price'
+
+    BID_AMOUNT_KEY = 'bid_amount'
+    ASK_AMOUNT_KEY = 'ask_amount'
+
 
 class BaseMarkets(object):
     BTC = 'BTC'
