@@ -10,10 +10,8 @@ from Exchanges.upbit.setting import Urls
 from Exchanges.settings import Consts
 from Exchanges.objects import BaseSubscriber
 
-from threading import Event
 
-
-class Tickets(Enum):
+class Tickets(object):
     """
         upbit는 개별 ticket값으로 구분함, 유니크 id로 구분
         1~1000: public
@@ -24,6 +22,9 @@ class Tickets(Enum):
 
 
 class UpbitSubscriber(BaseSubscriber):
+    websocket_url = Urls.Websocket.BASE
+    name = 'Upbit Subscriber'
+
     def __init__(self, data_store, lock_dic):
         """
             data_store: An object for storing orderbook&candle data, using orderbook&candle queue in this object.
@@ -31,82 +32,39 @@ class UpbitSubscriber(BaseSubscriber):
         """
         debugger.debug('UpbitSubscriber::: start')
 
-        super(BaseSubscriber, self).__init__(Urls.Websocket.BASE, on_message=self.on_message)
-        
+        super(UpbitSubscriber, self).__init__()
+
         self.data_store = data_store
-        self.name = 'upbit_subscriber'
         self._lock_dic = lock_dic
+        self._name = 'upbit_subscriber'
 
-    def _remove_contents(self, symbol, symbol_set):
-        try:
-            symbol_set.remove(symbol)
-        except Exception as ex:
-            debugger.debug('UpbitSubscriber::: remove error, [{}]'.format(ex))
-
-    def _send_with_subscribe_set(self):
-        data = list()
-        for key, item in self.subscribe_set.items():
-            data += self.subscribe_set[key]
-    
-        self.send(json.dumps(data))
-
-    def set_orderbook_symbol_set(self, value):
-        self._orderbook_symbol_set = value
-
-    def set_candle_symbol_set(self, value):
-        self._candle_symbol_set = value
-
-    def is_running(self):
-        return self.keep_running
-    
-    def start_run_forever_thread(self):
-        debugger.debug('UpbitSubscriber::: start_run_forever_thread')
-        self.subscribe_thread = threading.Thread(target=self.run_forever, daemon=True)
-        self.subscribe_thread.start()
-
-    def stop(self):
-        self._evt = Event()
-        self._evt.set()
-    
-    def subscribe_orderbook(self, values=None):
+    def subscribe_orderbook(self):
         debugger.debug('UpbitSubscriber::: subscribe_orderbook')
-        if values is not None and isinstance(values, (list, tuple, set)):
-            self._orderbook_symbol_set = self._orderbook_symbol_set.union(set(values))
-
-        if Consts.ORDERBOOK not in self.subscribe_set:
-            self.subscribe_set.setdefault(Consts.ORDERBOOK, list())
-        
-        self.subscribe_set[Consts.ORDERBOOK] = [{"ticket": "{}".format(Tickets.ORDERBOOK.value)},
-                                                {"type": Consts.ORDERBOOK,
-                                                 "codes": list(self._orderbook_symbol_set),
-                                                 "isOnlyRealtime": True}]
-    
+        self._subscribe_dict[Consts.ORDERBOOK] = [
+            {
+                "ticker": Tickets.ORDERBOOK,
+            },
+            {
+                "type": Consts.ORDERBOOK,
+                "codes": list(self._orderbook_symbol_set),
+                "isOnlyRealtime": True
+            }
+        ]
         self._send_with_subscribe_set()
 
-    def unsubscribe_orderbook(self, symbol):
-        debugger.debug('UpbitSubscriber::: unsubscribe_orderbook')
-        
-        self._remove_contents(symbol, self._orderbook_symbol_set)
-        self.subscribe_orderbook(symbol)
-
-    def subscribe_candle(self, values):
+    def subscribe_candle(self):
         debugger.debug('UpbitSubscriber::: subscribe_candle')
-        if isinstance(values, (list, tuple, set)):
-            self._candle_symbol_set = self._candle_symbol_set.union(set(values))
-
-        if Consts.CANDLE not in self.subscribe_set:
-            self.subscribe_set.setdefault(Consts.CANDLE, list())
-
-        self.subscribe_set[Consts.CANDLE] = [{"ticket": "{}".format(Tickets.CANDLE.value)},
-                                                  {"type": Consts.TICKER, "codes": list(self._candle_symbol_set)}]
+        self._subscribe_dict[Consts.CANDLE] = [
+            {
+                "ticker": Tickets.CANDLE,
+            },
+            {
+                "type": Consts.TICKER,
+                "codes": list(self._candle_symbol_set)
+            }
+        ]
 
         self._send_with_subscribe_set()
-
-    def unsubscribe_candle(self, symbol):
-        debugger.debug('UpbitSubscriber::: unsubscribe_candle')
-        
-        self._remove_contents(symbol, self._candle_symbol_set)
-        self.subscribe_candle(symbol)
 
     def on_message(self, *args):
         obj_, message = args
@@ -131,34 +89,60 @@ class UpbitSubscriber(BaseSubscriber):
         with self._lock_dic[Consts.ORDERBOOK]:
             symbol = data['code']
             sai_symbol = upbit_to_sai_symbol_converter(symbol)
-            if sai_symbol not in self._temp_orderbook_store:
-                self._temp_orderbook_store.setdefault(sai_symbol, list())
 
-            for each in data['orderbook_units']:
-                self._temp_orderbook_store[sai_symbol].append(dict(
-                    bids=dict(price=each['bid_price'], amount=each['bid_size']),
-                    asks=dict(price=each['ask_price'], amount=each['ask_size'])
-                ))
+            data_keys = {
+                Consts.BID_PRICE_KEY: 'bid_price',
+                Consts.BID_AMOUNT_KEY: 'bid_amount',
+                Consts.ASK_PRICE_KEY: 'ask_price',
+                Consts.ASK_AMOUNT_KEY: 'ask_amount'
+            }
 
-            if len(self._temp_orderbook_store[sai_symbol]) >= Consts.ORDERBOOK_LIMITATION:
-                self.data_store.orderbook_queue[sai_symbol] = self._temp_orderbook_store[sai_symbol]
-                self._temp_orderbook_store[sai_symbol] = list()
-    
+            total = self.temp_orderbook_setter(data['orderbook_units'], data_keys)
+            self.data_store.orderbook_queue[sai_symbol] = total
+
     def candle_receiver(self, data):
         with self._lock_dic[Consts.CANDLE]:
             symbol = data['code']
             sai_symbol = upbit_to_sai_symbol_converter(symbol)
-            if sai_symbol not in self._temp_candle_store:
-                self._temp_candle_store.setdefault(sai_symbol, list())
+            candle_list = [
+                data['opening_price'],
+                data['high_price'],
+                data['low_price'],
+                data['trade_price'],
+                data['trade_volume'],
+                data['trade_timestamp'],
+            ]
 
-            self._temp_candle_store[sai_symbol].append(dict(
-                timestamp=data['trade_timestamp'],
-                open=data['opening_price'],
-                close=data['trade_price'],
-                high=data['high_price'],
-                low=data['low_price'],
-                amount=data['trade_volume']
-            ))
-            if len(self._temp_candle_store[sai_symbol]) >= Consts.CANDLE_LIMITATION:
-                self.data_store.candle_queue[sai_symbol] = self._temp_candle_store[sai_symbol]
-                self._temp_candle_store[sai_symbol] = list()
+            store_list = self.temp_candle_setter(
+                self.data_store.candle_queue[sai_symbol],
+                candle_list
+            )
+
+            self.data_store.candle_queue[sai_symbol] = store_list
+
+    def unsubscribe_orderbook(self, symbol):
+        debugger.debug('UpbitSubscriber::: unsubscribe_orderbook')
+
+        self._remove_contents(symbol, self._orderbook_symbol_set)
+
+    def unsubscribe_candle(self, symbol):
+        debugger.debug('UpbitSubscriber::: unsubscribe_candle')
+
+        self._remove_contents(symbol, self._candle_symbol_set)
+
+    def _remove_contents(self, symbol, symbol_set):
+        try:
+            symbol_set.remove(symbol)
+        except Exception as ex:
+            debugger.debug('UpbitSubscriber::: remove error, [{}]'.format(ex))
+
+    def _send_with_subscribe_set(self):
+        data = list()
+        for key, item in self.subscribe_set.items():
+            data += self.subscribe_set[key]
+
+        self._subscribe_thread.send(json.dumps(data))
+
+
+if __name__ == '__main__':
+    us = UpbitSubscriber({}, {})
