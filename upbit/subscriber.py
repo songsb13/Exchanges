@@ -1,9 +1,7 @@
 import json
 
-import websocket
 from websocket import WebSocketConnectionClosedException
 from Util.pyinstaller_patch import *
-from enum import Enum
 
 from Exchanges.upbit.util import upbit_to_sai_symbol_converter
 from Exchanges.upbit.setting import Urls
@@ -138,11 +136,20 @@ class UpbitSubscriber(BaseSubscriber):
 
     def _send_with_subscribe_set(self):
         data = list()
-        for key, item in self.subscribe_set.items():
-            data += self.subscribe_set[key]
+        for key, item in self._subscribe_dict.items():
+            data += self._subscribe_dict[key]
 
-        self._subscribe_thread.send(json.dumps(data))
+        self._websocket_app.send(json.dumps(data))
 
 
 if __name__ == '__main__':
-    us = UpbitSubscriber({}, {})
+    from Exchanges.objects import DataStore
+
+    _lock_dic = {
+        Consts.ORDERBOOK: threading.Lock(),
+        Consts.CANDLE: threading.Lock()
+    }
+
+    us = UpbitSubscriber(DataStore, _lock_dic)
+    us.start_websocket_thread()
+    us.subscribe_orderbook()

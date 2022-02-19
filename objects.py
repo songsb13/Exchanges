@@ -32,12 +32,21 @@ class DataStore(object):
         self.candle_queue = dict()
 
 
+class CustomWebsocket(websocket.WebSocketApp, threading.Thread):
+    def __init__(self, url, on_message):
+        websocket.WebSocketApp.__init__(self, url, on_message=on_message)
+        threading.Thread.__init__(self)
+
+    def run(self) -> None:
+        self.run_forever()
+
+
 class BaseSubscriber(object):
     websocket_url = str()
     name = 'Base Subscriber'
 
     def __init__(self):
-        super(BaseSubscriber, self).__init__(self.websocket_url, on_message=self.on_message)
+        super(BaseSubscriber, self).__init__()
 
         self._evt = Event()
         self._evt.set()
@@ -50,16 +59,15 @@ class BaseSubscriber(object):
         self._subscribe_dict = dict()
 
         self._subscribe_thread = None
+        self._websocket_app = None
 
     def start_websocket_thread(self):
         debugger.debug('UpbitSubscriber::: start_run_forever_thread')
-        websocket_app = websocket.WebSocketApp(
+        self._websocket_app = CustomWebsocket(
             self.websocket_url,
-            on_message=self.on_message
+            self.on_message
         )
-
-        self._subscribe_thread = threading.Thread(target=websocket_app.run_forever, daemon=True)
-        self._subscribe_thread.start()
+        self._websocket_app.start()
 
     def on_message(self, *args):
         return
