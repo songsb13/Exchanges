@@ -4,18 +4,23 @@ except ImportError:
     import _thread as thread
 
 import json
-import websocket
+import decimal
+from decimal import Context
 
 from Util.pyinstaller_patch import *
 from Exchanges.binance.util import binance_to_sai_symbol_converter_in_subscriber, \
     sai_to_binance_symbol_converter_in_subscriber
 from Exchanges.binance.setting import Urls
-from Exchanges.settings import Consts
+from Exchanges.settings import Consts, Tickets
+from Exchanges.objects import BaseSubscriber
 
-from threading import Event
+decimal.getcontext().prec = 8
 
 
-class BinanceSubscriber(websocket.WebSocketApp):
+class BinanceSubscriber(BaseSubscriber):
+    websocket_url = Urls.Websocket.BASE
+    name = 'Binance Subscriber'
+
     def __init__(self, data_store, lock_dic):
         """
             data_store: An object for storing orderbook&candle data, using orderbook&candle queue in this object.
@@ -23,88 +28,13 @@ class BinanceSubscriber(websocket.WebSocketApp):
         """
         debugger.debug('BinanceSubscriber::: start')
         
-        super(BinanceSubscriber, self).__init__(Urls.Websocket.BASE, on_message=self.on_message)
-        
-        websocket.enableTrace(True)
+        super(BinanceSubscriber, self).__init__()
         self.data_store = data_store
-        self.name = 'binance_subscriber'
         self.time = '30m'
-        self._default_socket_id = 1
-        self._unsub_id = 2
         self._lock_dic = lock_dic
-
-        self._evt = Event()
-        self._evt.set()
 
         self.subscribe_set = set()
         self.unsubscribe_set = set()
-        self._temp_orderbook_store = dict()
-        self._temp_candle_store = dict()
-
-    def _switching_parameters(self, stream, is_subscribe=True):
-        try:
-            if is_subscribe:
-                self.subscribe_set.add(stream)
-                self.unsubscribe_set.remove(stream)
-            else:
-                self.subscribe_set.remove(stream)
-                self.unsubscribe_set.add(stream)
-        except Exception as ex:
-            debugger.debug('BinanceSubscriber::: _switching_parameters error, [{}]'.format(ex))
-        return
-
-    def _subscribe(self):
-        set_to_list = list(self.subscribe_set)
-        data = json.dumps({"method": "SUBSCRIBE", "params": set_to_list, 'id': self._default_socket_id})
-        self.send(data)
-
-    def _unsubscribe(self):
-        set_to_list = list(self.unsubscribe_set)
-        data = json.dumps({"method": "UNSUBSCRIBE", "params": set_to_list, 'id': self._unsub_id})
-        self.send(data)
-
-    def is_running(self):
-        return self.keep_running
-    
-    def start_run_forever_thread(self):
-        debugger.debug('BinanceSubscriber::: start_run_forever_thread')
-        self.subscribe_thread = threading.Thread(target=self.run_forever, daemon=True)
-        self.subscribe_thread.start()
-
-    def stop(self):
-        self._evt.clear()
-
-    def set_subscribe_orderbook(self, values):
-        debugger.debug('BinanceSubscriber::: subscribe_orderbook')
-        if isinstance(values, (list, tuple, set)):
-            for val in values:
-                stream = Urls.Websocket.ORDERBOOK_DEPTH.format(symbol=val)
-                self._switching_parameters(stream, is_subscribe=True)
-
-        self._subscribe()
-
-    def unsubscribe_orderbook(self, symbol):
-        debugger.debug('BinanceSubscriber::: unsubscribe_orderbook')
-        stream = Urls.Websocket.ORDERBOOK_DEPTH.format(symbol=symbol)
-        self._switching_parameters(stream, is_subscribe=False)
-
-        self._unsubscribe()
-
-    def set_subscribe_candle(self, values):
-        debugger.debug('BinanceSubscriber::: subscribe_candle')
-        if isinstance(values, (list, tuple, set)):
-            for val in values:
-                stream = Urls.Websocket.CANDLE.format(symbol=val, interval=self.time)
-                self._switching_parameters(stream, is_subscribe=True)
-
-        self._subscribe()
-
-    def unsubscribe_candle(self, symbol):
-        debugger.debug('BinanceSubscriber::: unsubscribe_candle')
-        stream = Urls.Websocket.CANDLE.format(symbol=symbol, interval=self.time)
-        self._switching_parameters(stream, is_subscribe=False)
-        
-        self._unsubscribe()
 
     def on_message(self, *args):
         obj_, message = args
@@ -113,7 +43,7 @@ class BinanceSubscriber(websocket.WebSocketApp):
             if 'result' not in data:
                 # b: orderbook's price
                 # B: orderbook's amount
-                if 'b' in data and 'B' in data:
+                if 'b' in data and 's' in data:
                     self.orderbook_receiver(data)
                 else:
                     self.candle_receiver(data)
@@ -124,31 +54,71 @@ class BinanceSubscriber(websocket.WebSocketApp):
         with self._lock_dic[Consts.ORDERBOOK]:
             symbol = data['s']
             sai_symbol = binance_to_sai_symbol_converter_in_subscriber(symbol)
-            self._temp_orderbook_store.setdefault(sai_symbol, list())
-        
-            self._temp_orderbook_store[sai_symbol].append(dict(
-                bids=dict(price=data['b'], amount=data['B']),
-                asks=dict(price=data['a'], amount=data['A'])
-            ))
-        
-            if len(self._temp_orderbook_store[sai_symbol]) >= Consts.ORDERBOOK_LIMITATION:
-                self.data_store.orderbook_queue[sai_symbol] = self._temp_orderbook_store[sai_symbol]
-                self._temp_orderbook_store[sai_symbol] = list()
+            context = Context(prec=8)
+
+            self.data_store.orderbook_queue[sai_symbol] = {
+                Consts.BIDS: context.create_decimal(data['b']),
+                Consts.ASKS: context.create_decimal(data['a'])
+            }
 
     def candle_receiver(self, data):
         with self._lock_dic[Consts.CANDLE]:
             kline = data['k']
             symbol = kline['s']
             sai_symbol = binance_to_sai_symbol_converter_in_subscriber(symbol)
-            self._temp_candle_store.setdefault(sai_symbol, list())
-            self._temp_candle_store[sai_symbol].append(dict(
-                high=kline['h'],
-                low=kline['l'],
-                close=kline['c'],
-                open=kline['o'],
-                timestamp=kline['t'],
-                amount=kline['v']
-            ))
-            if len(self._temp_candle_store[sai_symbol]) >= Consts.CANDLE_LIMITATION:
-                self.data_store.candle_queue[sai_symbol] = self._temp_candle_store[sai_symbol]
-                self._temp_candle_store[sai_symbol] = list()
+            candle_list = [
+                kline['o'],
+                kline['h'],
+                kline['l'],
+                kline['c'],
+                kline['v'],
+                kline['t']
+            ]
+            store_list = self.temp_candle_setter(
+                self.data_store.candle_queue[sai_symbol],
+                candle_list
+            )
+
+            self.data_store.candle_queue[sai_symbol] = store_list
+
+    def subscribe_orderbook(self):
+        debugger.debug(f'{self.name}::: subscribe_orderbook')
+        streams = self._get_streams(self._orderbook_symbol_set)
+        self._subscribe_dict[Consts.ORDERBOOK] = {
+            "method": "SUBSCRIBE",
+            "params": streams,
+            "id": Tickets.ORDERBOOK
+        }
+
+        self._websocket_app.send(json.dumps(self._subscribe_dict[Consts.ORDERBOOK]))
+
+    def subscribe_candle(self):
+        debugger.debug(f'{self.name}::: subscribe_candle')
+        streams = self._get_streams(self._candle_symbol_set)
+        self._subscribe_dict[Consts.CANDLE] = {
+            "method": "SUBSCRIBE",
+            "params": streams,
+            "id": Tickets.CANDLE
+        }
+
+    def _get_streams(self, sai_symbol_set):
+        binance_symbols = [sai_to_binance_symbol_converter_in_subscriber(symbol)
+                           for symbol in sai_symbol_set]
+        streams = [Urls.Websocket.ORDERBOOK_DEPTH.format(symbol=symbol)
+                   for symbol in binance_symbols]
+        return streams
+
+
+if __name__ == '__main__':
+    from Exchanges.objects import DataStore
+
+    _lock_dic = {
+        Consts.ORDERBOOK: threading.Lock(),
+        Consts.CANDLE: threading.Lock()
+    }
+    symbols = ["BTC_XRP", 'BTC_ETH']
+    ds = DataStore()
+    us = BinanceSubscriber(ds, _lock_dic)
+    us.start_websocket_thread()
+    us.set_orderbook_symbol_set(symbols)
+    us.subscribe_orderbook()
