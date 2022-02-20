@@ -18,7 +18,7 @@ class UpbitSubscriber(BaseSubscriber):
             data_store: An object for storing orderbook&candle data, using orderbook&candle queue in this object.
             lock_dic: dictionary for avoid race condition, {orderbook: Lock, candle: Lock}
         """
-        debugger.debug('UpbitSubscriber::: start')
+        debugger.debug(f'{self.name}::: start')
 
         super(UpbitSubscriber, self).__init__()
 
@@ -26,7 +26,7 @@ class UpbitSubscriber(BaseSubscriber):
         self._lock_dic = lock_dic
 
     def subscribe_orderbook(self):
-        debugger.debug('UpbitSubscriber::: subscribe_orderbook')
+        debugger.debug(f'{self.name}::: subscribe_orderbook')
         upbit_symbols = [sai_to_upbit_symbol_converter(symbol) for symbol in self._orderbook_symbol_set]
         self._subscribe_dict[Consts.ORDERBOOK] = [
             {
@@ -110,12 +110,12 @@ class UpbitSubscriber(BaseSubscriber):
             self.data_store.candle_queue[sai_symbol] = store_list
 
     def unsubscribe_orderbook(self, symbol):
-        debugger.debug('UpbitSubscriber::: unsubscribe_orderbook')
+        debugger.debug(f'{self.name}::: unsubscribe_orderbook')
 
         self._remove_contents(symbol, self._orderbook_symbol_set)
 
     def unsubscribe_candle(self, symbol):
-        debugger.debug('UpbitSubscriber::: unsubscribe_candle')
+        debugger.debug(f'{self.name}::: unsubscribe_candle')
 
         self._remove_contents(symbol, self._candle_symbol_set)
 
@@ -123,7 +123,7 @@ class UpbitSubscriber(BaseSubscriber):
         try:
             symbol_set.remove(symbol)
         except Exception as ex:
-            debugger.debug('UpbitSubscriber::: remove error, [{}]'.format(ex))
+            debugger.debug(f'{self.name}::: remove error, [{ex}]')
 
     def _send_with_subscribe_set(self):
         data = list()

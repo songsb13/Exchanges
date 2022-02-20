@@ -26,7 +26,7 @@ class BinanceSubscriber(BaseSubscriber):
             data_store: An object for storing orderbook&candle data, using orderbook&candle queue in this object.
             lock_dic: dictionary for avoid race condition, {orderbook: Lock, candle: Lock}
         """
-        debugger.debug('BinanceSubscriber::: start')
+        debugger.debug(f'{self.name}::: start')
         
         super(BinanceSubscriber, self).__init__()
         self.data_store = data_store
