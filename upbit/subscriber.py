@@ -5,18 +5,8 @@ from Util.pyinstaller_patch import *
 
 from Exchanges.upbit.util import upbit_to_sai_symbol_converter, sai_to_upbit_symbol_converter
 from Exchanges.upbit.setting import Urls
-from Exchanges.settings import Consts
+from Exchanges.settings import Consts, Tickets
 from Exchanges.objects import BaseSubscriber
-
-
-class Tickets(object):
-    """
-        upbit는 개별 ticket값으로 구분함, 유니크 id로 구분
-        1~1000: public
-        1001~2000: private
-    """
-    ORDERBOOK = 10
-    CANDLE = 20
 
 
 class UpbitSubscriber(BaseSubscriber):
