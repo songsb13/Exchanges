@@ -6,6 +6,8 @@ from threading import Event
 from Exchanges.settings import Consts
 
 import decimal
+import time
+import asyncio
 from decimal import Context
 
 decimal.getcontext().prec = 8
@@ -66,13 +68,18 @@ class BaseSubscriber(object):
         self._subscribe_thread = None
         self._websocket_app = None
 
+        self.data_store = None
+
     def start_websocket_thread(self):
-        debugger.debug('UpbitSubscriber::: start_run_forever_thread')
         self._websocket_app = CustomWebsocket(
             self.websocket_url,
             self.on_message
         )
         self._websocket_app.start()
+        for _ in range(60):
+            if self._websocket_app.keep_running:
+                break
+            time.sleep(0.5)
 
     def on_message(self, *args):
         return
@@ -115,9 +122,13 @@ class BaseSubscriber(object):
 
     def set_orderbook_symbol_set(self, symbol_list):
         self._orderbook_symbol_set = set(symbol_list)
+        for symbol in symbol_list:
+            self.data_store[symbol] = dict()
 
     def set_candle_symbol_set(self, symbol_list):
         self._candle_symbol_set = set(symbol_list)
+        for symbol in symbol_list:
+            self.data_store.candle_queue[symbol] = list()
 
     def set_subscribe_dict(self, list_):
         self._subscribe_dict = dict.fromkeys(list_, list())

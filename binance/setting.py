@@ -1,16 +1,3 @@
-from enum import Enum
-
-
-class Tickets(Enum):
-    """
-        1~1000: public
-        1001~2000: private
-    """
-
-    ORDERBOOK = 10
-    CANDLE = 20
-
-
 class Urls(object):
     BASE = 'https://api.binance.com'
     PAGE_BASE = 'https://www.binance.com'

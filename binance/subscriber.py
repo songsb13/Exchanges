@@ -30,7 +30,7 @@ class BinanceSubscriber(BaseSubscriber):
         
         super(BinanceSubscriber, self).__init__()
         self.data_store = data_store
-        self.time = '30m'
+        self._interval = '1m'
         self._lock_dic = lock_dic
 
         self.subscribe_set = set()
@@ -80,10 +80,14 @@ class BinanceSubscriber(BaseSubscriber):
             )
 
             self.data_store.candle_queue[sai_symbol] = store_list
+        print(self.data_store.candle_queue[sai_symbol])
 
     def subscribe_orderbook(self):
         debugger.debug(f'{self.name}::: subscribe_orderbook')
-        streams = self._get_streams(self._orderbook_symbol_set)
+        binance_symbols = [sai_to_binance_symbol_converter_in_subscriber(symbol)
+                           for symbol in self._orderbook_symbol_set]
+        streams = [Urls.Websocket.ORDERBOOK_DEPTH.format(symbol=symbol)
+                   for symbol in binance_symbols]
         self._subscribe_dict[Consts.ORDERBOOK] = {
             "method": "SUBSCRIBE",
             "params": streams,
@@ -94,19 +98,16 @@ class BinanceSubscriber(BaseSubscriber):
 
     def subscribe_candle(self):
         debugger.debug(f'{self.name}::: subscribe_candle')
-        streams = self._get_streams(self._candle_symbol_set)
+        binance_symbols = [sai_to_binance_symbol_converter_in_subscriber(symbol)
+                           for symbol in self._candle_symbol_set]
+        streams = [Urls.Websocket.CANDLE.format(symbol=symbol, interval=self._interval)
+                   for symbol in binance_symbols]
         self._subscribe_dict[Consts.CANDLE] = {
             "method": "SUBSCRIBE",
             "params": streams,
             "id": Tickets.CANDLE
         }
-
-    def _get_streams(self, sai_symbol_set):
-        binance_symbols = [sai_to_binance_symbol_converter_in_subscriber(symbol)
-                           for symbol in sai_symbol_set]
-        streams = [Urls.Websocket.ORDERBOOK_DEPTH.format(symbol=symbol)
-                   for symbol in binance_symbols]
-        return streams
+        self._websocket_app.send(json.dumps(self._subscribe_dict[Consts.CANDLE]))
 
 
 if __name__ == '__main__':
@@ -120,5 +121,5 @@ if __name__ == '__main__':
     ds = DataStore()
     us = BinanceSubscriber(ds, _lock_dic)
     us.start_websocket_thread()
-    us.set_orderbook_symbol_set(symbols)
-    us.subscribe_orderbook()
+    us.set_candle_symbol_set(symbols)
+    us.subscribe_candle()

@@ -3,6 +3,16 @@ setting of whole exchanges
 """
 
 
+class Tickets(object):
+    """
+        1~1000: public
+        1001~2000: private
+    """
+
+    ORDERBOOK = 10
+    CANDLE = 20
+
+
 class Consts(object):
     GET = 'GET'
     POST = 'POST'
