@@ -3,7 +3,7 @@ import json
 from websocket import WebSocketConnectionClosedException
 from Util.pyinstaller_patch import *
 
-from Exchanges.upbit.util import upbit_to_sai_symbol_converter
+from Exchanges.upbit.util import upbit_to_sai_symbol_converter, sai_to_upbit_symbol_converter
 from Exchanges.upbit.setting import Urls
 from Exchanges.settings import Consts
 from Exchanges.objects import BaseSubscriber
@@ -38,13 +38,14 @@ class UpbitSubscriber(BaseSubscriber):
 
     def subscribe_orderbook(self):
         debugger.debug('UpbitSubscriber::: subscribe_orderbook')
+        upbit_symbols = [sai_to_upbit_symbol_converter(symbol) for symbol in self._orderbook_symbol_set]
         self._subscribe_dict[Consts.ORDERBOOK] = [
             {
-                "ticker": Tickets.ORDERBOOK,
+                "ticket": Tickets.ORDERBOOK,
             },
             {
                 "type": Consts.ORDERBOOK,
-                "codes": list(self._orderbook_symbol_set),
+                "codes": upbit_symbols,
                 "isOnlyRealtime": True
             }
         ]
@@ -52,13 +53,14 @@ class UpbitSubscriber(BaseSubscriber):
 
     def subscribe_candle(self):
         debugger.debug('UpbitSubscriber::: subscribe_candle')
+        upbit_symbols = [sai_to_upbit_symbol_converter(symbol) for symbol in self._orderbook_symbol_set]
         self._subscribe_dict[Consts.CANDLE] = [
             {
-                "ticker": Tickets.CANDLE,
+                "ticket": Tickets.CANDLE,
             },
             {
                 "type": Consts.TICKER,
-                "codes": list(self._candle_symbol_set)
+                "codes": upbit_symbols
             }
         ]
 
@@ -90,9 +92,9 @@ class UpbitSubscriber(BaseSubscriber):
 
             data_keys = {
                 Consts.BID_PRICE_KEY: 'bid_price',
-                Consts.BID_AMOUNT_KEY: 'bid_amount',
+                Consts.BID_AMOUNT_KEY: 'bid_size',
                 Consts.ASK_PRICE_KEY: 'ask_price',
-                Consts.ASK_AMOUNT_KEY: 'ask_amount'
+                Consts.ASK_AMOUNT_KEY: 'ask_size'
             }
 
             total = self.temp_orderbook_setter(data['orderbook_units'], data_keys)
@@ -149,7 +151,9 @@ if __name__ == '__main__':
         Consts.ORDERBOOK: threading.Lock(),
         Consts.CANDLE: threading.Lock()
     }
-
-    us = UpbitSubscriber(DataStore, _lock_dic)
+    symbols = ["BTC_XRP", 'BTC_ETH']
+    ds = DataStore()
+    us = UpbitSubscriber(ds, _lock_dic)
     us.start_websocket_thread()
+    us.set_orderbook_symbol_set(symbols)
     us.subscribe_orderbook()

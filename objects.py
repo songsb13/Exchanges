@@ -5,6 +5,11 @@ from Util.pyinstaller_patch import debugger
 from threading import Event
 from Exchanges.settings import Consts
 
+import decimal
+from decimal import Context
+
+decimal.getcontext().prec = 8
+
 
 class ExchangeResult(object):
     """
@@ -74,12 +79,16 @@ class BaseSubscriber(object):
 
     def temp_orderbook_setter(self, units, data_keys):
         total_bids, total_asks = [], []
+        context = Context(prec=8)
         for each in units:
-            bids = each[data_keys[Consts.BID_PRICE_KEY]], each[data_keys[Consts.BID_AMOUNT_KEY]]
-            asks = each[data_keys[Consts.ASK_PRICE_KEY]], each[data_keys[Consts.ASK_AMOUNT_KEY]]
+            bid_price = context.create_decimal(each[data_keys[Consts.BID_PRICE_KEY]])
+            bid_amount = context.create_decimal(each[data_keys[Consts.BID_AMOUNT_KEY]])
 
-            total_bids.append(bids)
-            total_asks.append(asks)
+            ask_price = context.create_decimal(each[data_keys[Consts.ASK_PRICE_KEY]])
+            ask_amount = context.create_decimal(each[data_keys[Consts.ASK_AMOUNT_KEY]])
+
+            total_bids.append([bid_price, bid_amount])
+            total_asks.append([ask_price, ask_amount])
         dict_ = {
             Consts.BIDS: total_bids,
             Consts.ASKS: total_asks
