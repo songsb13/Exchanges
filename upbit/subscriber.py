@@ -24,7 +24,6 @@ class UpbitSubscriber(BaseSubscriber):
 
         self.data_store = data_store
         self._lock_dic = lock_dic
-        self._name = 'upbit_subscriber'
 
     def subscribe_orderbook(self):
         debugger.debug('UpbitSubscriber::: subscribe_orderbook')
@@ -42,8 +41,8 @@ class UpbitSubscriber(BaseSubscriber):
         self._send_with_subscribe_set()
 
     def subscribe_candle(self):
-        debugger.debug('UpbitSubscriber::: subscribe_candle')
-        upbit_symbols = [sai_to_upbit_symbol_converter(symbol) for symbol in self._orderbook_symbol_set]
+        debugger.debug(f'{self.name}::: subscribe_candle')
+        upbit_symbols = [sai_to_upbit_symbol_converter(symbol) for symbol in self._candle_symbol_set]
         self._subscribe_dict[Consts.CANDLE] = [
             {
                 "ticket": Tickets.CANDLE,
@@ -141,9 +140,9 @@ if __name__ == '__main__':
         Consts.ORDERBOOK: threading.Lock(),
         Consts.CANDLE: threading.Lock()
     }
-    symbols = ["BTC_XRP", 'BTC_ETH']
+    symbols = ["KRW_XRP", 'KRW_ETH']
     ds = DataStore()
     us = UpbitSubscriber(ds, _lock_dic)
     us.start_websocket_thread()
-    us.set_orderbook_symbol_set(symbols)
-    us.subscribe_orderbook()
+    us.set_candle_symbol_set(symbols)
+    us.subscribe_candle()
