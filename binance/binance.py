@@ -6,21 +6,20 @@ import time
 import aiohttp
 import threading
 
-from decimal import Decimal, getcontext, Context
+from decimal import getcontext, Context
 import datetime
 
 from urllib.parse import urlencode
-from decimal import Decimal, ROUND_DOWN, InvalidOperation
+from decimal import Decimal
 
-from Exchanges.settings import Consts, BaseMarkets, BaseTradeType, SaiOrderStatus
+from Exchanges.settings import Consts, BaseTradeType, SaiOrderStatus
 from Exchanges.messages import WarningMessage, DebugMessage
 from Exchanges.binance.util import sai_to_binance_symbol_converter, binance_to_sai_symbol_converter, \
     sai_to_binance_trade_type_converter, sai_to_binance_symbol_converter_in_subscriber, _symbol_customizing, _symbol_localizing
 from Exchanges.binance.setting import Urls, OrderStatus, DepositStatus, WithdrawalStatus
 from Exchanges.abstracts import BaseExchange
-from Exchanges.objects import ExchangeResult, DataStore
+from Exchanges.objects import ExchangeResult
 from Exchanges.binance.subscriber import BinanceSubscriber
-from Exchanges.threads import ThreadWrapper
 from Util.pyinstaller_patch import debugger
 
 
@@ -29,8 +28,13 @@ getcontext().prec = 8
 
 class Binance(BaseExchange):
     name = 'Binance'
+    sai_to_exchange_converter = sai_to_binance_symbol_converter
+    exchange_to_sai_converter = binance_to_sai_symbol_converter
+    exchange_subscriber = BinanceSubscriber
+    urls = Urls
 
     def __init__(self, key, secret):
+        super(Binance, self).__init__()
         self._key = key
         self._secret = secret
         
@@ -40,43 +44,21 @@ class Binance(BaseExchange):
         self._get_exchange_info()
         self._get_all_asset_details()
         self._lot_sizes = self._set_lot_sizes()
-        self.data_store = DataStore()
 
-        self._lock_dic = {
-            Consts.ORDERBOOK: threading.Lock(),
-            Consts.CANDLE: threading.Lock()
-        }
-
-        self._subscriber = None
-
-    def _get_results(self, response, path, extra, fn):
-        try:
-            if isinstance(response, requests.models.Response):
-                result = response.json()
-            else:
-                result = json.loads(response)
-        except:
-            debugger.debug(DebugMessage.FATAL.format(name=self.name, fn=fn))
-            return ExchangeResult(False, message=WarningMessage.EXCEPTION_RAISED.format(name=self.name), wait_time=1)
-
-        if isinstance(result, dict):
-            raw_error_message = result.get('msg', None)
-        else:
-            raw_error_message = None
-
-        if raw_error_message is None:
-            return ExchangeResult(True, result)
-        else:
-            error_message = WarningMessage.FAIL_RESPONSE_DETAILS.format(name=self.name, body=raw_error_message,
+    def _get_result(self, response, path, extra, fn, error_key='msg'):
+        result_object = super(Binance, self)._get_result(response, path, error_key, extra, fn=fn)
+        if not result_object.success:
+            error_message = WarningMessage.FAIL_RESPONSE_DETAILS.format(name=self.name, body=result_object.message,
                                                                         path=path, parameter=extra)
-            return ExchangeResult(False, message=error_message, wait_time=1)
+            result_object.message = error_message
+        return result_object
 
     def _public_api(self, path, extra=None):
         if extra is None:
             extra = dict()
 
         rq = requests.get(Urls.BASE + path, params=extra)
-        return self._get_results(rq, path, extra, fn='_public_api')
+        return self._get_result(rq, path, extra, fn='_public_api')
 
     def _private_api(self, method, path, extra=None):
         if extra is None:
@@ -94,7 +76,7 @@ class Binance(BaseExchange):
             else:
                 rq = requests.post(Urls.BASE + path, data=query, headers={"X-MBX-APIKEY": self._key})
 
-        return self._get_results(rq, path, extra, fn='_private_api')
+        return self._get_result(rq, path, extra, fn='_private_api')
 
     def _sign_generator(self, *args):
         params, *_ = args
@@ -242,68 +224,6 @@ class Binance(BaseExchange):
                         'min_notional': min_notional
                     })
         return lot_size_info
-
-    def fee_count(self):
-        return 1
-
-    def set_subscriber(self):
-        debugger.debug(DebugMessage.ENTRANCE.format(name=self.name, fn="set_subscriber", data=str(locals())))
-        self._subscriber = BinanceSubscriber(self.data_store, self._lock_dic)
-
-    def set_subscribe_candle(self, symbol):
-        """
-            subscribe candle.
-            coin: it can be list or string, [xrpbtc, ethbtc] or 'xrpbtc'
-        """
-        debugger.debug(DebugMessage.ENTRANCE.format(name=self.name, fn="set_subscribe_candle", data=str(locals())))
-
-        binance_symbol_list = list(map(sai_to_binance_symbol_converter_in_subscriber, symbol)) if isinstance(symbol, list) \
-            else sai_to_binance_symbol_converter_in_subscriber(symbol)
-        
-        callback_thread = ThreadWrapper(self._subscriber, binance_symbol_list,
-                                        self._subscriber.is_running, fn_name='binance_set_subscribe_candle', context=self._lock_dic['candle'])
-        
-        callback_thread.start()
-
-    def set_subscribe_orderbook(self, sai_symbol_list):
-        """
-            subscribe orderbook.
-            coin: it can be list or string, [xrpbtc, ethbtc] or 'xrpbtc'
-        """
-        debugger.debug(DebugMessage.ENTRANCE.format(name=self.name, fn="set_subscribe_orderbook", data=str(locals())))
-
-        binance_symbol_list = list(map(sai_to_binance_symbol_converter_in_subscriber, sai_symbol_list))
-        self._subscriber.set_orderbook_set(binance_symbol_list)
-
-    def get_orderbook(self):
-        debugger.debug(DebugMessage.ENTRANCE.format(name=self.name, fn="get_orderbook", data=str(locals())))
-        with self._lock_dic['orderbook']:
-            data_dic = self.data_store.orderbook_queue
-            if not self.data_store.orderbook_queue:
-                return ExchangeResult(False, message=WarningMessage.ORDERBOOK_NOT_STORED.format(name=self.name),
-                                      wait_time=1)
-
-            return ExchangeResult(True, data_dic)
-
-    def get_candle(self, sai_symbol):
-        debugger.debug(DebugMessage.ENTRANCE.format(name=self.name, fn="get_candle", data=str(locals())))
-        with self._lock_dic['candle']:
-            candle_dict = self.data_store.candle_queue.get(sai_symbol, None)
-
-            if not candle_dict:
-                return ExchangeResult(False, message=WarningMessage.CANDLE_NOT_STORED.format(name=self.name),
-                                      wait_time=1)
-
-            rows = ['timestamp', 'open', 'close', 'high', 'low', 'volume']
-            result_dict = dict()
-            for symbol, candle_list in candle_dict.items():
-                history = {key_: list() for key_ in rows}
-                for candle in candle_list:
-                    for key, item in candle.items():
-                        history[key].append(item)
-                result_dict[symbol] = history
-
-        return ExchangeResult(True, result_dict)
 
     def get_ticker(self, symbol):
         debugger.debug(DebugMessage.ENTRANCE.format(name=self.name, fn="get_ticker", data=str(locals())))
@@ -482,13 +402,6 @@ class Binance(BaseExchange):
 
         return result
 
-    def base_to_alt(self, coin, alt_amount, td_fee, tx_fee):
-        debugger.debug(DebugMessage.ENTRANCE.format(name=self.name, fn="base_to_alt", data=str(locals())))
-        alt_amount *= 1 - Decimal(td_fee)
-        alt_amount -= Decimal(tx_fee[coin])
-        alt_amount = alt_amount
-        return alt_amount
-
     def withdraw(self, coin, amount, to_address, payment_id=None):
         debugger.debug(DebugMessage.ENTRANCE.format(name=self.name, fn="withdraw", data=str(locals())))
         coin = _symbol_localizing(coin)
@@ -509,16 +422,6 @@ class Binance(BaseExchange):
 
         return result
 
-    async def _async_public_api(self, path, extra=None):
-        if extra is None:
-            extra = dict()
-
-        async with aiohttp.ClientSession() as session:
-            rq = await session.get(Urls.BASE + path, params=extra)
-            result_text = await rq.text()
-
-            return self._get_results(result_text, path, extra, fn='_async_public_api')
-
     async def _async_private_api(self, method, path, extra=None):
         if extra is None:
             extra = dict()
@@ -535,7 +438,7 @@ class Binance(BaseExchange):
                 rq = await session.post(Urls.BASE + path, data=query)
 
             result_text = await rq.text()
-            return self._get_results(result_text, path, extra, fn='_async_private_api')
+            return self._get_result(result_text, path, extra, fn='_async_private_api')
 
     async def get_deposit_addrs(self, coin_list=None):
         debugger.debug(DebugMessage.ENTRANCE.format(name=self.name, fn="get_deposit_addrs", data=str(locals())))
@@ -587,65 +490,6 @@ class Binance(BaseExchange):
 
             return ExchangeResult(False, message=WarningMessage.EXCEPTION_RAISED.format(name=self.name), wait_time=1)
 
-    async def get_avg_price(self, coins):  # 내거래 평균매수가
-        # 해당 함수는 현재 미사용 상태
-        try:
-            amount_price_list, res_value = (list() for _ in range(2))
-            for coin in coins:
-                total_price, bid_count, total_amount = (int() for _ in range(3))
-                
-                sp = coin.split('_')
-                coin = sp[1] + sp[0]
-                for _ in range(10):
-                    history_result_object = await self._async_private_api(
-                        Consts.GET, Urls.ALL_ORDERS, {'symbol': coin})
-
-                    if history_result_object.success:
-                        break
-
-                    time.sleep(1)
-
-                else:
-                    # history 값을 가져오는데 실패하는 경우.
-                    return history_result_object
-
-                history = history_result_object.data
-                history.reverse()
-                for _data in history:
-                    if not _data['status'] == 'FILLED':
-                        # 매매 완료 상태가 아닌 경우 continue
-                        continue
-                    
-                    trading_type = _data['side']
-                    n_price = float(_data['price'])
-                    price = Decimal(n_price - (n_price * 0.1))
-                    amount = Decimal(_data['origQty'])
-                    if trading_type == 'BUY':
-                        amount_price_list.append({
-                            'price': price,
-                            'amount': amount
-                        })
-                        total_price += price
-                        total_amount += amount
-                        bid_count += 1
-                    else:
-                        total_amount -= amount
-                    if total_amount <= 0:
-                        bid_count -= 1
-                        total_price = 0
-                        amount_price_list.pop(0)
-
-                _values = {coin: {
-                    'avg_price': total_price / bid_count,
-                    'coin_num': total_amount
-                }}
-                res_value.append(_values)
-
-            return ExchangeResult(True, res_value)
-
-        except Exception as ex:
-            return ExchangeResult(False, message=WarningMessage.EXCEPTION_RAISED.format(name=self.name), wait_time=1)
-
     async def get_transaction_fee(self):
         debugger.debug(DebugMessage.ENTRANCE.format(name=self.name, fn="get_transaction_fee", data=str(locals())))
         result = self._private_api('GET', Urls.GET_ALL_INFORMATION)
@@ -682,42 +526,3 @@ class Binance(BaseExchange):
 
         return result_object
     
-    def get_curr_avg_orderbook(self, btc_sum=1.0):
-        debugger.debug(DebugMessage.ENTRANCE.format(name=self.name, fn="get_curr_avg_orderbook", data=str(locals())))
-        with self._lock_dic['orderbook']:
-            if not self.data_store.orderbook_queue:
-                return ExchangeResult(False, message=WarningMessage.ORDERBOOK_NOT_STORED.format(name=self.name),
-                                      wait_time=1)
-            data_dic = self.data_store.orderbook_queue
-
-        avg_orderbook = dict()
-        for symbol, item in data_dic.items():
-            binance_symbol = sai_to_binance_symbol_converter(symbol)
-
-            with self._lock_dic['orderbook']:
-                orderbook_list = self.data_store.orderbook_queue.get(binance_symbol, None)
-                if orderbook_list is None:
-                    continue
-                data_dict = dict(bids=list(),
-                                 asks=list())
-
-                for data in orderbook_list:
-                    data_dict[Consts.BIDS].append(data[Consts.BIDS])
-                    data_dict[Consts.ASKS].append(data[Consts.ASKS])
-
-                avg_orderbook[symbol] = dict()
-
-                for order_type in [Consts.ASKS, Consts.BIDS]:
-                    sum_ = Decimal(0.0)
-                    total_coin_num = Decimal(0.0)
-                    for data in data_dict[order_type]:
-                        price = data['price']
-                        alt_coin_num = data['amount']
-                        sum_ += Decimal(price) * Decimal(alt_coin_num)
-                        total_coin_num += Decimal(alt_coin_num)
-                        if sum_ > btc_sum:
-                            break
-                    avg_orderbook[symbol][order_type] = (sum_ / total_coin_num).quantize(
-                        Decimal(10) ** -8)
-
-        return ExchangeResult(True, avg_orderbook)
