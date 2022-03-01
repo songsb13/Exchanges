@@ -20,9 +20,8 @@ from Exchanges.upbit.util import sai_to_upbit_symbol_converter, upbit_to_sai_sym
 
 from Exchanges.abstracts import BaseExchange
 from Exchanges.objects import DataStore, ExchangeResult
-from Exchanges.threads import ThreadWrapper
 
-from decimal import Decimal, ROUND_DOWN, InvalidOperation, getcontext, Context
+from decimal import Decimal, getcontext, Context
 
 
 getcontext().prec = 8
@@ -30,45 +29,29 @@ getcontext().prec = 8
 
 class BaseUpbit(BaseExchange):
     name = 'Upbit'
+    sai_to_exchange_converter = sai_to_upbit_symbol_converter
+    exchange_to_sai_converter = upbit_to_sai_symbol_converter
+    exchange_subscriber = UpbitSubscriber
+    urls = Urls
 
     def __init__(self, key, secret):
+        super(BaseUpbit, self).__init__()
         self._key = key
         self._secret = secret
-        self.data_store = DataStore()
-        
-        self._lock_dic = {
-            Consts.ORDERBOOK: threading.Lock(),
-            Consts.CANDLE: threading.Lock()
-        }
 
-        self._subscriber = None
-
-    def _get_results(self, response, path, extra, fn):
-        try:
-            if isinstance(response, requests.models.Response):
-                res = response.json()
-            else:
-                res = json.loads(response)
-        except:
-            debugger.exception(DebugMessage.FATAL.format(name=self.name, fn=fn))
-            return ExchangeResult(False, message=WarningMessage.EXCEPTION_RAISED.format(name=self.name), wait_time=1)
-
-        if isinstance(res, dict):
-            raw_error = res.get('error', dict())
-        else:
-            raw_error = dict()
-
-        if not raw_error:
-            return ExchangeResult(True, res)
-        else:
-            raw_error_message = raw_error.get('message', None)
+    def _get_result(self, response, path, extra, fn, error_key='error'):
+        result_object = super(BaseUpbit, self)._get_result(response, path, extra, fn, error_key)
+        if not result_object.success:
+            raw_error_message = result_object.message.get('message', None)
             if raw_error_message is None:
                 error_message = WarningMessage.FAIL_RESPONSE_DETAILS.format(name=self.name, body=raw_error_message,
-                                                                        path=path, parameter=extra)
+                                                                            path=path, parameter=extra)
             else:
                 error_message = WarningMessage.MESSAGE_NOT_FOUND.format(name=self.name)
 
-            return ExchangeResult(False, message=error_message, wait_time=1)
+            result_object.message = error_message
+        
+        return result_object
 
     def _public_api(self, path, extra=None):
         if extra is None:
@@ -77,7 +60,7 @@ class BaseUpbit(BaseExchange):
         url = Urls.BASE + path
         rq = requests.get(url, params=extra)
 
-        return self._get_results(rq, path, extra, fn='public_api')
+        return self._get_result(rq, path, extra, fn='public_api')
 
     def _private_api(self, method, path, extra=None):
         debugger.debug(DebugMessage.ENTRANCE.format(name=self.name, fn="_private_api", data=extra))
@@ -99,7 +82,7 @@ class BaseUpbit(BaseExchange):
         else:
             rq = requests.get(url=url, headers=header, params=extra)
 
-        return self._get_results(rq, path, extra, fn='private_api')
+        return self._get_result(rq, path, extra, fn='private_api')
 
     def _get_step_size(self, symbol, krw_price):
         market, coin = symbol.split('-')
@@ -188,40 +171,9 @@ class BaseUpbit(BaseExchange):
 
         return step_size_result
 
-    def fee_count(self):
-        return 1
-
     def _sign_generator(self, *args):
         payload, *_ = args
         return 'Bearer {}'.format(jwt.encode(payload, self._secret, ))
-
-    def set_subscriber(self):
-        self._subscriber = UpbitSubscriber(self.data_store, self._lock_dic)
-
-    def set_subscribe_candle(self, symbol):
-        """
-            subscribe candle.
-            symbol: it can be list or string, [BTC-XRP, BTC-ETH] or 'BTC-XRP'
-        """
-        debugger.debug(DebugMessage.ENTRANCE.format(name=self.name, fn="set_subscribe_candle", data=str(locals())))
-
-        upbit_symbol_list = list(map(sai_to_upbit_symbol_converter, symbol)) if isinstance(symbol, list) \
-            else sai_to_upbit_symbol_converter(symbol)
-
-        callback_thread = ThreadWrapper(self._subscriber, upbit_symbol_list,
-                                        self._subscriber.is_running, fn_name='upbit_set_subscribe_candle', context=self._lock_dic['candle'])
-
-        callback_thread.start()
-
-    def set_subscribe_orderbook(self, sai_symbol_list):
-        """
-            subscribe orderbook.
-            symbol: it can be list or string, [BTC-XRP, BTC-ETH] or 'BTC-XRP'
-        """
-        debugger.debug(DebugMessage.ENTRANCE.format(name=self.name, fn="set_subscribe_orderbook", data=str(locals())))
-
-        upbit_symbol_list = list(map(sai_to_upbit_symbol_converter, sai_symbol_list))
-        self._subscriber.set_orderbook_symbol_set(upbit_symbol_list)
 
     def get_ticker(self, sai_symbol):
         debugger.debug(DebugMessage.ENTRANCE.format(name=self.name, fn="get_ticker", data=str(locals())))
@@ -323,23 +275,6 @@ class BaseUpbit(BaseExchange):
                 return ExchangeResult(True, data=result_list)
         else:
             return result
-
-    def get_orderbook(self):
-        with self._lock_dic['orderbook']:
-            data_dic = self.data_store.orderbook_queue
-
-            if not self.data_store.orderbook_queue:
-                return ExchangeResult(False, message=WarningMessage.ORDERBOOK_NOT_STORED.format(name=self.name),
-                                      wait_time=1)
-            return ExchangeResult(True, data_dic)
-
-    def get_candle(self, sai_symbol):
-        debugger.debug(DebugMessage.ENTRANCE.format(name=self.name, fn="get_candle", data=str(locals())))
-        with self._lock_dic['candle']:
-            result = self.data_store.candle_queue.get(sai_symbol, None)
-            if result is None:
-                return ExchangeResult(False, message=WarningMessage.CANDLE_NOT_STORED.format(name=self.name), wait_time=1)
-            return ExchangeResult(True, result)
 
     def get_trading_fee(self):
         context = Context(prec=8)
@@ -459,24 +394,6 @@ class BaseUpbit(BaseExchange):
 
         return result
 
-    def base_to_alt(self, coin, alt_amount, from_exchange_trading_fee, to_exchange_transaction_fee):
-        debugger.debug(DebugMessage.ENTRANCE.format(name=self.name, fn="base_to_alt", data=str(locals())))
-        alt_amount *= 1 - Decimal(from_exchange_trading_fee)
-        alt_amount -= Decimal(to_exchange_transaction_fee[coin])
-        alt_amount = alt_amount
-
-        return alt_amount
-
-    async def _async_public_api(self, path, extra=None):
-        if extra is None:
-            extra = dict()
-        async with aiohttp.ClientSession() as s:
-            url = Urls.BASE + path
-            rq = await s.get(url, params=extra)
-
-            result_text = await rq.text()
-            return self._get_results(result_text, path, extra, fn='_async_public_api')
-
     async def _async_private_api(self, method, path, extra=None):
         payload = {
             'access_key': self._key,
@@ -497,7 +414,7 @@ class BaseUpbit(BaseExchange):
                 rq = await s.post(url, headers=header, data=extra)
 
             result_text = await rq.text()
-            return self._get_results(result_text, path, extra, fn='_async_private_api')
+            return self._get_result(result_text, path, extra, fn='_async_private_api')
 
     async def get_transaction_fee(self):
         debugger.debug(DebugMessage.ENTRANCE.format(name=self.name, fn="get_transaction_fee", data=str(locals())))
@@ -565,31 +482,3 @@ class BaseUpbit(BaseExchange):
             result.data = {bal['currency']: bal['balance'] for bal in result.data}
 
         return result
-
-    def get_curr_avg_orderbook(self, btc_sum=1.0):
-        debugger.debug(DebugMessage.ENTRANCE.format(name=self.name, fn="get_curr_avg_orderbook", data=str(locals())))
-        with self._lock_dic['orderbook']:
-            if not self.data_store.orderbook_queue:
-                return ExchangeResult(False, message=WarningMessage.ORDERBOOK_NOT_STORED.format(name=self.name),
-                                      wait_time=1)
-            data_dic = self.data_store.orderbook_queue
-
-            avg_order_book = dict()
-            for pair, item in data_dic.items():
-                sai_symbol = upbit_to_sai_symbol_converter(pair)
-                avg_order_book[sai_symbol] = dict()
-                
-                for type_ in ['ask', 'bid']:
-                    order_amount, order_sum = list(), 0
-                    for data in item:
-                        size = data['{}_size'.format(type_)]
-                        order_amount.append(size)
-                        order_sum += data['{}_price'.format(type_)] * size
-                        
-                        if order_sum >= btc_sum:
-                            volume = order_sum / np.sum(order_amount)
-                            avg_order_book[sai_symbol]['{}s'.format(type_)] = Decimal(volume)
-                            
-                            break
-                
-                return ExchangeResult(True, avg_order_book)
