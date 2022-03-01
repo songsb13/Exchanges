@@ -54,21 +54,21 @@ class BaseExchange(object):
         with self._lock_dic['orderbook']:
             debugger.debug(DebugMessage.ENTRANCE.format(name=self.name, fn="get_orderbook", data=str(locals())))
             with self._lock_dic['orderbook']:
-                data_dic = self.data_store.orderbook_queue
-                if not self.data_store.orderbook_queue:
+                orderbooks = self.data_store.orderbook_queue
+                if not orderbooks:
                     return ExchangeResult(False, message=WarningMessage.ORDERBOOK_NOT_STORED.format(name=self.name),
                                           wait_time=1)
 
-                return ExchangeResult(True, data_dic)
+                return ExchangeResult(True, orderbooks)
 
     def get_candle(self, sai_symbol):
         debugger.debug(DebugMessage.ENTRANCE.format(name=self.name, fn="get_candle", data=str(locals())))
         with self._lock_dic['candle']:
-            result = self.data_store.candle_queue.get(sai_symbol, None)
-            if result is None:
+            candles = self.data_store.candle_queue.get(sai_symbol, None)
+            if candles is None:
                 return ExchangeResult(False, message=WarningMessage.CANDLE_NOT_STORED.format(name=self.name),
                                       wait_time=1)
-            return ExchangeResult(True, result)
+            return ExchangeResult(True, candles)
 
     def get_curr_avg_orderbook(self, btc_sum=1.0):
         """
@@ -120,9 +120,6 @@ class BaseExchange(object):
         # BTC -> ALT(1), KRW -> BTC -> ALT(2)
         return 1
 
-    def get_balance(self):
-        pass
-
     def _get_result(self, response, path, extra, error_key, fn):
         try:
             if isinstance(response, requests.models.Response):
@@ -149,18 +146,12 @@ class BaseExchange(object):
                 message=error
             )
 
-    def _public_api(self, path, extra=None):
+    def _public_api(self, path, extra, error_key):
         if extra is None:
             extra = dict()
 
         request = requests.get(self.urls.BASE + path, params=extra)
-        return self._get_result(request, path, extra, fn='_public_api')
-
-    def get_available_symbols(self):
-        pass
-
-    def get_ticker(self, sai_symbol):
-        pass
+        return self._get_result(request, path, extra, error_key, fn='_public_api')
 
     async def _async_pubilc_api(self, path, extra=None):
         if extra is None:

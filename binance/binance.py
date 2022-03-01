@@ -1,10 +1,8 @@
 import hmac
 import hashlib
 import requests
-import json
 import time
 import aiohttp
-import threading
 
 from decimal import getcontext, Context
 import datetime
@@ -53,12 +51,8 @@ class Binance(BaseExchange):
             result_object.message = error_message
         return result_object
 
-    def _public_api(self, path, extra=None):
-        if extra is None:
-            extra = dict()
-
-        rq = requests.get(Urls.BASE + path, params=extra)
-        return self._get_result(rq, path, extra, fn='_public_api')
+    def _public_api(self, path, extra=None, error_key='msg'):
+        return super(Binance, self)._public_api(path, extra, error_key)
 
     def _private_api(self, method, path, extra=None):
         if extra is None:
@@ -78,20 +72,19 @@ class Binance(BaseExchange):
 
         return self._get_result(rq, path, extra, fn='_private_api')
 
-    def _sign_generator(self, *args):
-        params, *_ = args
-        if params is None:
+    def _sign_generator(self, payload):
+        if payload is None:
             params = dict()
-        params.update({'timestamp': int(time.time() * 1000)})
+        payload.update({'timestamp': int(time.time() * 1000)})
 
         sign = hmac.new(self._secret.encode('utf-8'),
-                        urlencode(sorted(params.items())).encode('utf-8'),
+                        urlencode(sorted(payload.items())).encode('utf-8'),
                         hashlib.sha256
                         ).hexdigest()
 
-        params.update({'signature': sign})
+        payload.update({'signature': sign})
 
-        return params
+        return payload
 
     def _get_exchange_info(self):
         for _ in range(3):
@@ -525,4 +518,4 @@ class Binance(BaseExchange):
             result_object.data = balance
 
         return result_object
-    
+

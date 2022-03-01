@@ -2,9 +2,7 @@ import jwt
 import time
 import json
 import aiohttp
-import numpy as np
 import requests
-import threading
 import datetime
 
 from urllib.parse import urlencode
@@ -53,14 +51,8 @@ class BaseUpbit(BaseExchange):
         
         return result_object
 
-    def _public_api(self, path, extra=None):
-        if extra is None:
-            extra = dict()
-        
-        url = Urls.BASE + path
-        rq = requests.get(url, params=extra)
-
-        return self._get_result(rq, path, extra, fn='public_api')
+    def _public_api(self, path, extra=None, error_key='error'):
+        return super(BaseUpbit, self)._public_api(path, extra, error_key)
 
     def _private_api(self, method, path, extra=None):
         debugger.debug(DebugMessage.ENTRANCE.format(name=self.name, fn="_private_api", data=extra))
@@ -72,8 +64,7 @@ class BaseUpbit(BaseExchange):
         if extra is not None:
             payload.update({'query': urlencode(extra)})
 
-        authorization_token = self._sign_generator(payload)
-        header = {'Authorization': authorization_token}
+        header = self._sign_generator(payload)
         url = Urls.BASE + path
 
         if method == Consts.POST:
@@ -171,9 +162,9 @@ class BaseUpbit(BaseExchange):
 
         return step_size_result
 
-    def _sign_generator(self, *args):
-        payload, *_ = args
-        return 'Bearer {}'.format(jwt.encode(payload, self._secret, ))
+    def _sign_generator(self, payload):
+        token = 'Bearer {}'.format(jwt.encode(payload, self._secret, ))
+        return {'Authorization': token}
 
     def get_ticker(self, sai_symbol):
         debugger.debug(DebugMessage.ENTRANCE.format(name=self.name, fn="get_ticker", data=str(locals())))
@@ -403,8 +394,7 @@ class BaseUpbit(BaseExchange):
         if extra is not None:
             payload.update({'query': urlencode(extra)})
 
-        authorization_token = self._sign_generator(payload)
-        header = {'Authorization': authorization_token}
+        header = self._sign_generator(payload)
         url = Urls.BASE + path
 
         async with aiohttp.ClientSession() as s:
