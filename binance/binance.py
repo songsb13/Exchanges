@@ -12,8 +12,7 @@ from decimal import Decimal
 
 from Exchanges.settings import Consts, BaseTradeType, SaiOrderStatus
 from Exchanges.messages import WarningMessage, DebugMessage
-from Exchanges.binance.util import sai_to_binance_symbol_converter, binance_to_sai_symbol_converter, \
-    sai_to_binance_trade_type_converter, sai_to_binance_symbol_converter_in_subscriber, _symbol_customizing, _symbol_localizing
+from Exchanges.binance.util import BinanceConverter, symbol_localizing, symbol_customizing
 from Exchanges.binance.setting import Urls, OrderStatus, DepositStatus, WithdrawalStatus
 from Exchanges.objects import ExchangeResult, BaseExchange
 from Exchanges.binance.subscriber import BinanceSubscriber
@@ -25,8 +24,7 @@ getcontext().prec = 8
 
 class Binance(BaseExchange):
     name = 'Binance'
-    sai_to_exchange_converter = sai_to_binance_symbol_converter
-    exchange_to_sai_converter = binance_to_sai_symbol_converter
+    converter = BinanceConverter
     exchange_subscriber = BinanceSubscriber
     urls = Urls
     error_key = 'msg'
@@ -60,7 +58,7 @@ class Binance(BaseExchange):
 
     def get_ticker(self, symbol):
         debugger.debug(DebugMessage.ENTRANCE.format(name=self.name, fn="get_ticker", data=str(locals())))
-        binance_symbol = sai_to_binance_symbol_converter(symbol)
+        binance_symbol = self.converter.sai_to_exchange(symbol)
         result_object = self._public_api(Urls.TICKER, {'symbol': binance_symbol})
         if result_object.success:
             ticker = Decimal(result_object.data[0]['trade_price'])
@@ -89,7 +87,7 @@ class Binance(BaseExchange):
         params = dict(orderId=order_id)
         if additional:
             if 'symbol' in additional:
-                additional['symbol'] = sai_to_binance_symbol_converter(additional['symbol'])
+                additional['symbol'] = self.converter.sai_to_exchange(additional['symbol'])
             params.update(additional)
 
         result = self._private_api(Consts.GET, Urls.ORDER, params)
@@ -142,7 +140,7 @@ class Binance(BaseExchange):
             result_message = str()
             return_deposit_dict = dict()
             for coin in able_to_trading_coin_set:
-                coin = _symbol_customizing(coin)
+                coin = symbol_customizing(coin)
                 get_deposit_result_object = await self._async_private_api(Consts.GET, Urls.DEPOSITS,
                                                                           {'coin': coin.lower()})
 
@@ -208,8 +206,8 @@ class Binance(BaseExchange):
         if BaseTradeType.BUY_LIMIT and not price:
             return ExchangeResult(False, message='')
 
-        binance_trade_type = sai_to_binance_trade_type_converter(trade_type)
-        symbol = sai_to_binance_symbol_converter(sai_symbol)
+        binance_trade_type = self.converter.sai_to_exchange(trade_type)
+        symbol = self.converter.sai_to_exchange(sai_symbol)
 
         default_parameters = {
             'symbol': symbol,
@@ -248,8 +246,8 @@ class Binance(BaseExchange):
         debugger.debug(DebugMessage.ENTRANCE.format(name=self.name, fn="sell", data=str(locals())))
         params = dict()
 
-        binance_trade_type = sai_to_binance_trade_type_converter(trade_type)
-        symbol = sai_to_binance_symbol_converter(sai_symbol)
+        binance_trade_type = self.converter.sai_to_exchange_trade_type(trade_type)
+        symbol = self.converter.sai_to_exchange(sai_symbol)
 
         default_parameters = {
             'symbol': symbol,
@@ -284,7 +282,7 @@ class Binance(BaseExchange):
 
     def withdraw(self, coin, amount, to_address, payment_id=None):
         debugger.debug(DebugMessage.ENTRANCE.format(name=self.name, fn="withdraw", data=str(locals())))
-        coin = _symbol_localizing(coin)
+        coin = symbol_localizing(coin)
         params = {'coin': coin, 'address': to_address,
                   'amount': Decimal(amount), 'name': 'SAICDiffTrader'}
 
@@ -358,7 +356,7 @@ class Binance(BaseExchange):
         step_size = self._lot_sizes.get(symbol, dict()).get('step_size')
         
         if not step_size:
-            sai_symbol = binance_to_sai_symbol_converter(symbol)
+            sai_symbol = self.converter.exchange_to_sai(symbol)
             return ExchangeResult(False, message=WarningMessage.STEP_SIZE_NOT_FOUND.format(
                 name=self.name,
                 sai_symbol=sai_symbol,

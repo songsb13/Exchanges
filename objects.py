@@ -151,8 +151,7 @@ class BaseExchange(object):
     all exchanges module should be followed BaseExchange format.
     """
     name = str()
-    sai_to_exchange_converter = None
-    exchange_to_sai_converter = None
+    converter = None
     exchange_subscriber = None
     urls = None
     error_key = None
@@ -174,13 +173,13 @@ class BaseExchange(object):
     def set_subscribe_candle(self, sai_symbol_list):
         debugger.debug(DebugMessage.ENTRANCE.format(name=self.name, fn="set_subscribe_candle", data=str(locals())))
 
-        exchange_symbols = list(map(self.sai_to_exchange_converter, sai_symbol_list))
+        exchange_symbols = list(map(self.converter.sai_to_exchange, sai_symbol_list))
         self._subscriber.set_candle_symbol_set(exchange_symbols)
 
     def set_subscribe_orderbook(self, sai_symbol_list):
         debugger.debug(DebugMessage.ENTRANCE.format(name=self.name, fn="set_subscribe_orderbook", data=str(locals())))
 
-        exchange_symbols = list(map(self.sai_to_exchange_converter, sai_symbol_list))
+        exchange_symbols = list(map(self.converter.exchange_to_sai, sai_symbol_list))
         self._subscriber.set_orderbook_symbol_set(exchange_symbols)
 
     def get_orderbook(self):

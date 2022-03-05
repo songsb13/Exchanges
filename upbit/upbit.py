@@ -14,7 +14,7 @@ from Exchanges.messages import DebugMessage
 
 from Exchanges.upbit.setting import Urls, OrderStatus, DepositStatus, LocalConsts, WithdrawalStatus
 from Exchanges.upbit.subscriber import UpbitSubscriber
-from Exchanges.upbit.util import sai_to_upbit_symbol_converter, upbit_to_sai_symbol_converter, sai_to_upbit_trade_type_converter
+from Exchanges.upbit.util import UpbitConverter
 
 from Exchanges.objects import DataStore, ExchangeResult, BaseExchange
 
@@ -26,8 +26,7 @@ getcontext().prec = 8
 
 class BaseUpbit(BaseExchange):
     name = 'Upbit'
-    sai_to_exchange_converter = sai_to_upbit_symbol_converter
-    exchange_to_sai_converter = upbit_to_sai_symbol_converter
+    converter = UpbitConverter
     exchange_subscriber = UpbitSubscriber
     urls = Urls
     error_key = 'error'
@@ -48,7 +47,7 @@ class BaseUpbit(BaseExchange):
 
     def get_ticker(self, sai_symbol):
         debugger.debug(DebugMessage.ENTRANCE.format(name=self.name, fn="get_ticker", data=str(locals())))
-        symbol = sai_to_upbit_symbol_converter(sai_symbol)
+        symbol = self.converter.sai_to_exchange(sai_symbol)
 
         result = self._public_api(Urls.TICKER, {'markets': symbol})
 
@@ -67,7 +66,7 @@ class BaseUpbit(BaseExchange):
             for data in result.data:
                 symbol = data.get('market')
                 if symbol:
-                    converted = upbit_to_sai_symbol_converter(symbol)
+                    converted = self.converter.exchange_to_sai(symbol)
                     result_list.append(converted)
             else:
                 return ExchangeResult(True, data=result_list)
@@ -349,7 +348,7 @@ class BaseUpbit(BaseExchange):
                 stepped_price = (decimal_price - Decimal(decimal_price % unit))
                 return ExchangeResult(True, stepped_price)
         else:
-            sai_symbol = upbit_to_sai_symbol_converter(symbol)  # for logging
+            sai_symbol = self.converter.exchange_to_sai(symbol)  # for logging
             return ExchangeResult(False, message=WarningMessage.STEP_SIZE_NOT_FOUND.format(
                 name=self.name,
                 sai_symbol=sai_symbol,

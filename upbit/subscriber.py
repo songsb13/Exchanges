@@ -3,7 +3,7 @@ import json
 from websocket import WebSocketConnectionClosedException
 from Util.pyinstaller_patch import *
 
-from Exchanges.upbit.util import upbit_to_sai_symbol_converter, sai_to_upbit_symbol_converter
+from Exchanges.upbit.util import UpbitConverter as converter
 from Exchanges.upbit.setting import Urls
 from Exchanges.settings import Consts, Tickets
 from Exchanges.objects import BaseSubscriber
@@ -27,7 +27,7 @@ class UpbitSubscriber(BaseSubscriber):
 
     def subscribe_orderbook(self):
         debugger.debug(f'{self.name}::: subscribe_orderbook')
-        upbit_symbols = [sai_to_upbit_symbol_converter(symbol) for symbol in self._orderbook_symbol_set]
+        upbit_symbols = [converter.sai_to_exchange(symbol) for symbol in self._orderbook_symbol_set]
         self._subscribe_dict[Consts.ORDERBOOK] = [
             {
                 "ticket": Tickets.ORDERBOOK,
@@ -42,7 +42,7 @@ class UpbitSubscriber(BaseSubscriber):
 
     def subscribe_candle(self):
         debugger.debug(f'{self.name}::: subscribe_candle')
-        upbit_symbols = [sai_to_upbit_symbol_converter(symbol) for symbol in self._candle_symbol_set]
+        upbit_symbols = [converter.exchange_to_sai(symbol) for symbol in self._candle_symbol_set]
         self._subscribe_dict[Consts.CANDLE] = [
             {
                 "ticket": Tickets.CANDLE,
