@@ -1,4 +1,5 @@
 class UpbitConverter(object):
+    # 각 exchange의 converter의 함수 이름은 동일해야함
     @staticmethod
     def sai_to_exchange(pair):
         return pair.replace('_', '-')
