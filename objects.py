@@ -46,17 +46,19 @@ class DataStore(object):
 
 
 class CustomWebsocket(websocket.WebSocketApp, threading.Thread):
-    def __init__(self, url, on_message):
+    def __init__(self, url, on_message, ping_time_per_second):
         websocket.WebSocketApp.__init__(self, url, on_message=on_message)
         threading.Thread.__init__(self)
+        self._ping_time_per_second = ping_time_per_second
 
     def run(self) -> None:
-        self.run_forever()
+        self.run_forever(ping_interval=self._ping_time_per_second)
 
 
 class BaseSubscriber(object):
     websocket_url = str()
     name = 'Base Subscriber'
+    ping_time_per_second = 120
 
     def __init__(self):
         super(BaseSubscriber, self).__init__()
@@ -79,7 +81,8 @@ class BaseSubscriber(object):
     def start_websocket_thread(self):
         self._websocket_app = CustomWebsocket(
             self.websocket_url,
-            self.on_message
+            self.on_message,
+            self.ping_time_per_second
         )
         self._websocket_app.start()
         for _ in range(60):
