@@ -132,7 +132,7 @@ class BaseSubscriber(object):
     def set_orderbook_symbol_set(self, symbol_list):
         self._orderbook_symbol_set = set(symbol_list)
         for symbol in symbol_list:
-            self.data_store[symbol] = dict()
+            self.data_store.orderbook_queue[symbol] = dict()
 
     def set_candle_symbol_set(self, symbol_list):
         self._candle_symbol_set = set(symbol_list)
@@ -179,19 +179,18 @@ class BaseExchange(object):
     def set_subscribe_orderbook(self, sai_symbol_list):
         debugger.debug(DebugMessage.ENTRANCE.format(name=self.name, fn="set_subscribe_orderbook", data=str(locals())))
 
-        exchange_symbols = list(map(self.converter.exchange_to_sai, sai_symbol_list))
+        exchange_symbols = list(map(self.converter.sai_to_exchange, sai_symbol_list))
         self._subscriber.set_orderbook_symbol_set(exchange_symbols)
 
     def get_orderbook(self):
         with self._lock_dic['orderbook']:
             debugger.debug(DebugMessage.ENTRANCE.format(name=self.name, fn="get_orderbook", data=str(locals())))
-            with self._lock_dic['orderbook']:
-                orderbooks = self.data_store.orderbook_queue
-                if not orderbooks:
-                    return ExchangeResult(False, message=WarningMessage.ORDERBOOK_NOT_STORED.format(name=self.name),
-                                          wait_time=1)
+            orderbooks = self.data_store.orderbook_queue
+            if not orderbooks:
+                return ExchangeResult(False, message=WarningMessage.ORDERBOOK_NOT_STORED.format(name=self.name),
+                                      wait_time=1)
 
-                return ExchangeResult(True, orderbooks)
+            return ExchangeResult(True, orderbooks)
 
     def get_candle(self, sai_symbol):
         debugger.debug(DebugMessage.ENTRANCE.format(name=self.name, fn="get_candle", data=str(locals())))
@@ -202,7 +201,7 @@ class BaseExchange(object):
                                       wait_time=1)
             return ExchangeResult(True, candles)
 
-    def get_curr_avg_orderbook(self, btc_sum=1.0):
+    async def get_curr_avg_orderbook(self, btc_sum=1.0):
         """
             {BTC_XRP: {bids: [[price, amount], ..], asks: [[price, amount], ..}
         """
@@ -214,7 +213,7 @@ class BaseExchange(object):
         data_store_orderbook = orderbook_result.data
         average_orderbook = dict()
         for sai_symbol, orderbook_items in data_store_orderbook.items():
-            exchange_symbol = self.sai_to_exchange_converter(sai_symbol)
+            exchange_symbol = self.converter.sai_to_exchange(sai_symbol)
 
             orderbooks = data_store_orderbook.get(exchange_symbol, None)
             if not orderbooks:
@@ -234,7 +233,12 @@ class BaseExchange(object):
                         break
 
                 average_orderbook[sai_symbol][order_type] = (total_price / total_amount)
-
+        if not average_orderbook:
+            return ExchangeResult(
+                success=False,
+                message=''
+            )
+        else:
             return ExchangeResult(
                 success=True,
                 data=average_orderbook

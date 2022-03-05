@@ -77,7 +77,7 @@ class UpbitSubscriber(BaseSubscriber):
     def orderbook_receiver(self, data):
         with self._lock_dic[Consts.ORDERBOOK]:
             symbol = data['code']
-            sai_symbol = upbit_to_sai_symbol_converter(symbol)
+            sai_symbol = converter.exchange_to_sai(symbol)
 
             data_keys = {
                 Consts.BID_PRICE_KEY: 'bid_price',
@@ -92,7 +92,7 @@ class UpbitSubscriber(BaseSubscriber):
     def candle_receiver(self, data):
         with self._lock_dic[Consts.CANDLE]:
             symbol = data['code']
-            sai_symbol = upbit_to_sai_symbol_converter(symbol)
+            sai_symbol = converter.exchange_to_sai(symbol)
             candle_list = [
                 data['opening_price'],
                 data['high_price'],
