@@ -26,10 +26,10 @@ class BinanceConverter(object):
         market, trade = symbol.split('_')
         return '{}{}'.format(symbol_localizing(trade), market).upper()
 
-    # @staticmethod
-    # def sai_to_binance_symbol_converter_in_subscriber(symbol):
-    #     # BTC_XRP -> xrpbtc
-    #     return sai_to_binance_symbol_converter(symbol).lower()
+    @staticmethod
+    def sai_to_exchange_subscriber(symbol):
+        # BTC_XRP -> xrpbtc
+        return BinanceConverter.sai_to_exchange(symbol).lower()
 
     @staticmethod
     def exchange_to_sai(symbol):
@@ -49,9 +49,9 @@ class BinanceConverter(object):
         coin = symbol.replace(market, '')
         return '{}_{}'.format(market, symbol_customizing(coin)).upper()
 
-    # @staticmethod
-    # def binance_to_sai_symbol_converter_in_subscriber(symbol):
-    #     return binance_to_sai_symbol_converter(symbol.upper())
+    @staticmethod
+    def exchange_to_sai_subscriber(symbol):
+        return BinanceConverter.exchange_to_sai(symbol).upper()
 
     @staticmethod
     def sai_to_exchange_trade_type(trade_type):

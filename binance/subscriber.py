@@ -8,8 +8,7 @@ import decimal
 from decimal import Context
 
 from Util.pyinstaller_patch import *
-from Exchanges.binance.util import binance_to_sai_symbol_converter_in_subscriber, \
-    sai_to_binance_symbol_converter_in_subscriber
+from Exchanges.binance.util import BinanceConverter as converter
 from Exchanges.binance.setting import Urls
 from Exchanges.settings import Consts, Tickets
 from Exchanges.objects import BaseSubscriber
@@ -53,7 +52,7 @@ class BinanceSubscriber(BaseSubscriber):
     def orderbook_receiver(self, data):
         with self._lock_dic[Consts.ORDERBOOK]:
             symbol = data['s']
-            sai_symbol = binance_to_sai_symbol_converter_in_subscriber(symbol)
+            sai_symbol = converter.exchange_to_sai_subscriber(symbol)
             context = Context(prec=8)
 
             self.data_store.orderbook_queue[sai_symbol] = {
@@ -65,7 +64,7 @@ class BinanceSubscriber(BaseSubscriber):
         with self._lock_dic[Consts.CANDLE]:
             kline = data['k']
             symbol = kline['s']
-            sai_symbol = binance_to_sai_symbol_converter_in_subscriber(symbol)
+            sai_symbol = converter.exchange_to_sai_subscriber(symbol)
             candle_list = [
                 kline['o'],
                 kline['h'],
@@ -84,7 +83,7 @@ class BinanceSubscriber(BaseSubscriber):
 
     def subscribe_orderbook(self):
         debugger.debug(f'{self.name}::: subscribe_orderbook')
-        binance_symbols = [sai_to_binance_symbol_converter_in_subscriber(symbol)
+        binance_symbols = [converter.sai_to_exchange_subscriber(symbol)
                            for symbol in self._orderbook_symbol_set]
         streams = [Urls.Websocket.ORDERBOOK_DEPTH.format(symbol=symbol)
                    for symbol in binance_symbols]
@@ -98,7 +97,7 @@ class BinanceSubscriber(BaseSubscriber):
 
     def subscribe_candle(self):
         debugger.debug(f'{self.name}::: subscribe_candle')
-        binance_symbols = [sai_to_binance_symbol_converter_in_subscriber(symbol)
+        binance_symbols = [converter.sai_to_exchange_subscriber(symbol)
                            for symbol in self._candle_symbol_set]
         streams = [Urls.Websocket.CANDLE.format(symbol=symbol, interval=self._interval)
                    for symbol in binance_symbols]
