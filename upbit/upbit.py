@@ -30,6 +30,7 @@ class BaseUpbit(BaseExchange):
     exchange_to_sai_converter = upbit_to_sai_symbol_converter
     exchange_subscriber = UpbitSubscriber
     urls = Urls
+    error_key = 'error'
 
     def __init__(self, key, secret):
         super(BaseUpbit, self).__init__()
@@ -322,7 +323,7 @@ class BaseUpbit(BaseExchange):
         else:
             return ExchangeResult(success=False, message=result.message)
 
-    def _get_result(self, response, path, extra, fn, error_key='error'):
+    def _get_result(self, response, path, extra, fn, error_key=error_key):
         result_object = super(BaseUpbit, self)._get_result(response, path, extra, fn, error_key)
         if not result_object.success:
             raw_error_message = result_object.message.get('message', None)
@@ -427,8 +428,8 @@ class BaseUpbit(BaseExchange):
         token = 'Bearer {}'.format(jwt.encode(payload, self._secret, ))
         return {'Authorization': token}
 
-    def _public_api(self, path, extra=None, error_key='error'):
-        return super(BaseUpbit, self)._public_api(path, extra, error_key)
+    def _public_api(self, path, extra=None):
+        return super(BaseUpbit, self)._public_api(path, extra)
 
     def _private_api(self, method, path, extra=None):
         debugger.debug(DebugMessage.ENTRANCE.format(name=self.name, fn="_private_api", data=extra))
@@ -456,7 +457,7 @@ class BaseUpbit(BaseExchange):
             'access_key': self._key,
             'nonce': int(time.time() * 1000),
         }
-        
+
         if extra is not None:
             payload.update({'query': urlencode(extra)})
 

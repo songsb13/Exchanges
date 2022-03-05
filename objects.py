@@ -152,6 +152,7 @@ class BaseExchange(object):
     exchange_to_sai_converter = None
     exchange_subscriber = None
     urls = None
+    error_key = None
 
     def __init__(self):
         self._lock_dic = {
@@ -249,7 +250,7 @@ class BaseExchange(object):
         # BTC -> ALT(1), KRW -> BTC -> ALT(2)
         return 1
 
-    def _get_result(self, response, path, extra, error_key, fn):
+    def _get_result(self, response, path, extra, fn, error_key=error_key):
         try:
             if isinstance(response, requests.models.Response):
                 result = response.json()
@@ -275,12 +276,12 @@ class BaseExchange(object):
                 message=error
             )
 
-    def _public_api(self, path, extra, error_key):
+    def _public_api(self, path, extra):
         if extra is None:
             extra = dict()
 
         request = requests.get(self.urls.BASE + path, params=extra)
-        return self._get_result(request, path, extra, error_key, fn='_public_api')
+        return self._get_result(request, path, extra, fn='_public_api')
 
     async def _async_pubilc_api(self, path, extra=None):
         if extra is None:

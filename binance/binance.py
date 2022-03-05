@@ -29,6 +29,7 @@ class Binance(BaseExchange):
     exchange_to_sai_converter = binance_to_sai_symbol_converter
     exchange_subscriber = BinanceSubscriber
     urls = Urls
+    error_key = 'msg'
 
     def __init__(self, key, secret):
         super(Binance, self).__init__()
@@ -458,8 +459,8 @@ class Binance(BaseExchange):
 
         return step_size_result
 
-    def _get_result(self, response, path, extra, fn, error_key='msg'):
-        result_object = super(Binance, self)._get_result(response, path, error_key, extra, fn=fn)
+    def _get_result(self, response, path, extra, fn, error_key=error_key):
+        result_object = super(Binance, self)._get_result(response, path, extra, fn, error_key)
         if not result_object.success:
             error_message = WarningMessage.FAIL_RESPONSE_DETAILS.format(name=self.name, body=result_object.message,
                                                                         path=path, parameter=extra)
@@ -480,8 +481,8 @@ class Binance(BaseExchange):
 
         return payload
 
-    def _public_api(self, path, extra=None, error_key='msg'):
-        return super(Binance, self)._public_api(path, extra, error_key)
+    def _public_api(self, path, extra=None):
+        return super(Binance, self)._public_api(path, extra)
 
     def _private_api(self, method, path, extra=None):
         if extra is None:
