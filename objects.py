@@ -86,7 +86,7 @@ class BaseSubscriber(object):
         )
         self._websocket_app.start()
         for _ in range(60):
-            if self._websocket_app.keep_running:
+            if self._websocket_app.sock and self._websocket_app.keep_running:
                 break
             time.sleep(0.5)
 
@@ -163,8 +163,6 @@ class BaseExchange(object):
         }
         self.data_store = DataStore()
 
-        self.set_subscriber()
-
     def set_subscriber(self):
         debugger.debug(DebugMessage.ENTRANCE.format(name=self.name, fn="set_subscriber", data=str(locals())))
         self._subscriber = self.exchange_subscriber(self.data_store, self._lock_dic)
@@ -175,12 +173,14 @@ class BaseExchange(object):
 
         exchange_symbols = list(map(self.converter.sai_to_exchange, sai_symbol_list))
         self._subscriber.set_candle_symbol_set(exchange_symbols)
+        self._subscriber.subscribe_candle()
 
     def set_subscribe_orderbook(self, sai_symbol_list):
         debugger.debug(DebugMessage.ENTRANCE.format(name=self.name, fn="set_subscribe_orderbook", data=str(locals())))
 
         exchange_symbols = list(map(self.converter.sai_to_exchange, sai_symbol_list))
         self._subscriber.set_orderbook_symbol_set(exchange_symbols)
+        self._subscriber.subscribe_orderbook()
 
     def get_orderbook(self):
         with self._lock_dic['orderbook']:
