@@ -15,8 +15,7 @@ from Exchanges.messages import WarningMessage, DebugMessage
 from Exchanges.binance.util import sai_to_binance_symbol_converter, binance_to_sai_symbol_converter, \
     sai_to_binance_trade_type_converter, sai_to_binance_symbol_converter_in_subscriber, _symbol_customizing, _symbol_localizing
 from Exchanges.binance.setting import Urls, OrderStatus, DepositStatus, WithdrawalStatus
-from Exchanges.abstracts import BaseExchange
-from Exchanges.objects import ExchangeResult
+from Exchanges.objects import ExchangeResult, BaseExchange
 from Exchanges.binance.subscriber import BinanceSubscriber
 from Util.pyinstaller_patch import debugger
 
@@ -43,180 +42,20 @@ class Binance(BaseExchange):
         self._get_all_asset_details()
         self._lot_sizes = self._set_lot_sizes()
 
-    def _get_result(self, response, path, extra, fn, error_key='msg'):
-        result_object = super(Binance, self)._get_result(response, path, error_key, extra, fn=fn)
-        if not result_object.success:
-            error_message = WarningMessage.FAIL_RESPONSE_DETAILS.format(name=self.name, body=result_object.message,
-                                                                        path=path, parameter=extra)
-            result_object.message = error_message
+    def get_balance(self):
+        debugger.debug(DebugMessage.ENTRANCE.format(name=self.name, fn="get_balance", data=str(locals())))
+        result_object = self._private_api(Consts.GET, Urls.ACCOUNT)
+
+        if result_object.success:
+            balance = dict()
+            for bal in result_object.data['balances']:
+                coin = bal['asset']
+                if float(bal['free']) > 0:
+                    balance[coin.upper()] = Decimal(bal['free'])
+
+            result_object.data = balance
+
         return result_object
-
-    def _public_api(self, path, extra=None, error_key='msg'):
-        return super(Binance, self)._public_api(path, extra, error_key)
-
-    def _private_api(self, method, path, extra=None):
-        if extra is None:
-            extra = dict()
-
-        query = self._sign_generator(extra)
-        sig = query.pop('signature')
-        query = "{}&signature={}".format(urlencode(sorted(extra.items())), sig)
-
-        if method == Consts.GET:
-            rq = requests.get(Urls.BASE + path, params=query, headers={"X-MBX-APIKEY": self._key})
-        else:
-            if path == Urls.WITHDRAW:
-                rq = requests.post(Urls.BASE + path, params=query, headers={"X-MBX-APIKEY": self._key})
-            else:
-                rq = requests.post(Urls.BASE + path, data=query, headers={"X-MBX-APIKEY": self._key})
-
-        return self._get_result(rq, path, extra, fn='_private_api')
-
-    def _sign_generator(self, payload):
-        if payload is None:
-            params = dict()
-        payload.update({'timestamp': int(time.time() * 1000)})
-
-        sign = hmac.new(self._secret.encode('utf-8'),
-                        urlencode(sorted(payload.items())).encode('utf-8'),
-                        hashlib.sha256
-                        ).hexdigest()
-
-        payload.update({'signature': sign})
-
-        return payload
-
-    def _get_exchange_info(self):
-        for _ in range(3):
-            result_object = self._public_api(Urls.EXCHANGE_INFO)
-            if result_object.success:
-                self.exchange_info = result_object.data
-                break
-
-            time.sleep(result_object.wait_time)
-        return result_object
-
-    def _get_all_asset_details(self):
-        for _ in range(3):
-            result_object = self._private_api('GET', Urls.GET_ALL_INFORMATION)
-            if result_object.success:
-                result = dict()
-                for each in result_object.data:
-                    coin = each.pop('coin', None)
-
-                    if coin:
-                        result.update({coin: each})
-                self.all_details = result
-                break
-
-            time.sleep(result_object.wait_time)
-        else:
-            return result_object
-
-    def _get_step_size(self, symbol, amount):
-        step_size = self._lot_sizes.get(symbol, dict()).get('step_size')
-        
-        if not step_size:
-            sai_symbol = binance_to_sai_symbol_converter(symbol)
-            return ExchangeResult(False, message=WarningMessage.STEP_SIZE_NOT_FOUND.format(
-                name=self.name,
-                sai_symbol=sai_symbol,
-            ))
-        step_size = self._lot_sizes[symbol]['step_size']
-
-        decimal_amount = Decimal(amount)
-        stepped_amount = (decimal_amount - Decimal(decimal_amount % step_size))
-
-        return ExchangeResult(True, stepped_amount)
-
-    def _is_available_lot_size(self, symbol, amount):
-        minimum = self._lot_sizes[symbol]['min_quantity']
-        maximum = self._lot_sizes[symbol]['max_quantity']
-        if not minimum <= amount <= maximum:
-            msg = WarningMessage.WRONG_LOT_SIZE.format(
-                name=self.name,
-                market=symbol,
-                minimum=minimum,
-                maximum=maximum
-            )
-            return ExchangeResult(False, message=msg)
-        
-        return ExchangeResult(True)
-        
-    def _is_available_min_notional(self, symbol, price, amount):
-        total_price = Decimal(price * amount)
-    
-        minimum = self._lot_sizes[symbol]['min_notional']
-        if not minimum <= total_price:
-            msg = WarningMessage.WRONG_MIN_NOTIONAL.format(
-                name=self.name,
-                symbol=symbol,
-                min_notional=minimum,
-            )
-            return ExchangeResult(False, message=msg)
-
-    def _trading_validator_in_market(self, symbol, amount):
-        price = 1
-
-        lot_size_result = self._is_available_lot_size(symbol, amount)
-
-        if not lot_size_result.success:
-            return lot_size_result
-
-        min_notional_result = self._is_available_min_notional(symbol, price, amount)
-
-        if not min_notional_result.success:
-            return min_notional_result
-
-        step_size_result = self._get_step_size(symbol, amount)
-
-        return step_size_result
-
-    def _trading_validator(self, symbol, amount):
-        ticker_object = self.get_ticker(symbol)
-        if not ticker_object.success:
-            return ticker_object
-
-        price = ticker_object.data['sai_price']
-
-        lot_size_result = self._is_available_lot_size(symbol, amount)
-
-        if not lot_size_result.success:
-            return lot_size_result
-        
-        min_notional_result = self._is_available_min_notional(symbol, price, amount)
-        
-        if not min_notional_result.success:
-            return min_notional_result
-        
-        step_size_result = self._get_step_size(symbol, amount)
-
-        return step_size_result
-
-    def _set_lot_sizes(self):
-        lot_size_info = dict()
-        for each in self.exchange_info['symbols']:
-            symbol = each['symbol']
-            filter_data = each['filters']
-            lot_size_info.setdefault(symbol, dict())
-            for filter_ in filter_data:
-                filter_type = filter_['filterType']
-                if filter_type == 'LOT_SIZE':
-                    min_ = filter_.get('minQty', int())
-                    max_ = filter_.get('maxQty', int())
-                    step_size = filter_.get('stepSize', int())
-                    lot_size_info[symbol].update({
-                        'min_quantity': Decimal(min_),
-                        'max_quantity': Decimal(max_),
-                        'step_size': Decimal(step_size)
-                    })
-                    break
-                elif filter_type == 'MIN_NOTIONAL':
-                    min_notional = Decimal(filter_.get('minNotional', int()))
-                    lot_size_info[symbol].update({
-                        'min_notional': min_notional
-                    })
-        return lot_size_info
 
     def get_ticker(self, symbol):
         debugger.debug(DebugMessage.ENTRANCE.format(name=self.name, fn="get_ticker", data=str(locals())))
@@ -282,35 +121,82 @@ class Binance(BaseExchange):
 
         return result
 
-    def is_withdrawal_completed(self, coin, id_):
-        params = dict(coin=coin, status=WithdrawalStatus.COMPLETED)
-        result = self._private_api(Consts.GET, Urls.GET_WITHDRAWAL_HISTORY, params)
-
-        if result.success and result.data:
-            for history_dict in result.data:
-                history_id = history_dict['id']
-                if history_id == id_:
-                    sai_dict = dict(
-                        sai_withdrawn_address=history_dict['address'],
-                        sai_withdrawn_amount=Decimal(history_dict['amount']),
-                        sai_withdrawn_time=datetime.datetime.strptime(history_dict['applyTime'], '%Y-%m-%d %H:%M:%S'),
-                        sai_coin=history_dict['coin'],
-                        sai_network=history_dict['network'],
-                        sai_transaction_fee=Decimal(history_dict['transactionFee']),
-                        sai_transaction_id=history_dict['txId'],
-                    )
-                    result_dict = {**history_dict, **sai_dict}
-                    return ExchangeResult(success=True, data=result_dict)
-            else:
-                message = WarningMessage.HAS_NO_WITHDRAW_ID.format(name=self.name, withdrawal_id=history_id)
-                return ExchangeResult(success=False, message=message)
-        else:
-            return ExchangeResult(success=False, message=result.message)
-
     def get_trading_fee(self):
         context = Context(prec=8)
         dic_ = dict(BTC=context.create_decimal_from_float(0.001))
         return ExchangeResult(True, dic_)
+
+    async def get_deposit_addrs(self, coin_list=None):
+        debugger.debug(DebugMessage.ENTRANCE.format(name=self.name, fn="get_deposit_addrs", data=str(locals())))
+
+        able_to_trading_coin_set = set()
+        for data in self.exchange_info['symbols']:
+            # check status coin is able to trading.
+            if data['status'] == 'TRADING':
+                able_to_trading_coin_set.add(data['baseAsset'])
+
+        able_to_trading_coin_set = ['BTC', 'ETH', 'XRP']
+
+        try:
+            result_message = str()
+            return_deposit_dict = dict()
+            for coin in able_to_trading_coin_set:
+                coin = _symbol_customizing(coin)
+                get_deposit_result_object = await self._async_private_api(Consts.GET, Urls.DEPOSITS,
+                                                                          {'coin': coin.lower()})
+
+                if not get_deposit_result_object.success:
+                    result_message += '[{}]해당 코인은 값을 가져오는데 실패했습니다.\n'.format(get_deposit_result_object.message)
+                    continue
+
+                coin_details = self.all_details.get(coin, None)
+
+                if coin_details is not None:
+                    able_deposit = coin_details['depositAllEnable']
+                    able_withdrawal = coin_details['withdrawAllEnable']
+
+                    if not able_deposit:
+                        debugger.debug('Binance, [{}] 해당 코인은 입금이 막혀있는 상태입니다.'.format(coin))
+                        continue
+
+                    elif not able_withdrawal:
+                        debugger.debug('Binance, [{}] 해당 코인은 출금이 막혀있는 상태입니다.'.format(coin))
+                        continue
+
+                address = get_deposit_result_object.data.get('address')
+                if address:
+                    return_deposit_dict[coin] = address
+
+                address_tag = get_deposit_result_object.data.get('tag')
+                if 'addressTag' in get_deposit_result_object.data:
+                    return_deposit_dict[coin + 'TAG'] = address_tag
+            return ExchangeResult(True, return_deposit_dict, result_message)
+
+        except Exception as ex:
+            debugger.exception('FATAL: Binance, get_deposit_addrs')
+
+            return ExchangeResult(False, message=WarningMessage.EXCEPTION_RAISED.format(name=self.name), wait_time=1)
+
+    async def get_transaction_fee(self):
+        debugger.debug(DebugMessage.ENTRANCE.format(name=self.name, fn="get_transaction_fee", data=str(locals())))
+        result = self._private_api('GET', Urls.GET_ALL_INFORMATION)
+
+        if result.success:
+            fees = dict()
+            context = Context(prec=8)
+            for each in result.data:
+                coin = each['coin']
+                for network_info in each['networkList']:
+                    network_coin = network_info['coin']
+
+                    if coin == network_coin:
+                        withdraw_fee = context.create_decimal(network_info['withdrawFee'])
+                        fees.update({coin: withdraw_fee})
+                        break
+
+            result.data = fees
+
+        return result
 
     def buy(self, sai_symbol, trade_type, amount=None, price=None):
         debugger.debug(DebugMessage.ENTRANCE.format(name=self.name, fn="buy", data=str(locals())))
@@ -415,6 +301,206 @@ class Binance(BaseExchange):
 
         return result
 
+    def is_withdrawal_completed(self, coin, id_):
+        params = dict(coin=coin, status=WithdrawalStatus.COMPLETED)
+        result = self._private_api(Consts.GET, Urls.GET_WITHDRAWAL_HISTORY, params)
+
+        if result.success and result.data:
+            for history_dict in result.data:
+                history_id = history_dict['id']
+                if history_id == id_:
+                    sai_dict = dict(
+                        sai_withdrawn_address=history_dict['address'],
+                        sai_withdrawn_amount=Decimal(history_dict['amount']),
+                        sai_withdrawn_time=datetime.datetime.strptime(history_dict['applyTime'], '%Y-%m-%d %H:%M:%S'),
+                        sai_coin=history_dict['coin'],
+                        sai_network=history_dict['network'],
+                        sai_transaction_fee=Decimal(history_dict['transactionFee']),
+                        sai_transaction_id=history_dict['txId'],
+                    )
+                    result_dict = {**history_dict, **sai_dict}
+                    return ExchangeResult(success=True, data=result_dict)
+            else:
+                message = WarningMessage.HAS_NO_WITHDRAW_ID.format(name=self.name, withdrawal_id=history_id)
+                return ExchangeResult(success=False, message=message)
+        else:
+            return ExchangeResult(success=False, message=result.message)
+
+    def _get_exchange_info(self):
+        for _ in range(3):
+            result_object = self._public_api(Urls.EXCHANGE_INFO)
+            if result_object.success:
+                self.exchange_info = result_object.data
+                break
+
+            time.sleep(result_object.wait_time)
+        return result_object
+
+    def _get_all_asset_details(self):
+        for _ in range(3):
+            result_object = self._private_api('GET', Urls.GET_ALL_INFORMATION)
+            if result_object.success:
+                result = dict()
+                for each in result_object.data:
+                    coin = each.pop('coin', None)
+
+                    if coin:
+                        result.update({coin: each})
+                self.all_details = result
+                break
+
+            time.sleep(result_object.wait_time)
+        else:
+            return result_object
+
+    def _get_step_size(self, symbol, amount):
+        step_size = self._lot_sizes.get(symbol, dict()).get('step_size')
+        
+        if not step_size:
+            sai_symbol = binance_to_sai_symbol_converter(symbol)
+            return ExchangeResult(False, message=WarningMessage.STEP_SIZE_NOT_FOUND.format(
+                name=self.name,
+                sai_symbol=sai_symbol,
+            ))
+        step_size = self._lot_sizes[symbol]['step_size']
+
+        decimal_amount = Decimal(amount)
+        stepped_amount = (decimal_amount - Decimal(decimal_amount % step_size))
+
+        return ExchangeResult(True, stepped_amount)
+
+    def _set_lot_sizes(self):
+        lot_size_info = dict()
+        for each in self.exchange_info['symbols']:
+            symbol = each['symbol']
+            filter_data = each['filters']
+            lot_size_info.setdefault(symbol, dict())
+            for filter_ in filter_data:
+                filter_type = filter_['filterType']
+                if filter_type == 'LOT_SIZE':
+                    min_ = filter_.get('minQty', int())
+                    max_ = filter_.get('maxQty', int())
+                    step_size = filter_.get('stepSize', int())
+                    lot_size_info[symbol].update({
+                        'min_quantity': Decimal(min_),
+                        'max_quantity': Decimal(max_),
+                        'step_size': Decimal(step_size)
+                    })
+                    break
+                elif filter_type == 'MIN_NOTIONAL':
+                    min_notional = Decimal(filter_.get('minNotional', int()))
+                    lot_size_info[symbol].update({
+                        'min_notional': min_notional
+                    })
+        return lot_size_info
+
+    def _is_available_lot_size(self, symbol, amount):
+        minimum = self._lot_sizes[symbol]['min_quantity']
+        maximum = self._lot_sizes[symbol]['max_quantity']
+        if not minimum <= amount <= maximum:
+            msg = WarningMessage.WRONG_LOT_SIZE.format(
+                name=self.name,
+                market=symbol,
+                minimum=minimum,
+                maximum=maximum
+            )
+            return ExchangeResult(False, message=msg)
+        
+        return ExchangeResult(True)
+        
+    def _is_available_min_notional(self, symbol, price, amount):
+        total_price = Decimal(price * amount)
+    
+        minimum = self._lot_sizes[symbol]['min_notional']
+        if not minimum <= total_price:
+            msg = WarningMessage.WRONG_MIN_NOTIONAL.format(
+                name=self.name,
+                symbol=symbol,
+                min_notional=minimum,
+            )
+            return ExchangeResult(False, message=msg)
+
+    def _trading_validator_in_market(self, symbol, amount):
+        price = 1
+
+        lot_size_result = self._is_available_lot_size(symbol, amount)
+
+        if not lot_size_result.success:
+            return lot_size_result
+
+        min_notional_result = self._is_available_min_notional(symbol, price, amount)
+
+        if not min_notional_result.success:
+            return min_notional_result
+
+        step_size_result = self._get_step_size(symbol, amount)
+
+        return step_size_result
+
+    def _trading_validator(self, symbol, amount):
+        ticker_object = self.get_ticker(symbol)
+        if not ticker_object.success:
+            return ticker_object
+
+        price = ticker_object.data['sai_price']
+
+        lot_size_result = self._is_available_lot_size(symbol, amount)
+
+        if not lot_size_result.success:
+            return lot_size_result
+        
+        min_notional_result = self._is_available_min_notional(symbol, price, amount)
+        
+        if not min_notional_result.success:
+            return min_notional_result
+        
+        step_size_result = self._get_step_size(symbol, amount)
+
+        return step_size_result
+
+    def _get_result(self, response, path, extra, fn, error_key='msg'):
+        result_object = super(Binance, self)._get_result(response, path, error_key, extra, fn=fn)
+        if not result_object.success:
+            error_message = WarningMessage.FAIL_RESPONSE_DETAILS.format(name=self.name, body=result_object.message,
+                                                                        path=path, parameter=extra)
+            result_object.message = error_message
+        return result_object
+
+    def _sign_generator(self, payload):
+        if payload is None:
+            payload = dict()
+        payload.update({'timestamp': int(time.time() * 1000)})
+
+        sign = hmac.new(self._secret.encode('utf-8'),
+                        urlencode(sorted(payload.items())).encode('utf-8'),
+                        hashlib.sha256
+                        ).hexdigest()
+
+        payload.update({'signature': sign})
+
+        return payload
+
+    def _public_api(self, path, extra=None, error_key='msg'):
+        return super(Binance, self)._public_api(path, extra, error_key)
+
+    def _private_api(self, method, path, extra=None):
+        if extra is None:
+            extra = dict()
+
+        query = self._sign_generator(extra)
+        sig = query.pop('signature')
+        query = "{}&signature={}".format(urlencode(sorted(extra.items())), sig)
+
+        if method == Consts.GET:
+            rq = requests.get(Urls.BASE + path, params=query, headers={"X-MBX-APIKEY": self._key})
+        else:
+            if path == Urls.WITHDRAW:
+                rq = requests.post(Urls.BASE + path, params=query, headers={"X-MBX-APIKEY": self._key})
+            else:
+                rq = requests.post(Urls.BASE + path, data=query, headers={"X-MBX-APIKEY": self._key})
+
+        return self._get_result(rq, path, extra, fn='_private_api')
+
     async def _async_private_api(self, method, path, extra=None):
         if extra is None:
             extra = dict()
@@ -432,90 +518,4 @@ class Binance(BaseExchange):
 
             result_text = await rq.text()
             return self._get_result(result_text, path, extra, fn='_async_private_api')
-
-    async def get_deposit_addrs(self, coin_list=None):
-        debugger.debug(DebugMessage.ENTRANCE.format(name=self.name, fn="get_deposit_addrs", data=str(locals())))
-
-        able_to_trading_coin_set = set()
-        for data in self.exchange_info['symbols']:
-            # check status coin is able to trading.
-            if data['status'] == 'TRADING':
-                able_to_trading_coin_set.add(data['baseAsset'])
-
-        able_to_trading_coin_set = ['BTC', 'ETH', 'XRP']
-
-        try:
-            result_message = str()
-            return_deposit_dict = dict()
-            for coin in able_to_trading_coin_set:
-                coin = _symbol_customizing(coin)
-                get_deposit_result_object = await self._async_private_api(Consts.GET, Urls.DEPOSITS, {'coin': coin.lower()})
-                
-                if not get_deposit_result_object.success:
-                    result_message += '[{}]해당 코인은 값을 가져오는데 실패했습니다.\n'.format(get_deposit_result_object.message)
-                    continue
-
-                coin_details = self.all_details.get(coin, None)
-
-                if coin_details is not None:
-                    able_deposit = coin_details['depositAllEnable']
-                    able_withdrawal = coin_details['withdrawAllEnable']
-
-                    if not able_deposit:
-                        debugger.debug('Binance, [{}] 해당 코인은 입금이 막혀있는 상태입니다.'.format(coin))
-                        continue
-
-                    elif not able_withdrawal:
-                        debugger.debug('Binance, [{}] 해당 코인은 출금이 막혀있는 상태입니다.'.format(coin))
-                        continue
-
-                address = get_deposit_result_object.data.get('address')
-                if address:
-                    return_deposit_dict[coin] = address
-
-                address_tag = get_deposit_result_object.data.get('tag')
-                if 'addressTag' in get_deposit_result_object.data:
-                    return_deposit_dict[coin + 'TAG'] = address_tag
-            return ExchangeResult(True, return_deposit_dict, result_message)
-
-        except Exception as ex:
-            debugger.exception('FATAL: Binance, get_deposit_addrs')
-
-            return ExchangeResult(False, message=WarningMessage.EXCEPTION_RAISED.format(name=self.name), wait_time=1)
-
-    async def get_transaction_fee(self):
-        debugger.debug(DebugMessage.ENTRANCE.format(name=self.name, fn="get_transaction_fee", data=str(locals())))
-        result = self._private_api('GET', Urls.GET_ALL_INFORMATION)
-
-        if result.success:
-            fees = dict()
-            context = Context(prec=8)
-            for each in result.data:
-                coin = each['coin']
-                for network_info in each['networkList']:
-                    network_coin = network_info['coin']
-
-                    if coin == network_coin:
-                        withdraw_fee = context.create_decimal(network_info['withdrawFee'])
-                        fees.update({coin: withdraw_fee})
-                        break
-
-            result.data = fees
-
-        return result
-
-    def get_balance(self):
-        debugger.debug(DebugMessage.ENTRANCE.format(name=self.name, fn="get_balance", data=str(locals())))
-        result_object = self._private_api(Consts.GET, Urls.ACCOUNT)
-
-        if result_object.success:
-            balance = dict()
-            for bal in result_object.data['balances']:
-                coin = bal['asset']
-                if float(bal['free']) > 0:
-                    balance[coin.upper()] = Decimal(bal['free'])
-
-            result_object.data = balance
-
-        return result_object
 
