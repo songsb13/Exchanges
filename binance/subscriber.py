@@ -39,6 +39,9 @@ class BinanceSubscriber(BaseSubscriber):
         obj_, message = args
         try:
             data = json.loads(message)
+            if 'error' in data:
+                debugger.debug('BinanceSubscriber::: on_message error, not found messages')
+                return
             if 'result' not in data:
                 # b: orderbook's price
                 # B: orderbook's amount
@@ -79,7 +82,6 @@ class BinanceSubscriber(BaseSubscriber):
             )
 
             self.data_store.candle_queue[sai_symbol] = store_list
-        print(self.data_store.candle_queue[sai_symbol])
 
     def subscribe_orderbook(self):
         debugger.debug(f'{self.name}::: subscribe_orderbook')
