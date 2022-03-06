@@ -40,7 +40,7 @@ class BinanceSubscriber(BaseSubscriber):
         try:
             data = json.loads(message)
             if 'error' in data:
-                debugger.debug('BinanceSubscriber::: on_message error, not found messages')
+                debugger.debug('BinanceSubscriber::: on_message error, not found messages [{}]'.format(data['error']['msg']))
                 return
             if 'result' not in data:
                 # b: orderbook's price
@@ -58,9 +58,18 @@ class BinanceSubscriber(BaseSubscriber):
             sai_symbol = converter.exchange_to_sai_subscriber(symbol)
             context = Context(prec=8)
 
+            total_bids, total_asks = [], []
+            for bid_price, bid_amount in data['b']:
+                total_bids.append([context.create_decimal(bid_price),
+                                   context.create_decimal(bid_amount)])
+
+            for ask_price, ask_amount in data['a']:
+                total_asks.append([context.create_decimal(ask_price),
+                                   context.create_decimal(ask_amount)])
+
             self.data_store.orderbook_queue[sai_symbol] = {
-                Consts.BIDS: context.create_decimal(data['b']),
-                Consts.ASKS: context.create_decimal(data['a'])
+                Consts.BIDS: total_bids,
+                Consts.ASKS: total_asks
             }
 
     def candle_receiver(self, data):
@@ -85,10 +94,8 @@ class BinanceSubscriber(BaseSubscriber):
 
     def subscribe_orderbook(self):
         debugger.debug(f'{self.name}::: subscribe_orderbook')
-        binance_symbols = [converter.sai_to_exchange_subscriber(symbol)
-                           for symbol in self._orderbook_symbol_set]
         streams = [Urls.Websocket.ORDERBOOK_DEPTH.format(symbol=symbol)
-                   for symbol in binance_symbols]
+                   for symbol in self._orderbook_symbol_set]
         self._subscribe_dict[Consts.ORDERBOOK] = {
             "method": "SUBSCRIBE",
             "params": streams,
@@ -99,10 +106,8 @@ class BinanceSubscriber(BaseSubscriber):
 
     def subscribe_candle(self):
         debugger.debug(f'{self.name}::: subscribe_candle')
-        binance_symbols = [converter.sai_to_exchange_subscriber(symbol)
-                           for symbol in self._candle_symbol_set]
         streams = [Urls.Websocket.CANDLE.format(symbol=symbol, interval=self._interval)
-                   for symbol in binance_symbols]
+                   for symbol in self._candle_symbol_set]
         self._subscribe_dict[Consts.CANDLE] = {
             "method": "SUBSCRIBE",
             "params": streams,
@@ -113,6 +118,7 @@ class BinanceSubscriber(BaseSubscriber):
 
 if __name__ == '__main__':
     from Exchanges.objects import DataStore
+    from Exchanges.binance.binance import Binance
 
     _lock_dic = {
         Consts.ORDERBOOK: threading.Lock(),
@@ -120,7 +126,6 @@ if __name__ == '__main__':
     }
     symbols = ["BTC_XRP", 'BTC_ETH']
     ds = DataStore()
-    us = BinanceSubscriber(ds, _lock_dic)
-    us.start_websocket_thread()
-    us.set_candle_symbol_set(symbols)
-    us.subscribe_candle()
+    binance = Binance('', '')
+    binance.set_subscriber()
+    binance.set_subscribe_orderbook(symbols)

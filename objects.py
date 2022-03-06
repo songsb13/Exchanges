@@ -1,4 +1,5 @@
 import websocket
+from websocket import WebSocketConnectionClosedException
 
 from threading import Event
 from decimal import Context
@@ -86,9 +87,9 @@ class BaseSubscriber(object):
         )
         self._websocket_app.start()
         for _ in range(60):
+            time.sleep(0.5)
             if self._websocket_app.sock and self._websocket_app.keep_running:
                 break
-            time.sleep(0.5)
 
     def on_message(self, *args):
         return
@@ -171,14 +172,14 @@ class BaseExchange(object):
     def set_subscribe_candle(self, sai_symbol_list):
         debugger.debug(DebugMessage.ENTRANCE.format(name=self.name, fn="set_subscribe_candle", data=str(locals())))
 
-        exchange_symbols = list(map(self.converter.sai_to_exchange, sai_symbol_list))
+        exchange_symbols = list(map(self.converter.sai_to_exchange_subscriber, sai_symbol_list))
         self._subscriber.set_candle_symbol_set(exchange_symbols)
         self._subscriber.subscribe_candle()
 
     def set_subscribe_orderbook(self, sai_symbol_list):
         debugger.debug(DebugMessage.ENTRANCE.format(name=self.name, fn="set_subscribe_orderbook", data=str(locals())))
 
-        exchange_symbols = list(map(self.converter.sai_to_exchange, sai_symbol_list))
+        exchange_symbols = list(map(self.converter.sai_to_exchange_subscriber, sai_symbol_list))
         self._subscriber.set_orderbook_symbol_set(exchange_symbols)
         self._subscriber.subscribe_orderbook()
 

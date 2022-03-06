@@ -27,14 +27,13 @@ class UpbitSubscriber(BaseSubscriber):
 
     def subscribe_orderbook(self):
         debugger.debug(f'{self.name}::: subscribe_orderbook')
-        upbit_symbols = [converter.sai_to_exchange(symbol) for symbol in self._orderbook_symbol_set]
         self._subscribe_dict[Consts.ORDERBOOK] = [
             {
                 "ticket": Tickets.ORDERBOOK,
             },
             {
                 "type": Consts.ORDERBOOK,
-                "codes": upbit_symbols,
+                "codes": list(self._orderbook_symbol_set),
                 "isOnlyRealtime": True
             }
         ]
@@ -42,14 +41,13 @@ class UpbitSubscriber(BaseSubscriber):
 
     def subscribe_candle(self):
         debugger.debug(f'{self.name}::: subscribe_candle')
-        upbit_symbols = [converter.exchange_to_sai(symbol) for symbol in self._candle_symbol_set]
         self._subscribe_dict[Consts.CANDLE] = [
             {
                 "ticket": Tickets.CANDLE,
             },
             {
                 "type": Consts.TICKER,
-                "codes": upbit_symbols
+                "codes": list(self._candle_symbol_set)
             }
         ]
 
@@ -130,19 +128,19 @@ class UpbitSubscriber(BaseSubscriber):
         for key, item in self._subscribe_dict.items():
             data += self._subscribe_dict[key]
 
-        self._websocket_app.send(json.dumps(data))
+        self._websocket_app.send(str(data))
 
 
 if __name__ == '__main__':
-    from Exchanges.objects import DataStore
+    from Exchanges.upbit.upbit import BaseUpbit
 
     _lock_dic = {
         Consts.ORDERBOOK: threading.Lock(),
         Consts.CANDLE: threading.Lock()
     }
     symbols = ["KRW_XRP", 'KRW_ETH']
-    ds = DataStore()
-    us = UpbitSubscriber(ds, _lock_dic)
-    us.start_websocket_thread()
-    us.set_candle_symbol_set(symbols)
-    us.subscribe_candle()
+    upbit = BaseUpbit('', '')
+    upbit.set_subscriber()
+    upbit.set_subscribe_orderbook(symbols)
+
+    print('f')
