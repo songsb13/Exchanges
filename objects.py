@@ -87,8 +87,10 @@ class BaseSubscriber(object):
         )
         self._websocket_app.start()
         for _ in range(60):
-            time.sleep(0.5)
+            debugger.debug(f'Start to connect {self.name} websocket')
+            time.sleep(1)
             if self._websocket_app.sock and self._websocket_app.keep_running:
+                debugger.debug(f'Created connection to {self.name} websocket')
                 break
 
     def on_message(self, *args):
@@ -132,13 +134,9 @@ class BaseSubscriber(object):
 
     def set_orderbook_symbol_set(self, symbol_list):
         self._orderbook_symbol_set = set(symbol_list)
-        for symbol in symbol_list:
-            self.data_store.orderbook_queue[symbol] = dict()
 
     def set_candle_symbol_set(self, symbol_list):
         self._candle_symbol_set = set(symbol_list)
-        for symbol in symbol_list:
-            self.data_store.candle_queue[symbol] = list()
 
     def set_subscribe_dict(self, list_):
         self._subscribe_dict = dict.fromkeys(list_, list())
@@ -189,7 +187,7 @@ class BaseExchange(object):
             orderbooks = self.data_store.orderbook_queue
             if not orderbooks:
                 return ExchangeResult(False, message=WarningMessage.ORDERBOOK_NOT_STORED.format(name=self.name),
-                                      wait_time=1)
+                                      wait_time=5)
 
             return ExchangeResult(True, orderbooks)
 
@@ -214,9 +212,7 @@ class BaseExchange(object):
         data_store_orderbook = orderbook_result.data
         average_orderbook = dict()
         for sai_symbol, orderbook_items in data_store_orderbook.items():
-            exchange_symbol = self.converter.sai_to_exchange(sai_symbol)
-
-            orderbooks = data_store_orderbook.get(exchange_symbol, None)
+            orderbooks = data_store_orderbook.get(sai_symbol, None)
             if not orderbooks:
                 continue
 
