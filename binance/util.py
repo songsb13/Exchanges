@@ -18,18 +18,18 @@ def symbol_customizing(symbol):
 
 class BinanceConverter(object):
     @staticmethod
-    def sai_to_exchange(symbol):
+    def sai_to_exchange(sai_symbol):
         # BTC_XRP -> XRPBTC
-        if '_' not in symbol:
-            return symbol
+        if '_' not in sai_symbol:
+            return sai_symbol
 
-        market, trade = symbol.split('_')
+        market, trade = sai_symbol.split('_')
         return '{}{}'.format(symbol_localizing(trade), market).upper()
 
     @staticmethod
-    def sai_to_exchange_subscriber(symbol):
+    def sai_to_exchange_subscriber(sai_symbol):
         # BTC_XRP -> xrpbtc
-        return BinanceConverter.sai_to_exchange(symbol).lower()
+        return BinanceConverter.sai_to_exchange(sai_symbol).lower()
 
     @staticmethod
     def exchange_to_sai(symbol):

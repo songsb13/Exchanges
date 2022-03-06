@@ -1,12 +1,20 @@
 class UpbitConverter(object):
     # 각 exchange의 converter의 함수 이름은 동일해야함
     @staticmethod
-    def sai_to_exchange(pair):
-        return pair.replace('_', '-')
+    def sai_to_exchange(sai_symbol):
+        return sai_symbol.replace('_', '-')
 
     @staticmethod
-    def exchange_to_sai(pair):
-        return pair.replace('-', '_')
+    def sai_to_exchange_subscriber(sai_symbol):
+        return UpbitConverter.sai_to_exchange(sai_symbol)
+
+    @staticmethod
+    def exchange_to_sai(symbol):
+        return symbol.replace('-', '_')
+
+    @staticmethod
+    def exchange_to_sai_subscriber(symbol):
+        return UpbitConverter.exchange_to_sai(symbol)
 
     @staticmethod
     def sai_to_exchange_trade_type(trade_type):
