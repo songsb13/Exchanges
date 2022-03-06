@@ -518,3 +518,14 @@ class Binance(BaseExchange):
             result_text = await rq.text()
             return self._get_result(result_text, path, extra, fn='_async_private_api')
 
+
+if __name__ == '__main__':
+    import asyncio
+    bi = Binance('', '')
+    bi.set_subscriber()
+    bi.set_subscribe_orderbook(['BTC-XRP', 'BTC_ETH'])
+    while True:
+        time.sleep(5)
+        pk = asyncio.run(bi.get_curr_avg_orderbook())
+        print(pk)
+

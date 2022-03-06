@@ -471,3 +471,15 @@ class BaseUpbit(BaseExchange):
 
             result_text = await rq.text()
             return self._get_result(result_text, path, extra, fn='_async_private_api')
+
+
+if __name__ == '__main__':
+    import asyncio
+    up = BaseUpbit('', '')
+    up.set_subscriber()
+    up.set_subscribe_orderbook(['KRW-XRP', 'KRW-ETH'])
+    while True:
+        time.sleep(5)
+        pk = asyncio.run(up.get_curr_avg_orderbook())
+        print(pk)
+
