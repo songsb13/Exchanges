@@ -1,5 +1,4 @@
 import websocket
-from websocket import WebSocketConnectionClosedException
 
 from threading import Event
 from decimal import Context
@@ -229,7 +228,10 @@ class BaseExchange(object):
                     if total_price > btc_sum:
                         break
 
-                average_orderbook[sai_symbol][order_type] = (total_price / total_amount)
+                try:
+                    average_orderbook[sai_symbol][order_type] = (total_price / total_amount)
+                except decimal.InvalidOperation:
+                    average_orderbook[sai_symbol][order_type] = decimal.Decimal(0)
         if not average_orderbook:
             return ExchangeResult(
                 success=False,
