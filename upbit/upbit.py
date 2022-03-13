@@ -194,8 +194,8 @@ class BaseUpbit(BaseExchange):
         if BaseTradeType.BUY_LIMIT and not amount:
             return ExchangeResult(False, message='')
 
-        upbit_trade_type = sai_to_upbit_trade_type_converter(trade_type)
-        symbol = sai_to_upbit_symbol_converter(sai_symbol)
+        upbit_trade_type = self.converter.sai_to_exchange_trade_type(trade_type)
+        symbol = self.converter.sai_to_exchange(sai_symbol)
 
         default_parameters = {
             'market': symbol,
@@ -240,8 +240,8 @@ class BaseUpbit(BaseExchange):
         if BaseTradeType.SELL_LIMIT and not price:
             return ExchangeResult(False, message='')
 
-        upbit_trade_type = sai_to_upbit_trade_type_converter(trade_type)
-        symbol = sai_to_upbit_symbol_converter(sai_symbol)
+        upbit_trade_type = self.converter.sai_to_exchange_trade_type(trade_type)
+        symbol = self.converter.sai_to_exchange(sai_symbol)
 
         default_parameters = {
             'market': symbol,

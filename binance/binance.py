@@ -216,7 +216,7 @@ class Binance(BaseExchange):
         }
 
         if trade_type == BaseTradeType.BUY_MARKET:
-            trading_validation_result = self._trading_validator_in_market(symbol, amount, trade_type)
+            trading_validation_result = self._trading_validator_in_market(symbol, amount)
             if not trading_validation_result.success:
                 return trading_validation_result
             stepped_amount = trading_validation_result.data
@@ -255,7 +255,7 @@ class Binance(BaseExchange):
             'type': binance_trade_type
         }
         if trade_type == BaseTradeType.SELL_MARKET:
-            trading_validation_result = self._trading_validator_in_market(symbol, amount, trade_type)
+            trading_validation_result = self._trading_validator_in_market(symbol, amount)
             if not trading_validation_result.success:
                 return trading_validation_result
             stepped_amount = trading_validation_result.data
