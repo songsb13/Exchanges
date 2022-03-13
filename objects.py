@@ -243,13 +243,11 @@ class BaseExchange(object):
                 data=average_orderbook
             )
 
-    def base_to_alt(self, alt_amount,
-                    from_exchange_trading_fee,
-                    to_exchange_transaction_fee):
+    def base_to_coin(self, coin_amount, from_exchange_trading_fee, to_exchange_transaction_fee):
         debugger.debug(DebugMessage.ENTRANCE.format(name=self.name, fn="base_to_alt", data=str(locals())))
-        alt_amount *= 1 - decimal.Decimal(from_exchange_trading_fee)
-        alt_amount -= decimal.Decimal(to_exchange_transaction_fee)
-        return alt_amount
+        coin_amount *= 1 - from_exchange_trading_fee
+        coin_amount -= to_exchange_transaction_fee
+        return coin_amount
 
     def fee_count(self):
         # BTC -> ALT(1), KRW -> BTC -> ALT(2)
