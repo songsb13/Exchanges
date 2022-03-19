@@ -13,7 +13,7 @@ from decimal import Decimal
 from Exchanges.settings import Consts, BaseTradeType, SaiOrderStatus
 from Exchanges.messages import WarningMessage, DebugMessage
 from Exchanges.binance.util import BinanceConverter, symbol_localizing, symbol_customizing
-from Exchanges.binance.setting import Urls, OrderStatus, DepositStatus, WithdrawalStatus
+from Exchanges.binance.setting import Urls, OrderStatus, DepositStatus, WithdrawalStatus, FilterType
 from Exchanges.objects import ExchangeResult, BaseExchange
 from Exchanges.binance.subscriber import BinanceSubscriber
 from Util.pyinstaller_patch import debugger
@@ -39,7 +39,7 @@ class Binance(BaseExchange):
         self._step_sizes = None
         self._get_exchange_info()
         self._get_all_asset_details()
-        self._lot_sizes = self._set_lot_sizes()
+        self._symbol_details_dict = self._set_symbol_details()
 
     def get_balance(self):
         debugger.debug(DebugMessage.ENTRANCE.format(name=self.name, fn="get_balance", data=str(locals())))
@@ -353,7 +353,7 @@ class Binance(BaseExchange):
             return result_object
 
     def _get_step_size(self, symbol, amount):
-        step_size = self._lot_sizes.get(symbol, dict()).get('step_size')
+        step_size = self._symbol_details_dict.get(symbol, dict()).get('step_size')
         
         if not step_size:
             sai_symbol = self.converter.exchange_to_sai(symbol)
@@ -361,41 +361,41 @@ class Binance(BaseExchange):
                 name=self.name,
                 sai_symbol=sai_symbol,
             ))
-        step_size = self._lot_sizes[symbol]['step_size']
+        step_size = self._symbol_details_dict[symbol]['step_size']
 
         decimal_amount = Decimal(amount)
         stepped_amount = (decimal_amount - Decimal(decimal_amount % step_size))
 
         return ExchangeResult(True, stepped_amount)
 
-    def _set_lot_sizes(self):
-        lot_size_info = dict()
+    def _set_symbol_details(self):
+        _symbol_details_dict = dict()
         for each in self.exchange_info['symbols']:
             symbol = each['symbol']
             filter_data = each['filters']
-            lot_size_info.setdefault(symbol, dict())
+            _symbol_details_dict.setdefault(symbol, dict())
             for filter_ in filter_data:
                 filter_type = filter_['filterType']
-                if filter_type == 'LOT_SIZE':
+                if filter_type == FilterType.LOT_SIZE:
                     min_ = filter_.get('minQty', int())
                     max_ = filter_.get('maxQty', int())
                     step_size = filter_.get('stepSize', int())
-                    lot_size_info[symbol].update({
+                    _symbol_details_dict[symbol].update({
                         'min_quantity': Decimal(min_),
                         'max_quantity': Decimal(max_),
                         'step_size': Decimal(step_size)
                     })
                     break
-                elif filter_type == 'MIN_NOTIONAL':
+                elif filter_type == FilterType.MIN_NOTIONAL:
                     min_notional = Decimal(filter_.get('minNotional', int()))
-                    lot_size_info[symbol].update({
+                    _symbol_details_dict[symbol].update({
                         'min_notional': min_notional
                     })
-        return lot_size_info
+        return _symbol_details_dict
 
     def _is_available_lot_size(self, symbol, amount):
-        minimum = self._lot_sizes[symbol]['min_quantity']
-        maximum = self._lot_sizes[symbol]['max_quantity']
+        minimum = self._symbol_details_dict[symbol]['min_quantity']
+        maximum = self._symbol_details_dict[symbol]['max_quantity']
         if not minimum <= amount <= maximum:
             msg = WarningMessage.WRONG_LOT_SIZE.format(
                 name=self.name,
@@ -410,7 +410,7 @@ class Binance(BaseExchange):
     def _is_available_min_notional(self, symbol, price, amount):
         total_price = Decimal(price * amount)
     
-        minimum = self._lot_sizes[symbol]['min_notional']
+        minimum = self._symbol_details_dict[symbol]['min_notional']
         if not minimum <= total_price:
             msg = WarningMessage.WRONG_MIN_NOTIONAL.format(
                 name=self.name,
