@@ -415,7 +415,7 @@ class Binance(BaseExchange):
     def _is_available_min_notional(self, symbol, price, amount):
         total_price = Decimal(price * amount)
     
-        minimum = self._symbol_details_dict[symbol]['min_notional']
+        minimum = self._symbol_details_dict[symbol].get('min_notional', 0)
         if not minimum <= total_price:
             msg = WarningMessage.WRONG_MIN_NOTIONAL.format(
                 name=self.name,
@@ -423,6 +423,8 @@ class Binance(BaseExchange):
                 min_notional=minimum,
             )
             return ExchangeResult(False, message=msg)
+
+        return ExchangeResult(True)
 
     def _trading_validator_in_market(self, symbol, amount):
         price = 1

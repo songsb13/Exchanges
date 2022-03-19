@@ -2,7 +2,10 @@ from DiffTrader.GlobalSetting.settings import DEBUG, DEBUG_ORDER_ID
 
 from Exchanges.objects import DataStore, ExchangeResult, BaseExchange
 
+import decimal
 from decimal import Decimal
+
+decimal.getcontext().prec = 8
 
 
 def trade_result_mock(price=0.005353, amount=1.1233):
