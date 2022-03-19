@@ -11,12 +11,15 @@ from urllib.parse import urlencode
 from decimal import Decimal
 
 from Exchanges.settings import Consts, BaseTradeType, SaiOrderStatus
+from Exchanges.test_settings import trade_result_mock
 from Exchanges.messages import WarningMessage, DebugMessage
 from Exchanges.binance.util import BinanceConverter, symbol_localizing, symbol_customizing
 from Exchanges.binance.setting import Urls, OrderStatus, DepositStatus, WithdrawalStatus, FilterType
 from Exchanges.objects import ExchangeResult, BaseExchange
 from Exchanges.binance.subscriber import BinanceSubscriber
 from Util.pyinstaller_patch import debugger
+
+from DiffTrader.GlobalSetting.settings import DEBUG, DEBUG_ORDER_ID
 
 
 getcontext().prec = 8
@@ -228,14 +231,15 @@ class Binance(BaseExchange):
             stepped_amount = trading_validation_result.data
             default_parameters.update(dict(price=price, quantity=stepped_amount))
 
+        if DEBUG:
+            return trade_result_mock(price, amount)
+
         result = self._private_api(Consts.POST, Urls.ORDER, default_parameters)
 
         if result.success:
-            price = result.data['price']
-            amount = result.data['origQty']
             result.data.update({
-                'sai_average_price': Decimal(price),
-                'sai_amount': Decimal(amount),
+                'sai_average_price': Decimal(result.data['price']),
+                'sai_amount': Decimal(result.data['origQty']),
                 'sai_order_id': result.data['orderId']
 
             })
@@ -267,14 +271,15 @@ class Binance(BaseExchange):
             stepped_amount = trading_validation_result.data
             default_parameters.update(dict(price=price, quantity=stepped_amount))
 
+        if DEBUG:
+            return trade_result_mock(price, amount)
+
         result = self._private_api(Consts.POST, Urls.ORDER, params)
 
         if result.success:
-            price = result.data['price']
-            amount = result.data['origQty']
             result.data.update({
-                'sai_average_price': Decimal(price),
-                'sai_amount': Decimal(amount),
+                'sai_average_price': Decimal(result.data['price']),
+                'sai_amount': Decimal(result.data['origQty']),
                 'sai_order_id': result.data['orderId']
             })
 

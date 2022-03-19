@@ -8,7 +8,11 @@ import datetime
 from urllib.parse import urlencode
 from Util.pyinstaller_patch import debugger
 
+from DiffTrader.GlobalSetting.settings import DEBUG, DEBUG_ORDER_ID
+
+
 from Exchanges.settings import Consts, SaiOrderStatus, BaseTradeType
+from Exchanges.test_settings import trade_result_mock
 from Exchanges.messages import WarningMessage
 from Exchanges.messages import DebugMessage
 
@@ -217,16 +221,16 @@ class BaseUpbit(BaseExchange):
             stepped_price = trading_validation_result.data
             default_parameters.update(dict(price=stepped_price, volume=amount))
 
+        if DEBUG:
+            return trade_result_mock(price, amount)
+
         result = self._private_api(Consts.POST, Urls.ORDERS, default_parameters)
 
         if result.success:
-            price = result.data['avg_price']
-            amount = result.data['volume']
             result.data.update({
-                'sai_average_price': Decimal(price),
-                'sai_amount': Decimal(amount),
+                'sai_average_price': Decimal(result.data['avg_price']),
+                'sai_amount': Decimal(result.data['volume']),
                 'sai_order_id': result.data['uuid']
-
             })
 
         return result
@@ -261,14 +265,15 @@ class BaseUpbit(BaseExchange):
             stepped_price = trading_validation_result.data
             default_parameters.update(dict(price=stepped_price))
 
+        if DEBUG:
+            return trade_result_mock(price, amount)
+
         result = self._private_api(Consts.POST, Urls.ORDERS, default_parameters)
 
         if result.success:
-            price = result.data['avg_price']
-            amount = result.data['volume']
             result.data.update({
-                'sai_average_price': Decimal(price),
-                'sai_amount': Decimal(amount),
+                'sai_average_price': Decimal(result.data['avg_price']),
+                'sai_amount': Decimal(result.data['volume']),
                 'sai_order_id': result.data['uuid']
             })
 
