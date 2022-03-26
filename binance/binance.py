@@ -44,8 +44,13 @@ class Binance(BaseExchange):
         self._get_all_asset_details()
         self._symbol_details_dict = self._set_symbol_details()
 
-    def get_balance(self):
+    def get_balance(self, cached=False):
         debugger.debug(DebugMessage.ENTRANCE.format(name=self.name, fn="get_balance", data=str(locals())))
+
+        if cached and Consts.BALANCE in self._cached_data:
+            with self._lock_dic[Consts.BALANCE]:
+                return self._cached_data[Consts.BALANCE]
+
         result_object = self._private_api(Consts.GET, Urls.ACCOUNT)
 
         if result_object.success:
@@ -56,17 +61,24 @@ class Binance(BaseExchange):
                     balance[coin.upper()] = Decimal(bal['free'])
 
             result_object.data = balance
-
+            self._cached_data[Consts.BALANCE] = balance
         return result_object
 
-    def get_ticker(self, symbol):
+    def get_ticker(self, sai_symbol, cached=False):
         debugger.debug(DebugMessage.ENTRANCE.format(name=self.name, fn="get_ticker", data=str(locals())))
-        binance_symbol = self.converter.sai_to_exchange(symbol)
+        if cached and Consts.TICKER in self._cached_data:
+            with self._lock_dic[Consts.TICKER]:
+                return self._cached_data[Consts.TICKER]
+
+        binance_symbol = self.converter.sai_to_exchange(sai_symbol)
         result_object = self._public_api(Urls.TICKER, {'symbol': binance_symbol})
         if result_object.success:
             ticker = Decimal(result_object.data[0]['trade_price'])
 
             result_object.data = {'sai_price': ticker}
+            self._cached_data[Consts.TICKER] = {sai_symbol: {
+                'data': result_object.data, 'cached_time': time.time()
+            }}
 
         return result_object
 

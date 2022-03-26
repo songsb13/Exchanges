@@ -157,9 +157,12 @@ class BaseExchange(object):
     def __init__(self):
         self._lock_dic = {
             Consts.ORDERBOOK: threading.Lock(),
-            Consts.CANDLE: threading.Lock()
+            Consts.CANDLE: threading.Lock(),
+            Consts.TICKER: threading.Lock(),
+            Consts.BALANCE: threading.Lock()
         }
         self.data_store = DataStore()
+        self._cached_data = {}
 
     def set_subscriber(self):
         debugger.debug(DebugMessage.ENTRANCE.format(name=self.name, fn="set_subscriber", data=str(locals())))

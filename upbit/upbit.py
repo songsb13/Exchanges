@@ -40,24 +40,34 @@ class BaseUpbit(BaseExchange):
         self._key = key
         self._secret = secret
 
-    def get_balance(self):
+    def get_balance(self, cached=False):
         debugger.debug(DebugMessage.ENTRANCE.format(name=self.name, fn="get_balance", data=str(locals())))
+        if cached and Consts.BALANCE in self._cached_data.keys():
+            with self._lock_dic[Consts.BALANCE]:
+                return self._cached_data[Consts.BALANCE]
         result = self._private_api(Consts.GET, Urls.ACCOUNT)
 
         if result.success:
             result.data = {bal['currency']: bal['balance'] for bal in result.data}
-
+            self._cached_data[Consts.BALANCE] = {'data': result.data, 'cached_time': time.time()}
         return result
 
-    def get_ticker(self, sai_symbol):
+    def get_ticker(self, sai_symbol, cached=False):
         debugger.debug(DebugMessage.ENTRANCE.format(name=self.name, fn="get_ticker", data=str(locals())))
         symbol = self.converter.sai_to_exchange(sai_symbol)
+
+        if cached and Consts.TICKER in self._cached_data.keys():
+            with self._lock_dic[Consts.TICKER]:
+                return self._cached_data[Consts.TICKER]
 
         result = self._public_api(Urls.TICKER, {'markets': symbol})
 
         if result.success:
             ticker = Decimal(result.data[0]['trade_price'])
             result.data = {'sai_price': ticker}
+            self._cached_data[Consts.TICKER] = {sai_symbol: {
+                'data': result.data, 'cached_time': time.time()
+            }}
 
         return result
 
