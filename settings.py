@@ -35,6 +35,7 @@ class Consts(object):
     CANDLE = 'candle'
     ORDERBOOK = 'orderbook'
     TICKER = 'ticker'
+    BALANCE = "balance"
 
     NOT_FOUND = 'not found'
 
