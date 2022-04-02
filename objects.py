@@ -164,6 +164,22 @@ class BaseExchange(object):
         self.data_store = DataStore()
         self._cached_data = {}
 
+    def set_cached_data(self, key, data, additional_key=None):
+        with self._lock_dic[key]:
+            if additional_key:
+                self._cached_data[key][additional_key] = {'data': data, 'cached_time': time.time()}
+            else:
+                self._cached_data[key] = {'data': data, 'cached_time': time.time()}
+
+    def get_cached_data(self, key, additional_key=None):
+        with self._lock_dic[key]:
+            if key not in self._cached_data:
+                return {}
+            if additional_key:
+                return self._cached_data[key][additional_key]['data']
+            else:
+                return self._cached_data[key]['data']
+
     def set_subscriber(self):
         debugger.debug(DebugMessage.ENTRANCE.format(name=self.name, fn="set_subscriber", data=str(locals())))
         self._subscriber = self.exchange_subscriber(self.data_store, self._lock_dic)

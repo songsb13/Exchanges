@@ -47,9 +47,8 @@ class Binance(BaseExchange):
     def get_balance(self, cached=False):
         debugger.debug(DebugMessage.ENTRANCE.format(name=self.name, fn="get_balance", data=str(locals())))
 
-        if cached and Consts.BALANCE in self._cached_data:
-            with self._lock_dic[Consts.BALANCE]:
-                return self._cached_data[Consts.BALANCE]
+        if cached and Consts.BALANCE:
+            return self.get_cached_data(Consts.BALANCE)
 
         result_object = self._private_api(Consts.GET, Urls.ACCOUNT)
 
@@ -61,14 +60,13 @@ class Binance(BaseExchange):
                     balance[coin.upper()] = Decimal(bal['free'])
 
             result_object.data = balance
-            self._cached_data[Consts.BALANCE] = balance
+            self.set_cached_data(Consts.BALANCE, result_object.data)
         return result_object
 
     def get_ticker(self, sai_symbol, cached=False):
         debugger.debug(DebugMessage.ENTRANCE.format(name=self.name, fn="get_ticker", data=str(locals())))
-        if cached and Consts.TICKER in self._cached_data:
-            with self._lock_dic[Consts.TICKER]:
-                return self._cached_data[Consts.TICKER]
+        if cached:
+            return self.get_cached_data(Consts.TICKER, sai_symbol)
 
         binance_symbol = self.converter.sai_to_exchange(sai_symbol)
         result_object = self._public_api(Urls.TICKER, {'symbol': binance_symbol})
@@ -76,9 +74,7 @@ class Binance(BaseExchange):
             ticker = Decimal(result_object.data[0]['trade_price'])
 
             result_object.data = {'sai_price': ticker}
-            self._cached_data[Consts.TICKER] = {sai_symbol: {
-                'data': result_object.data, 'cached_time': time.time()
-            }}
+            self.set_cached_data(Consts.TICKER, result_object.data)
 
         return result_object
 
@@ -140,8 +136,10 @@ class Binance(BaseExchange):
         dic_ = dict(BTC=context.create_decimal_from_float(0.001))
         return ExchangeResult(True, dic_)
 
-    async def get_deposit_addrs(self, coin_list=None):
+    async def get_deposit_addrs(self, cached=False, coin_list=None):
         debugger.debug(DebugMessage.ENTRANCE.format(name=self.name, fn="get_deposit_addrs", data=str(locals())))
+        if cached:
+            return self.get_cached_data(Consts.DEPOSIT_ADDRESS)
 
         able_to_trading_coin_set = set()
         for data in self.exchange_info['symbols']:
@@ -184,6 +182,7 @@ class Binance(BaseExchange):
                 address_tag = get_deposit_result_object.data.get('tag')
                 if 'addressTag' in get_deposit_result_object.data:
                     return_deposit_dict[coin + 'TAG'] = address_tag
+            self.set_cached_data(Consts.DEPOSIT_ADDRESS, return_deposit_dict)
             return ExchangeResult(True, return_deposit_dict, result_message)
 
         except Exception as ex:

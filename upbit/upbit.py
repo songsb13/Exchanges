@@ -42,32 +42,28 @@ class BaseUpbit(BaseExchange):
 
     def get_balance(self, cached=False):
         debugger.debug(DebugMessage.ENTRANCE.format(name=self.name, fn="get_balance", data=str(locals())))
-        if cached and Consts.BALANCE in self._cached_data.keys():
-            with self._lock_dic[Consts.BALANCE]:
-                return self._cached_data[Consts.BALANCE]
+        if cached:
+            return self.get_cached_data(Consts.BALANCE)
         result = self._private_api(Consts.GET, Urls.ACCOUNT)
 
         if result.success:
             result.data = {bal['currency']: bal['balance'] for bal in result.data}
-            self._cached_data[Consts.BALANCE] = {'data': result.data, 'cached_time': time.time()}
+            self.set_cached_data(Consts.BALANCE, result.data)
         return result
 
     def get_ticker(self, sai_symbol, cached=False):
         debugger.debug(DebugMessage.ENTRANCE.format(name=self.name, fn="get_ticker", data=str(locals())))
         symbol = self.converter.sai_to_exchange(sai_symbol)
 
-        if cached and Consts.TICKER in self._cached_data.keys():
-            with self._lock_dic[Consts.TICKER]:
-                return self._cached_data[Consts.TICKER]
+        if cached:
+            return self.get_cached_data(Consts.TICKER, sai_symbol)
 
         result = self._public_api(Urls.TICKER, {'markets': symbol})
 
         if result.success:
             ticker = Decimal(result.data[0]['trade_price'])
             result.data = {'sai_price': ticker}
-            self._cached_data[Consts.TICKER] = {sai_symbol: {
-                'data': result.data, 'cached_time': time.time()
-            }}
+            self.set_cached_data(Consts.TICKER, result.data)
 
         return result
 
@@ -141,12 +137,13 @@ class BaseUpbit(BaseExchange):
 
         return ExchangeResult(True, dic_)
 
-    async def get_deposit_addrs(self, avoid_coin_list=None):
+    async def get_deposit_addrs(self, cached=False, avoid_coin_list=None):
         debugger.debug(DebugMessage.ENTRANCE.format(name=self.name, fn="get_deposit_addrs", data=str(locals())))
 
         if avoid_coin_list is None:
             avoid_coin_list = list()
-
+        if cached:
+            return self.get_cached_data(Consts.DEPOSIT_ADDRESS)
         address_result = await self._async_private_api(Consts.GET, Urls.DEPOSIT_ADDRESS)
         if address_result.success:
             result_dict = dict()
@@ -172,6 +169,8 @@ class BaseUpbit(BaseExchange):
                 result_dict[coin] = deposit_address
 
             address_result.data = result_dict
+            self.set_cached_data(Consts.DEPOSIT_ADDRESS, address_result.data)
+            self._cached_data[Consts.DEPOSIT_ADDRESS] = {'data': address_result.data, 'cached_time': time.time()}
 
         return address_result
 
