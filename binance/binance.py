@@ -190,10 +190,13 @@ class Binance(BaseExchange):
 
             return ExchangeResult(False, message=WarningMessage.EXCEPTION_RAISED.format(name=self.name), wait_time=1)
 
-    async def get_transaction_fee(self):
+    async def get_transaction_fee(self, cached=False):
         debugger.debug(DebugMessage.ENTRANCE.format(name=self.name, fn="get_transaction_fee", data=str(locals())))
-        result = self._private_api('GET', Urls.GET_ALL_INFORMATION)
 
+        if cached:
+            self.get_cached_data(Consts.TRANSACTION_FEE)
+
+        result = self._private_api('GET', Urls.GET_ALL_INFORMATION)
         if result.success:
             fees = dict()
             context = Context(prec=8)
@@ -208,7 +211,7 @@ class Binance(BaseExchange):
                         break
 
             result.data = fees
-
+            self.set_cached_data(Consts.BALANCE, fees)
         return result
 
     def buy(self, sai_symbol, trade_type, amount=None, price=None):

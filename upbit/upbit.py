@@ -174,8 +174,12 @@ class BaseUpbit(BaseExchange):
 
         return address_result
 
-    async def get_transaction_fee(self):
+    async def get_transaction_fee(self, cached=False):
         debugger.debug(DebugMessage.ENTRANCE.format(name=self.name, fn="get_transaction_fee", data=str(locals())))
+
+        if cached:
+            self.get_cached_data(Consts.TRANSACTION_FEE)
+
         async with aiohttp.ClientSession() as s:
             url = Urls.Web.BASE + Urls.Web.TRANSACTION_FEE_PAGE
             rq = await s.get(url)
@@ -195,7 +199,7 @@ class BaseUpbit(BaseExchange):
             coin = each['currency']
             withdraw_fee = context.create_decimal(each['withdrawFee'])
             fees.update({coin: withdraw_fee})
-
+        self.set_cached_data(Consts.BALANCE, fees)
         return ExchangeResult(True, fees)
 
     def buy(self, sai_symbol, trade_type, amount=None, price=None):
