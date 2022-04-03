@@ -248,12 +248,13 @@ class Binance(BaseExchange):
         result = self._private_api(Consts.POST, Urls.ORDER, default_parameters)
 
         if result.success:
-            result.data.update({
-                'sai_average_price': Decimal(result.data['price']),
-                'sai_amount': Decimal(result.data['origQty']),
-                'sai_order_id': result.data['orderId']
-
-            })
+            raw_dict = {
+                'average_price': Decimal(result.data['price']),
+                'amount': Decimal(result.data['origQty']),
+                'order_id': result.data['orderId']
+            }
+            sai_dict = self._data_validator.trade(raw_dict)
+            result.data.update(sai_dict)
 
         return result
 
@@ -288,11 +289,13 @@ class Binance(BaseExchange):
         result = self._private_api(Consts.POST, Urls.ORDER, params)
 
         if result.success:
-            result.data.update({
-                'sai_average_price': Decimal(result.data['price']),
-                'sai_amount': Decimal(result.data['origQty']),
-                'sai_order_id': result.data['orderId']
-            })
+            raw_dict = {
+                'average_price': Decimal(result.data['price']),
+                'amount': Decimal(result.data['origQty']),
+                'order_id': result.data['orderId']
+            }
+            sai_dict = self._data_validator.trade(raw_dict)
+            result.data.update(sai_dict)
 
         return result
 
@@ -324,15 +327,16 @@ class Binance(BaseExchange):
             for history_dict in result.data:
                 history_id = history_dict['id']
                 if history_id == id_:
-                    sai_dict = dict(
-                        sai_withdrawn_address=history_dict['address'],
-                        sai_withdrawn_amount=Decimal(history_dict['amount']),
-                        sai_withdrawn_time=datetime.datetime.strptime(history_dict['applyTime'], '%Y-%m-%d %H:%M:%S'),
-                        sai_coin=history_dict['coin'],
-                        sai_network=history_dict['network'],
-                        sai_transaction_fee=Decimal(history_dict['transactionFee']),
-                        sai_transaction_id=history_dict['txId'],
+                    raw_dict = dict(
+                        address=history_dict['address'],
+                        amount=Decimal(history_dict['amount']),
+                        time=datetime.datetime.strptime(history_dict['applyTime'], '%Y-%m-%d %H:%M:%S'),
+                        coin=history_dict['coin'],
+                        network=history_dict['network'],
+                        fee=Decimal(history_dict['transactionFee']),
+                        id=history_dict['txId'],
                     )
+                    sai_dict = self._data_validator.withdrawal(raw_dict)
                     result_dict = {**history_dict, **sai_dict}
                     return ExchangeResult(success=True, data=result_dict)
             else:

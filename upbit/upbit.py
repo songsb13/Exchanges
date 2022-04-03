@@ -20,7 +20,7 @@ from Exchanges.upbit.setting import Urls, OrderStatus, DepositStatus, LocalConst
 from Exchanges.upbit.subscriber import UpbitSubscriber
 from Exchanges.upbit.util import UpbitConverter
 
-from Exchanges.objects import DataStore, ExchangeResult, BaseExchange
+from Exchanges.objects import DataStore, ExchangeResult, BaseExchange, SAIDataValidator
 
 from decimal import Decimal, getcontext, Context
 
@@ -236,11 +236,13 @@ class BaseUpbit(BaseExchange):
         result = self._private_api(Consts.POST, Urls.ORDERS, default_parameters)
 
         if result.success:
-            result.data.update({
-                'sai_average_price': Decimal(result.data['avg_price']),
-                'sai_amount': Decimal(result.data['volume']),
-                'sai_order_id': result.data['uuid']
-            })
+            raw_dict = {
+                'average_price': Decimal(result.data['avg_price']),
+                'amount': Decimal(result.data['volume']),
+                'order_id': result.data['uuid']
+            }
+            sai_dict = self._data_validator.trade(raw_dict)
+            result.data.update(sai_dict)
 
         return result
 
@@ -280,11 +282,13 @@ class BaseUpbit(BaseExchange):
         result = self._private_api(Consts.POST, Urls.ORDERS, default_parameters)
 
         if result.success:
-            result.data.update({
-                'sai_average_price': Decimal(result.data['avg_price']),
-                'sai_amount': Decimal(result.data['volume']),
-                'sai_order_id': result.data['uuid']
-            })
+            raw_dict = {
+                'average_price': Decimal(result.data['avg_price']),
+                'amount': Decimal(result.data['volume']),
+                'order_id': result.data['uuid']
+            }
+            sai_dict = self._data_validator.trade(raw_dict)
+            result.data.update(sai_dict)
 
         return result
 
@@ -318,15 +322,16 @@ class BaseUpbit(BaseExchange):
             for history_dict in result.data:
                 history_id = history_dict['uuid']
                 if history_id == uuid:
-                    sai_dict = dict(
-                        sai_withdrawn_address=Consts.NOT_FOUND,
-                        sai_withdrawn_amount=Decimal(history_dict['amount']),
-                        sai_withdrawn_time=datetime.datetime.fromisoformat(history_dict['done_at']),
-                        sai_coin=history_dict['currency'],
-                        sai_network=Consts.NOT_FOUND,
-                        sai_transaction_fee=Decimal(history_dict['fee']),
-                        sai_transaction_id=history_dict['txid'],
+                    raw_dict = dict(
+                        address=Consts.NOT_FOUND,
+                        amount=Decimal(history_dict['amount']),
+                        time=datetime.datetime.fromisoformat(history_dict['done_at']),
+                        coin=history_dict['currency'],
+                        network=Consts.NOT_FOUND,
+                        fee=Decimal(history_dict['fee']),
+                        id=history_dict['txid'],
                     )
+                    sai_dict = self._data_validator.withdrawal(raw_dict)
                     result_dict = {**history_dict, **sai_dict}
 
                     return ExchangeResult(success=True, data=result_dict)
