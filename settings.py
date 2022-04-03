@@ -30,6 +30,7 @@ class Consts(object):
     TICKER = 'ticker'
     BALANCE = "balance"
     DEPOSIT_ADDRESS = 'deposit_address'
+    TRANSACTION_FEE = 'transaction_fee'
 
     NOT_FOUND = 'not found'
 
