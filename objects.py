@@ -19,6 +19,47 @@ from Util.pyinstaller_patch import debugger
 decimal.getcontext().prec = 8
 
 
+class SAIDataValidator(object):
+    def _has_key(self, dic, required):
+        key = set(dic.keys())
+        return key == key.intersection(required)
+
+    def generate_sai_data_dict(self, required, key_list, data_dict):
+        if not self._has_key(data_dict, required):
+            return
+
+        sai_dict = dict()
+        for key, type_ in key_list:
+            sai_dict[f'sai_{key}'] = data_dict.get(type_(key), Consts.NOT_FOUND)
+
+        return sai_dict
+
+    def withdrawal(self, data_dict):
+        key_list = [
+            ('address', str),
+            ('amount', decimal.Decimal),
+            ('time', str),
+            ('coin', str),
+            ('network', str),
+            ('fee', decimal.Decimal),
+            ('id', str)
+        ]
+        required = ('amount', 'coin', 'id')
+
+        return self.generate_sai_data_dict(required, key_list, data_dict)
+
+    def trade(self, data_dict):
+        key_list = [
+            ('average_price', decimal.Decimal),
+            ('amount', decimal.Decimal),
+            ('id', str)
+        ]
+
+        required = ('average_price', 'amount', 'id')
+
+        return self.generate_sai_data_dict(required, key_list, data_dict)
+
+
 class ExchangeResult(object):
     """
         Return exchange result abstract class
@@ -163,6 +204,7 @@ class BaseExchange(object):
         }
         self.data_store = DataStore()
         self._cached_data = {}
+        self._data_validator = SAIDataValidator()
 
     def set_cached_data(self, key, data, additional_key=None):
         with self._lock_dic[key]:
