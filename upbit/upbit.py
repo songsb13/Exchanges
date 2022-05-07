@@ -40,6 +40,9 @@ class BaseUpbit(BaseExchange):
         self._key = key
         self._secret = secret
 
+    def __str__(self):
+        return self.name
+
     def get_balance(self, cached=False):
         debugger.debug(DebugMessage.ENTRANCE.format(name=self.name, fn="get_balance", data=str(locals())))
         if cached:

@@ -44,6 +44,9 @@ class Binance(BaseExchange):
         self._get_all_asset_details()
         self._symbol_details_dict = self._set_symbol_details()
 
+    def __str__(self):
+        return self.name
+
     def get_balance(self, cached=False):
         debugger.debug(DebugMessage.ENTRANCE.format(name=self.name, fn="get_balance", data=str(locals())))
 
