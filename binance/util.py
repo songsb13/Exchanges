@@ -14,13 +14,12 @@ def _symbol_customizing(symbol):
 
 
 def sai_to_binance_converter(pair):
-    # BTC_XRP -> XRPBTC
+    # BTC_XRP -> xrpbtc
     market, trade = pair.split('_')
-
-    return _symbol_localizing(trade) + market
+    return '{}{}'.format(_symbol_localizing(trade), market).lower()
 
 
 def binance_to_sai_converter(pair):
     market, trade = pair[-3:], pair[:-3]
-
-    return market + '_' + _symbol_customizing(trade)
+    
+    return '{}_{}'.format(market, _symbol_customizing(trade)).upper()

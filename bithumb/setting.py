@@ -18,3 +18,4 @@ class Urls(object):
     BALANCE = '/info/balance'
     ACCOUNT = '/info/account'
     TRANSACTION_FEE = '/customer_support/info_fee'
+    ORDER_DETAIL = '/info/order_detail'

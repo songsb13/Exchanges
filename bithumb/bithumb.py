@@ -231,6 +231,19 @@ class BaseBithumb(BaseExchange):
     def get_precision(self, pair=None):
         return ExchangeResult(True, (-8, -8))
 
+    def check_order(self, data, profit_object):
+        order_id = data['order_id']
+        base, alt = profit_object.currency.split('_')[1]
+
+        result = self._private_api(Consts.POST, Urls.ORDER_DETAIL, dict(
+            order_id=order_id, order_currency=alt, payment_currency=base
+        ))
+
+        if result.success:
+            return result.data
+        else:
+            return dict()
+
     async def _async_private_api(self, method, path, extra=None):
         extra = dict() if extra is None else extra
 

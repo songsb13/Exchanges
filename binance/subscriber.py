@@ -4,88 +4,137 @@ except ImportError:
     import _thread as thread
 
 import json
+import websocket
 
 from Util.pyinstaller_patch import *
-from websocket import create_connection
-from websocket import WebSocketConnectionClosedException
-from Exchanges.binance.setting import Tickets, Urls
+from Exchanges.binance.setting import Urls
+from Exchanges.settings import Consts
+
+from threading import Event
 
 
-class Receiver(threading.Thread):
-    def __init__(self, store_queue, params, _id, symbol_set, lock):
-        super(Receiver, self).__init__()
-        self.store_queue = store_queue
-        self._temp_queue = {symbol.upper(): list() for symbol in symbol_set}
-        self._params = params
-        self.lock = lock
-
-        path = Urls.Websocket.SINGLE if len(params) == 1 else Urls.Websocket.STREAMS
-        self._url = Urls.Websocket.BASE + path + '/'.join(params)
-
-        self._id = _id
-
-        self.stop_flag = False
-
-        self._symbol_set = symbol_set
-
-        self.websocket_app = create_connection(self._url)
-    
-    def subscribe(self):
-        json_ = json.dumps({"method": "SUBSCRIBE", "params": self._params, 'id': self._id})
+class BinanceSubscriber(websocket.WebSocketApp):
+    def __init__(self, data_store, lock_dic):
+        """
+            data_store: An object for storing orderbook&candle data, using orderbook&candle queue in this object.
+            lock_dic: dictionary for avoid race condition, {orderbook: Lock, candle: Lock}
+        """
+        debugger.debug('BinanceSubscriber::: start')
         
-        self.websocket_app.send(json_)
-    
-    def unsubscribe(self, params=None):
-        if params is None:
-            # 차후 별개의 값들이 unsubscribe되어야 할 때
-            json_ = {"method": "UNSUBSCRIBE", "params": self._params, 'id': self._id}
-            self.websocket_app.send(json_)
+        super(BinanceSubscriber, self).__init__(Urls.Websocket.BASE, on_message=self.on_message)
+        
+        websocket.enableTrace(True)
+        self.data_store = data_store
+        self.name = 'binance_subscriber'
+        self.time = '30m'
+        self._default_socket_id = 1
+        self._unsub_id = 2
+        self._lock_dic = lock_dic
+        
+        self.subscribe_set = set()
+        self.unsubscribe_set = set()
+        self._temp_orderbook_store = dict()
+        self._temp_candle_store = dict()
 
-    def run(self):
-        while not self.stop_flag:
-            try:
-                if self._id == Tickets.ORDERBOOK.value:
-                    self.orderbook_receiver()
-                elif self._id == Tickets.CANDLE.value:
-                    self.candle_receiver()
-                    
-            except WebSocketConnectionClosedException:
-                debugger.debug('Disconnected orderbook websocket.')
-                self.stop()
-                raise WebSocketConnectionClosedException
+        self.start_run_forever_thread()
 
-            except Exception as ex:
-                debugger.exception('Unexpected error from Websocket thread.')
-                self.stop()
-                raise ex
+    def _switching_parameters(self, stream, is_subscribe=True):
+        try:
+            if is_subscribe:
+                self.subscribe_set.add(stream)
+                self.unsubscribe_set.remove(stream)
+            else:
+                self.subscribe_set.remove(stream)
+                self.unsubscribe_set.add(stream)
+        except Exception as ex:
+            debugger.debug('BinanceSubscriber::: _switching_parameters error, [{}]'.format(ex))
+        return
+
+    def _subscribe(self):
+        set_to_list = list(self.subscribe_set)
+        data = json.dumps({"method": "SUBSCRIBE", "params": set_to_list, 'id': self._default_socket_id})
+        self.send(data)
+
+    def _unsubscribe(self):
+        set_to_list = list(self.unsubscribe_set)
+        data = json.dumps({"method": "UNSUBSCRIBE", "params": set_to_list, 'id': self._unsub_id})
+        self.send(data)
+
+    def start_run_forever_thread(self):
+        debugger.debug('BinanceSubscriber::: start_run_forever_thread')
+        self.subscribe_thread = threading.Thread(target=self.run_forever, daemon=True)
+        self.subscribe_thread.start()
 
     def stop(self):
-        self.websocket_app.close()
-        self.stop_flag = True
-    
-    def orderbook_receiver(self):
-        message = json.loads(self.websocket_app.recv())
-        if 'result' not in message:
-            data = message.get('data', None)
+        self._evt = Event()
+        self._evt.set()
+
+    def subscribe_orderbook(self, values):
+        debugger.debug('BinanceSubscriber::: subscribe_orderbook')
+        if isinstance(values, (list, tuple, set)):
+            for val in values:
+                stream = Urls.Websocket.SELECTED_BOOK_TICKER.format(symbol=val)
+                self._switching_parameters(stream, is_subscribe=True)
+
+        self._subscribe()
+
+    def unsubscribe_orderbook(self, symbol):
+        debugger.debug('BinanceSubscriber::: unsubscribe_orderbook')
+        stream = Urls.Websocket.SELECTED_BOOK_TICKER.format(symbol=symbol)
+        self._switching_parameters(stream, is_subscribe=False)
+
+        self._unsubscribe()
+
+    def subscribe_candle(self, values):
+        debugger.debug('BinanceSubscriber::: subscribe_candle')
+        if isinstance(values, (list, tuple, set)):
+            for val in values:
+                stream = Urls.Websocket.CANDLE.format(symbol=val, interval=self.time)
+                self._switching_parameters(stream, is_subscribe=True)
+
+        self._subscribe()
+
+    def unsubscribe_candle(self, symbol):
+        debugger.debug('BinanceSubscriber::: unsubscribe_candle')
+        stream = Urls.Websocket.CANDLE.format(symbol=symbol, interval=self.time)
+        self._switching_parameters(stream, is_subscribe=False)
+        
+        self._unsubscribe()
+
+    def on_message(self, *args):
+        obj_, message = args
+        try:
+            data = json.loads(message)
+            if 'result' not in data:
+                # b: orderbook's price
+                # B: orderbook's amount
+                if 'b' in data and 'B' in data:
+                    self.orderbook_receiver(data)
+                else:
+                    self.candle_receiver(data)
+        except Exception as ex:
+            debugger.debug('BinanceSubscriber::: on_message error, [{}]'.format(ex))
+
+    def orderbook_receiver(self, data):
+        with self._lock_dic[Consts.ORDERBOOK]:
             symbol = data['s']
-            
-            self._temp_queue[symbol].append(dict(
+            self._temp_orderbook_store.setdefault(symbol, list())
+        
+            self._temp_orderbook_store[symbol].append(dict(
                 bids=dict(price=data['b'], amount=data['B']),
                 asks=dict(price=data['a'], amount=data['A'])
             ))
-            
-            if len(self._temp_queue[symbol]) >= 20:
-                with self.lock():
-                    self.store_queue[symbol] = self._temp_queue[symbol]
-                    self._temp_queue[symbol] = list()
-                
-    def candle_receiver(self):
-        message = json.loads(self.websocket_app.recv())
-        if 'result' not in message:
-            data = message.get('data', None)
-            symbol = data['s']
+        
+            if len(self._temp_orderbook_store[symbol]) >= Consts.ORDERBOOK_LIMITATION:
+                self.data_store.orderbook_queue[symbol] = self._temp_orderbook_store[symbol]
+                self._temp_orderbook_store[symbol] = list()
+
+    def candle_receiver(self, data):
+        with self._lock_dic[Consts.CANDLE]:
             kline = data['k']
-            self._temp_queue[symbol].append(dict(
+            symbol = kline['s']
+            self._temp_candle_store.setdefault(symbol, list())
+            self._temp_candle_store[symbol].append(dict(
                 high=kline['h'],
                 low=kline['l'],
                 close=kline['c'],
@@ -93,62 +142,6 @@ class Receiver(threading.Thread):
                 timestamp=kline['t'],
                 volume=kline['v']
             ))
-            with self.lock():
-                self.store_queue[symbol] = self._temp_queue[symbol]
-                self._temp_queue[symbol] = list()
-                
-
-class BinanceSubscriber(object):
-    def __init__(self, data_store, lock):
-        super(BinanceSubscriber, self).__init__()
-        self.data_store = data_store
-        self.name = 'binance_subscriber'
-        self.orderbook_symbol_set = list()
-        self.candle_symbol_set = list()
-        
-        self._lock_dic = lock
-        
-        self.orderbook_receiver = None
-        self.candle_receiver = None
-
-    def unsubscribe_orderbook(self):
-        if self.orderbook_receiver:
-            self.orderbook_receiver.unsubscribe()
-            self.orderbook_receiver.stop()
-
-    def unsubscribe_candle(self):
-        if self.candle_receiver:
-            self.candle_receiver.unsubscribe()
-            self.candle_receiver.stop()
-    
-    def subscribe_orderbook(self):
-        if self.orderbook_symbol_set:
-            params = [Urls.Websocket.SELECTED_BOOK_TICKER.format(symbol=symbol) for symbol in self.orderbook_symbol_set]
-        else:
-            # 전체 orderbook 가져옴.
-            params = [Urls.Websocket.ALL_BOOK_TICKER]
-        
-        self.orderbook_receiver = Receiver(
-            self.data_store.orderbook_queue,
-            params,
-            Tickets.ORDERBOOK.value,
-            self.orderbook_symbol_set,
-            self._lock_dic['orderbook']
-        )
-        self.orderbook_receiver.subscribe()
-        self.orderbook_receiver.start()
-            
-    def subscribe_candle(self, time_):
-        """
-            time_: 1m, 3m, 5m, 15m, 30m 1h, 2h, 4h, 6h, 8h, 12h, 1d, 3d, 1w, 1M
-        """
-        params = ['{}@kline_{}'.format(symbol, time_) for symbol in self.candle_symbol_set]
-        self.candle_receiver = Receiver(
-            self.data_store.candle_queue,
-            params,
-            Tickets.CANDLE.value,
-            self.candle_symbol_set,
-            self._lock_dic['candle']
-        )
-        self.candle_receiver.subscribe()
-        self.candle_receiver.start()
+            if len(self._temp_candle_store[symbol]) >= Consts.CANDLE_LIMITATION:
+                self.data_store.candle_queue[symbol] = self._temp_candle_store[symbol]
+                self._temp_candle_store[symbol] = list()

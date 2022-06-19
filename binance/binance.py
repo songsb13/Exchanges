@@ -27,41 +27,20 @@ decimal.getcontext().prec = 8
 class Binance(BaseExchange):
     name = 'Binance'
 
-    def __init__(self, key, secret, coin_list, time_):
+    def __init__(self, key, secret):
         self._key = key
         self._secret = secret
-        
-        self._coin_list = coin_list
-        self._candle_time = time_
         
         self.exchange_info = None
         self._get_exchange_info()
         self.data_store = DataStore()
         
-        self._lock_dic = dict(orderbook=threading.Lock(), candle=threading.Lock())
+        self._lock_dic = {
+            Consts.ORDERBOOK: threading.Lock(),
+            Consts.CANDLE: threading.Lock()
+        }
         
         self._subscriber = BinanceSubscriber(self.data_store, self._lock_dic)
-        
-        self._websocket_candle_settings()
-        self._websocket_orderbook_settings()
-
-    def _websocket_candle_settings(self):
-        time_str = '{}m'.format(self._candle_time) if self._candle_time < 60 else '{}h'.format(self._candle_time // 60)
-        if not self._subscriber.candle_symbol_set:
-            pairs = [binance_to_sai_converter(pair).lower()
-                     for pair in self._coin_list]
-            setattr(self._subscriber, 'candle_symbol_set', pairs)
-
-        if self._subscriber.candle_receiver is None or not self._subscriber.candle_receiver.isAlive():
-            self._subscriber.subscribe_candle(time_str)
-    
-    def _websocket_orderbook_settings(self):
-        if not self._subscriber.orderbook_symbol_set:
-            pairs = [binance_to_sai_converter(pair).lower() for pair in self._coin_list]
-            setattr(self._subscriber, 'orderbook_symbol_set', pairs)
-    
-        if self._subscriber.orderbook_receiver is None or not self._subscriber.orderbook_receiver.isAlive():
-            self._subscriber.subscribe_orderbook()
 
     def _public_api(self, path, extra=None):
         if extra is None:
@@ -262,15 +241,39 @@ class Binance(BaseExchange):
 
         return self._private_api(Consts.POST, Urls.WITHDRAW, params)
 
-    def get_candle(self):
+    def set_subscribe_candle(self, coin):
+        """
+            subscribe candle.
+            coin: it can be list or string, [xrpbtc, ethbtc] or 'xrpbtc'
+        """
+        coin = list(map(sai_to_binance_converter, coin)) if isinstance(coin, list) \
+            else sai_to_binance_converter(coin)
         with self._lock_dic['candle']:
-            candle_dict = self.data_store.candle_queue
+            self._subscriber.subscribe_candle(coin)
+
+        return True
+
+    def set_subscribe_orderbook(self, coin):
+        """
+            subscribe orderbook.
+            coin: it can be list or string, [xrpbtc, ethbtc] or 'xrpbtc'
+        """
+
+        coin = list(map(sai_to_binance_converter, coin)) if isinstance(coin, list) \
+            else sai_to_binance_converter(coin)
+        with self._lock_dic['orderbook']:
+            self._subscriber.subscribe_orderbook(coin)
+
+        return True
+
+    def get_candle(self, coin):
+        with self._lock_dic['candle']:
+            candle_dict = self.data_store.candle_queue.get(coin, None)
         
             if not candle_dict:
                 return ExchangeResult(False, message=WarningMessage.CANDLE_NOT_STORED.format(name=self.name), wait_time=1)
-        
+            
             rows = ['timestamp', 'open', 'close', 'high', 'low', 'volume']
-        
             result_dict = dict()
             for symbol, candle_list in candle_dict.items():
                 history = {key_: list() for key_ in rows}
@@ -280,6 +283,9 @@ class Binance(BaseExchange):
                 result_dict[symbol] = history
     
         return ExchangeResult(True, result_dict)
+
+    def check_order(self, data, profit_object):
+        return data
 
     async def _async_private_api(self, method, path, extra=None):
         if extra is None:
@@ -501,7 +507,7 @@ class Binance(BaseExchange):
     async def get_curr_avg_orderbook(self, coin_list, btc_sum=1):
         try:
             pairs = [(self._symbol_localizing(pair.split('_')[1]) + pair.split('_')[0]).lower()
-                     for pair in self._coin_list]
+                     for pair in coin_list]
                 
             if not self.data_store.orderbook_queue:
                 return ExchangeResult(False, message=WarningMessage.ORDERBOOK_NOT_STORED.format(name=self.name), wait_time=1)
