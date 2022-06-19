@@ -7,7 +7,6 @@ import json
 import decimal
 from decimal import Context
 
-from Util.pyinstaller_patch import *
 from Exchanges.binance.util import BinanceConverter as converter
 from Exchanges.binance.setting import Urls
 from Exchanges.settings import Consts, Tickets
