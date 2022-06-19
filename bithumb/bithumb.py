@@ -366,10 +366,7 @@ class BaseBithumb(BaseExchange):
     async def get_deposit_addrs(self, coin_list=None):
         ret_data = dict()
         failed_log = str()
-        # bithumb의 get_available_coin은 하드코딩이므로 data외 값을 받을 필요 없음.
-        available_result_object = self.get_available_coin()
-        available_coin = available_result_object.data + ['BTC_BTC']
-        for currency in available_coin:
+        for currency in AVAILABLE_COINS:
             # todo test시 결과 값 보고 수정처리 필요.
             currency = currency[4:]
 
@@ -388,11 +385,8 @@ class BaseBithumb(BaseExchange):
                     ret_data[currency] = data['data']['wallet_address']
 
             else:
-                failed_log += deposit_result_object.message + '\n'
-
-        result = (True, ret_data, failed_log, 0)
-
-        return ExchangeResult(*result)
+                failed_log += '[{}], {} \n'.format(currency, deposit_result_object.message)
+        return ExchangeResult(True, ret_data, failed_log, 0)
 
     async def get_curr_avg_orderbook(self, currencies, default_btc=1):
         avg_orderbook, btc_average = (dict() for _ in range(2))
