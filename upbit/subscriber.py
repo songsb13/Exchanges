@@ -1,109 +1,57 @@
 import json
 
-import websocket
 from websocket import WebSocketConnectionClosedException
 from Util.pyinstaller_patch import *
-from enum import Enum
+
+from Exchanges.upbit.util import UpbitConverter as converter
 from Exchanges.upbit.setting import Urls
-from Exchanges.settings import Consts
-
-from threading import Event
-
-
-class Tickets(Enum):
-    """
-        upbit는 개별 ticket값으로 구분함, 유니크 id로 구분
-        1~1000: public
-        1001~2000: private
-    """
-    ORDERBOOK = 10
-    CANDLE = 20
+from Exchanges.settings import Consts, Tickets
+from Exchanges.objects import BaseSubscriber
 
 
-class UpbitSubscriber(websocket.WebSocketApp):
+class UpbitSubscriber(BaseSubscriber):
+    websocket_url = Urls.Websocket.BASE
+    name = 'Upbit Subscriber'
+
     def __init__(self, data_store, lock_dic):
         """
             data_store: An object for storing orderbook&candle data, using orderbook&candle queue in this object.
             lock_dic: dictionary for avoid race condition, {orderbook: Lock, candle: Lock}
         """
-        debugger.debug('UpbitSubscriber::: start')
+        debugger.debug(f'{self.name}::: start')
 
-        super(UpbitSubscriber, self).__init__(Urls.Websocket.BASE, on_message=self.on_message)
-        
+        super(UpbitSubscriber, self).__init__()
+
         self.data_store = data_store
-        self.name = 'upbit_subscriber'
         self._lock_dic = lock_dic
-    
-        self._candle_symbol_set = set()
-        self._orderbook_symbol_set = set()
-        self._temp_orderbook_store = dict()
-        self._temp_candle_store = dict()
-        
-        self.subscribe_set = dict()
 
-        self.start_run_forever_thread()
-
-    def _remove_contents(self, symbol, symbol_set):
-        try:
-            symbol_set.remove(symbol)
-        except Exception as ex:
-            debugger.debug('UpbitSubscriber::: remove error, [{}]'.format(ex))
-
-    def _send_with_subscribe_set(self):
-        data = list()
-        for key, item in self.subscribe_set.items():
-            data += self.subscribe_set[key]
-    
-        self.send(json.dumps(data))
-
-    def start_run_forever_thread(self):
-        debugger.debug('UpbitSubscriber::: start_run_forever_thread')
-        self.subscribe_thread = threading.Thread(target=self.run_forever, daemon=True)
-        self.subscribe_thread.start()
-
-    def stop(self):
-        self._evt = Event()
-        self._evt.set()
-    
-    def subscribe_orderbook(self, values):
-        debugger.debug('UpbitSubscriber::: subscribe_orderbook')
-        if isinstance(values, (list, tuple, set)):
-            self._orderbook_symbol_set = self._orderbook_symbol_set.union(set(values))
-
-        if Consts.ORDERBOOK not in self.subscribe_set:
-            self.subscribe_set.setdefault(Consts.ORDERBOOK, list())
-        
-        self.subscribe_set[Consts.ORDERBOOK] = [{"ticket": "{}".format(Tickets.ORDERBOOK.value)},
-                                                     {"type": Consts.ORDERBOOK,
-                                                      "codes": list(self._orderbook_symbol_set),
-                                                      "isOnlyRealtime": True}]
-    
+    def subscribe_orderbook(self):
+        debugger.debug(f'{self.name}::: subscribe_orderbook')
+        self._subscribe_dict[Consts.ORDERBOOK] = [
+            {
+                "ticket": Tickets.ORDERBOOK,
+            },
+            {
+                "type": Consts.ORDERBOOK,
+                "codes": list(self._orderbook_symbol_set),
+                "isOnlyRealtime": True
+            }
+        ]
         self._send_with_subscribe_set()
 
-    def unsubscribe_orderbook(self, symbol):
-        debugger.debug('UpbitSubscriber::: unsubscribe_orderbook')
-        
-        self._remove_contents(symbol, self._orderbook_symbol_set)
-        self.subscribe_orderbook(symbol)
-
-    def subscribe_candle(self, values):
-        debugger.debug('UpbitSubscriber::: subscribe_candle')
-        if isinstance(values, (list, tuple, set)):
-            self._candle_symbol_set = self._candle_symbol_set.union(set(values))
-
-        if Consts.CANDLE not in self.subscribe_set:
-            self.subscribe_set.setdefault(Consts.CANDLE, list())
-
-        self.subscribe_set[Consts.CANDLE] = [{"ticket": "{}".format(Tickets.CANDLE.value)},
-                                                  {"type": Consts.TICKER, "codes": list(self._candle_symbol_set)}]
+    def subscribe_candle(self):
+        debugger.debug(f'{self.name}::: subscribe_candle')
+        self._subscribe_dict[Consts.CANDLE] = [
+            {
+                "ticket": Tickets.CANDLE,
+            },
+            {
+                "type": Consts.TICKER,
+                "codes": list(self._candle_symbol_set)
+            }
+        ]
 
         self._send_with_subscribe_set()
-
-    def unsubscribe_candle(self, symbol):
-        debugger.debug('UpbitSubscriber::: unsubscribe_candle')
-        
-        self._remove_contents(symbol, self._candle_symbol_set)
-        self.subscribe_candle(symbol)
 
     def on_message(self, *args):
         obj_, message = args
@@ -126,31 +74,73 @@ class UpbitSubscriber(websocket.WebSocketApp):
 
     def orderbook_receiver(self, data):
         with self._lock_dic[Consts.ORDERBOOK]:
-            market = data['code']
-            # 1. insert data to temp_orderbook_store if type_ is 'orderbook'
-            # 2. if more than 100 are filled, insert to orderbook_queue for using 'get_curr_avg_orderbook'
-            if market not in self._temp_orderbook_store:
-                self._temp_orderbook_store.setdefault(market, list())
-        
-            self._temp_orderbook_store[market] += data['orderbook_units']
-        
-            if len(self._temp_orderbook_store[market]) >= Consts.ORDERBOOK_LIMITATION:
-                self.data_store.orderbook_queue[market] = self._temp_orderbook_store
-                self._temp_orderbook_store[market] = list()
-    
+            symbol = data['code']
+            sai_symbol = converter.exchange_to_sai(symbol)
+
+            data_keys = {
+                Consts.BID_PRICE_KEY: 'bid_price',
+                Consts.BID_AMOUNT_KEY: 'bid_size',
+                Consts.ASK_PRICE_KEY: 'ask_price',
+                Consts.ASK_AMOUNT_KEY: 'ask_size'
+            }
+
+            total = self.temp_orderbook_setter(data['orderbook_units'], data_keys)
+            self.data_store.orderbook_queue[sai_symbol] = total
+
     def candle_receiver(self, data):
         with self._lock_dic[Consts.CANDLE]:
-            market = data['code']
-            candle = dict(
-                timestamp=data['trade_timestamp'],
-                open=data['opening_price'],
-                close=data['trade_price'],
-                high=data['high_price'],
-                low=data['low_price']
+            symbol = data['code']
+            sai_symbol = converter.exchange_to_sai(symbol)
+            candle_list = [
+                data['opening_price'],
+                data['high_price'],
+                data['low_price'],
+                data['trade_price'],
+                data['trade_volume'],
+                data['trade_timestamp'],
+            ]
+
+            store_list = self.temp_candle_setter(
+                self.data_store.candle_queue[sai_symbol],
+                candle_list
             )
-            if market not in self._temp_candle_store:
-                self._temp_candle_store.setdefault(market, list())
-            self._temp_candle_store[market].append(candle)
-            if len(self._temp_candle_store[market]) >= Consts.CANDLE_LIMITATION:
-                self.data_store.candle_queue[market] = self._temp_candle_store[market]
-                self._temp_candle_store[market] = list()
+
+            self.data_store.candle_queue[sai_symbol] = store_list
+
+    def unsubscribe_orderbook(self, symbol):
+        debugger.debug(f'{self.name}::: unsubscribe_orderbook')
+
+        self._remove_contents(symbol, self._orderbook_symbol_set)
+
+    def unsubscribe_candle(self, symbol):
+        debugger.debug(f'{self.name}::: unsubscribe_candle')
+
+        self._remove_contents(symbol, self._candle_symbol_set)
+
+    def _remove_contents(self, symbol, symbol_set):
+        try:
+            symbol_set.remove(symbol)
+        except Exception as ex:
+            debugger.debug(f'{self.name}::: remove error, [{ex}]')
+
+    def _send_with_subscribe_set(self):
+        data = list()
+        for key, item in self._subscribe_dict.items():
+            data += self._subscribe_dict[key]
+
+        self._websocket_app.send(str(data))
+
+
+if __name__ == '__main__':
+    from Exchanges.upbit.upbit import BaseUpbit
+
+    _lock_dic = {
+        Consts.ORDERBOOK: threading.Lock(),
+        Consts.CANDLE: threading.Lock()
+    }
+    symbols = ["KRW_XRP", 'KRW_ETH']
+    upbit = BaseUpbit('', '')
+    upbit.set_subscriber()
+    upbit.set_subscribe_orderbook(symbols)
+
+    print('f')

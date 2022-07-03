@@ -2,318 +2,510 @@ import jwt
 import time
 import json
 import aiohttp
-import numpy as np
-import asyncio
 import requests
-import threading
+import datetime
 
 from urllib.parse import urlencode
 from Util.pyinstaller_patch import debugger
 
-from Exchanges.settings import Consts
-from Exchanges.messages import WarningMessage as WarningMsg
+from DiffTrader.GlobalSetting.settings import DEBUG, DEBUG_ORDER_ID
 
-from Exchanges.upbit.setting import Urls
+
+from Exchanges.settings import Consts, SaiOrderStatus, BaseTradeType
+from Exchanges.test_settings import trade_result_mock
+from Exchanges.messages import WarningMessage
+from Exchanges.messages import DebugMessage
+
+from Exchanges.upbit.setting import Urls, OrderStatus, DepositStatus, LocalConsts, WithdrawalStatus
 from Exchanges.upbit.subscriber import UpbitSubscriber
-from Exchanges.upbit.util import sai_to_upbit_symbol_converter, upbit_to_sai_symbol_converter
+from Exchanges.upbit.util import UpbitConverter
 
-from Exchanges.abstracts import BaseExchange
-from Exchanges.objects import DataStore, ExchangeResult
+from Exchanges.objects import DataStore, ExchangeResult, BaseExchange, SAIDataValidator
 
-import decimal
+from decimal import Decimal, getcontext, Context
 
-decimal.getcontext().prec = 8
+
+getcontext().prec = 8
 
 
 class BaseUpbit(BaseExchange):
     name = 'Upbit'
+    converter = UpbitConverter
+    exchange_subscriber = UpbitSubscriber
+    urls = Urls
+    error_key = 'error'
 
     def __init__(self, key, secret):
+        super(BaseUpbit, self).__init__()
         self._key = key
         self._secret = secret
-        self.data_store = DataStore()
-        
-        self._lock_dic = {
-            Consts.ORDERBOOK: threading.Lock(),
-            Consts.CANDLE: threading.Lock()
-        }
-        
-        self._subscriber = UpbitSubscriber(self.data_store, self._lock_dic)
 
-    def _public_api(self, path, extra=None):
-        if extra is None:
-            extra = dict()
-        
-        url = Urls.BASE + path
-        rq = requests.get(url, json=extra)
-        try:
-            res = rq.json()
-            
-            if 'error' in res:
-                error_msg = res.get('error', dict()).get('message', WarningMsg.MESSAGE_NOT_FOUND.format(name=self.name))
-                return ExchangeResult(False, message=error_msg, wait_time=1)
-            
+    def __str__(self):
+        return self.name
+
+    def get_balance(self, cached=False):
+        debugger.debug(DebugMessage.ENTRANCE.format(name=self.name, fn="get_balance", data=str(locals())))
+        if cached:
+            return self.get_cached_data(Consts.BALANCE)
+        result = self._private_api(Consts.GET, Urls.ACCOUNT)
+
+        if result.success:
+            result.data = {bal['currency']: bal['balance'] for bal in result.data}
+            self.set_cached_data(Consts.BALANCE, result.data)
+        return result
+
+    def get_ticker(self, sai_symbol, cached=False):
+        debugger.debug(DebugMessage.ENTRANCE.format(name=self.name, fn="get_ticker", data=str(locals())))
+        symbol = self.converter.sai_to_exchange(sai_symbol)
+
+        if cached:
+            return self.get_cached_data(Consts.TICKER, sai_symbol)
+
+        result = self._public_api(Urls.TICKER, {'markets': symbol})
+
+        if result.success:
+            ticker = Decimal(result.data[0]['trade_price'])
+            result.data = {'sai_price': ticker}
+            self.set_cached_data(Consts.TICKER, result.data)
+
+        return result
+
+    def get_available_symbols(self):
+        debugger.debug(DebugMessage.ENTRANCE.format(name=self.name, fn="get_available_symbols", data=''))
+        result = self._public_api(Urls.CURRENCY)
+
+        if result.success:
+            result_list = list()
+            for data in result.data:
+                symbol = data.get('market')
+                if symbol:
+                    converted = self.converter.exchange_to_sai(symbol)
+                    result_list.append(converted)
             else:
-                return ExchangeResult(True, res)
-        
-        except:
-            debugger.exception('FATAL: Upbit, _public_api')
-            return ExchangeResult(False, message=WarningMsg.EXCEPTION_RAISED.format(name=self.name), wait_time=1)
+                return ExchangeResult(True, data=result_list)
+        else:
+            return result
 
-    def _private_api(self, method, path, extra=None):
-        payload = {
-            'access_key': self._key,
-            'nonce': int(time.time() * 1000),
-        }
-        
-        if extra is not None:
-            payload.update({'query': urlencode(extra)})
-        
-        header = self.get_jwt_token(payload)
-        
-        url = Urls.BASE + path
-        rq = requests.post(url, header=header, data=extra)
+    def get_order_history(self, uuid, additional_parameter):
+        debugger.debug(DebugMessage.ENTRANCE.format(name=self.name, fn="get_order_history", data=str(locals())))
+        params = dict(uuid=uuid)
 
-        try:
-            res = rq.json()
-    
-            if 'error' in res:
-                error_msg = res.get('error', dict()).get('message', WarningMsg.MESSAGE_NOT_FOUND.format(name=self.name))
-                return ExchangeResult(False, message=error_msg, wait_time=1)
-    
+        result = self._private_api(Consts.GET, Urls.ORDER, params)
+
+        if result.success:
+            price_list, amount_list = list(), list()
+            for each in result.data['trades']:
+                total_price = float(each['price']) * float(each['volume'])
+                price_list.append(float(total_price))
+                amount_list.append(float(each['volume']))
+
+            if price_list:
+                avg_price = float(sum(price_list) / len(price_list))
+                total_amount = sum(amount_list)
+                additional = {
+                    'sai_status': SaiOrderStatus.CLOSED,
+                    'sai_average_price': Decimal(avg_price),
+                    'sai_amount': Decimal(total_amount)
+                }
+
+                result.data = additional
             else:
-                return ExchangeResult(True, res)
+                result.success = False
 
-        except:
-            debugger.exception('FATAL: Upbit, _private_api')
-            return ExchangeResult(False, message=WarningMsg.EXCEPTION_RAISED.format(name=self.name), wait_time=1)
+        return result
 
-    def fee_count(self):
-        return 1
-    
-    def get_jwt_token(self, payload):
-        return 'Bearer {}'.format(jwt.encode(payload, self._secret, ).decode('utf8'))
-    
-    def get_ticker(self, market):
-        return self._public_api(Urls.TICKER, market)
-    
-    def currencies(self):
-        # using get_currencies, service_currencies
-        return self._public_api(Urls.CURRENCY)
-    
-    def get_currencies(self, currencies):
-        res = list()
-        return [res.append(data['market']) for data in currencies if not currencies['market'] in res]
+    def get_deposit_history(self, coin, number):
+        debugger.debug(DebugMessage.ENTRANCE.format(name=self.name, fn="get_deposit_history", data=str(locals())))
+        params = dict(
+            currency=coin,
+            state=DepositStatus.ACCEPTED
+        )
+        result = self._private_api(Consts.GET, Urls.GET_DEPOSIT_HISTORY, params)
 
-    def set_subscribe_candle(self, symbol):
-        """
-            subscribe candle.
-            symbol: it can be list or string, [BTC-XRP, BTC-ETH] or 'BTC-XRP'
-        """
-        coin = list(map(sai_to_upbit_symbol_converter, symbol)) if isinstance(symbol, list) \
-            else sai_to_upbit_symbol_converter(symbol)
-        with self._lock_dic['candle']:
-            self._subscriber.subscribe_candle(coin)
+        if result.success:
+            latest_data = result.data[:number]
+            result_dict = dict(
+                sai_deposit_amount=latest_data['amount'],
+                sai_coin=latest_data['currency']
+            )
+            result.data = result_dict
 
-        return True
+        return result
 
-    def set_subscribe_orderbook(self, symbol):
-        """
-            subscribe orderbook.
-            symbol: it can be list or string, [BTC-XRP, BTC-ETH] or 'BTC-XRP'
-        """
-        coin = list(map(sai_to_upbit_symbol_converter, symbol)) if isinstance(symbol, list) \
-            else sai_to_upbit_symbol_converter(symbol)
-        with self._lock_dic['orderbook']:
-            self._subscriber.subscribe_orderbook(coin)
+    def get_trading_fee(self):
+        context = Context(prec=8)
+        dic_ = dict(BTC=context.create_decimal_from_float(0.0025),
+                    KRW=context.create_decimal_from_float(0.0005),
+                    USDT=context.create_decimal_from_float(0.0025))
 
-        return True
+        return ExchangeResult(True, dic_)
 
-    def get_candle(self, coin):
-        with self._lock_dic['candle']:
-            result = self.data_store.candle_queue.get(coin, None)
-            if result is None:
-                return ExchangeResult(False, message=WarningMsg.CANDLE_NOT_STORED.format(name=self.name), wait_time=1)
-            return ExchangeResult(True, result)
+    async def get_deposit_addrs(self, cached=False, avoid_coin_list=None):
+        debugger.debug(DebugMessage.ENTRANCE.format(name=self.name, fn="get_deposit_addrs", data=str(locals())))
 
-    def service_currencies(self, currencies):
-        # using deposit_addrs
-        res = list()
-        return [res.append(data.split('-')[1]) for data in currencies if currencies['market'].split('-')[1] not in res]
-    
-    def get_order_history(self, uuid):
-        return self._private_api(Consts.GET, Urls.ORDER, {'uuid': uuid})
-    
+        if avoid_coin_list is None:
+            avoid_coin_list = list()
+        if cached:
+            return self.get_cached_data(Consts.DEPOSIT_ADDRESS)
+        address_result = await self._async_private_api(Consts.GET, Urls.DEPOSIT_ADDRESS)
+        if address_result.success:
+            result_dict = dict()
+            for data in address_result.data:
+                coin = data['currency']
+                if coin in avoid_coin_list:
+                    continue
+
+                able_result = await self._async_private_api(Consts.GET, Urls.ABLE_WITHDRAWS, {'currency': coin})
+
+                if not able_result.success:
+                    continue
+
+                support_list = able_result.data['currency']['wallet_support']
+                if 'withdraw' not in support_list or 'deposit' not in support_list:
+                    continue
+
+                deposit_address = data['deposit_address']
+
+                if 'secondary_address' in data.keys() and data['secondary_address']:
+                    result_dict[coin + 'TAG'] = data['secondary_address']
+
+                result_dict[coin] = deposit_address
+
+            address_result.data = result_dict
+            self.set_cached_data(Consts.DEPOSIT_ADDRESS, address_result.data)
+            self._cached_data[Consts.DEPOSIT_ADDRESS] = {'data': address_result.data, 'cached_time': time.time()}
+
+        return address_result
+
+    async def get_transaction_fee(self, cached=False):
+        debugger.debug(DebugMessage.ENTRANCE.format(name=self.name, fn="get_transaction_fee", data=str(locals())))
+
+        if cached:
+            self.get_cached_data(Consts.TRANSACTION_FEE)
+
+        async with aiohttp.ClientSession() as s:
+            url = Urls.Web.BASE + Urls.Web.TRANSACTION_FEE_PAGE
+            rq = await s.get(url)
+
+            result_text = await rq.text()
+        raw_data = json.loads(result_text)
+
+        success = raw_data.get('success', False)
+        if not success:
+            return ExchangeResult(False, '', message=WarningMessage.TRANSACTION_FAILED.format(name=self.name))
+
+        data = json.loads(raw_data['data'])
+
+        fees = dict()
+        context = Context(prec=8)
+        for each in data:
+            coin = each['currency']
+            withdraw_fee = context.create_decimal(each['withdrawFee'])
+            fees.update({coin: withdraw_fee})
+        self.set_cached_data(Consts.BALANCE, fees)
+        return ExchangeResult(True, fees)
+
+    def buy(self, sai_symbol, trade_type, amount=None, price=None):
+        debugger.debug(DebugMessage.ENTRANCE.format(name=self.name, fn="buy", data=str(locals())))
+
+        if not price:
+            return ExchangeResult(False, message='')
+
+        if BaseTradeType.BUY_LIMIT and not amount:
+            return ExchangeResult(False, message='')
+
+        upbit_trade_type = self.converter.sai_to_exchange_trade_type(trade_type)
+        symbol = self.converter.sai_to_exchange(sai_symbol)
+
+        default_parameters = {
+            'market': symbol,
+            'side': 'bid',
+            'ord_type': upbit_trade_type
+        }
+        # market trading
+        if trade_type == BaseTradeType.BUY_MARKET:
+            trading_validation_result = self._trading_validator_in_market(symbol, amount, trade_type)
+            if not trading_validation_result.success:
+                return trading_validation_result
+            stepped_price = trading_validation_result.data
+            default_parameters.update(dict(price=stepped_price))
+        else:
+            trading_validation_result = self._trading_validator(symbol, amount)
+
+            if not trading_validation_result.success:
+                return trading_validation_result
+            stepped_price = trading_validation_result.data
+            default_parameters.update(dict(price=stepped_price, volume=amount))
+
+        if DEBUG:
+            return trade_result_mock(price, amount)
+
+        result = self._private_api(Consts.POST, Urls.ORDERS, default_parameters)
+
+        if result.success:
+            raw_dict = {
+                'average_price': Decimal(result.data['avg_price']),
+                'amount': Decimal(result.data['volume']),
+                'order_id': result.data['uuid']
+            }
+            sai_dict = self._data_validator.trade(raw_dict)
+            result.data.update(sai_dict)
+
+        return result
+
+    def sell(self, sai_symbol, trade_type, amount=None, price=None):
+        debugger.debug(DebugMessage.ENTRANCE.format(name=self.name, fn="sell", data=str(locals())))
+
+        if amount is None:
+            return ExchangeResult(False, message='')
+
+        if BaseTradeType.SELL_LIMIT and not price:
+            return ExchangeResult(False, message='')
+
+        upbit_trade_type = self.converter.sai_to_exchange_trade_type(trade_type)
+        symbol = self.converter.sai_to_exchange(sai_symbol)
+
+        default_parameters = {
+            'market': symbol,
+            'side': 'ask',
+            'volume': amount,
+            'ord_type': upbit_trade_type
+        }
+        if trade_type == BaseTradeType.SELL_MARKET:
+            trading_validation_result = self._trading_validator_in_market(symbol, amount, trade_type)
+            if not trading_validation_result.success:
+                return trading_validation_result
+        else:
+            trading_validation_result = self._trading_validator(symbol, amount)
+
+            if not trading_validation_result.success:
+                return trading_validation_result
+            stepped_price = trading_validation_result.data
+            default_parameters.update(dict(price=stepped_price))
+
+        if DEBUG:
+            return trade_result_mock(price, amount)
+
+        result = self._private_api(Consts.POST, Urls.ORDERS, default_parameters)
+
+        if result.success:
+            raw_dict = {
+                'average_price': Decimal(result.data['avg_price']),
+                'amount': Decimal(result.data['volume']),
+                'order_id': result.data['uuid']
+            }
+            sai_dict = self._data_validator.trade(raw_dict)
+            result.data.update(sai_dict)
+
+        return result
+
     def withdraw(self, coin, amount, to_address, payment_id=None):
+        debugger.debug(DebugMessage.ENTRANCE.format(name=self.name, fn="withdraw", data=str(locals())))
         params = {
             'currency': coin,
             'address': to_address,
             'amount': str(amount),
         }
-        
+
         if payment_id:
             params.update({'secondary_address': payment_id})
-        
-        return self._private_api(Consts.POST, Urls.WITHDRAW, params)
-    
-    def buy(self, coin, amount, price=None):
-        order_type = Consts.MARKET if price is not None else Consts.LIMIT
-        amount, price = map(str, (amount, price))
-        
-        params = {
-            'market': coin,
-            'side': 'bid',
-            'volume': amount,
-            'price': price,
-            'ord_type': order_type
-        }
-        
-        return self._private_api(Consts.POST, Urls.ORDER, params)
-    
-    def sell(self, coin, amount, price=None):
-        order_type = Consts.MARKET if price is not None else Consts.LIMIT
 
-        amount, price = map(str, (amount, price))
-        
-        params = {
-            'market': coin,
-            'side': 'ask',
-            'volume': amount,
-            'price': price,
-            'ord_type': order_type
-        }
-        
-        return self._private_api(Consts.POST, Urls.ORDER, params)
-    
-    def base_to_alt(self, currency_pair, btc_amount, alt_amount, td_fee, tx_fee):
-        alt_amount *= 1 - decimal.Decimal(td_fee)
-        alt_amount -= decimal.Decimal(tx_fee[currency_pair.split('_')[1]])
-        alt_amount = alt_amount
-        
-        return ExchangeResult(True, alt_amount)
+        result = self._private_api(Consts.POST, Urls.WITHDRAW, params)
 
-    def check_order(self, data, profit_object):
-        return data
-        # uuid = parameter['uuid']
-        # result = self._private_api(Consts.GET, Urls.ORDER, dict(uuid=uuid))
+        if result.success:
+            sai_data = {
+                'sai_id': result.data['uuid'],
+            }
+            result.data = sai_data
 
-    async def async_public_api(self, path, extra=None):
-        if extra is None:
-            extra = dict()
-        try:
-            async with aiohttp.ClientSession() as s:
-                url = Urls.BASE + path
-                rq = await s.get(url, json=extra)
-                
-                res = json.loads(await rq.text())
-                
-                if 'error' in res:
-                    error_msg = res.get('error', dict()).get('message',
-                                                             WarningMsg.MESSAGE_NOT_FOUND.format(name=self.name))
-    
-                    return ExchangeResult(False, message=error_msg, wait_time=1)
-                
-                else:
-                    return ExchangeResult(True, res)
-        except:
-            debugger.exception('FATAL: Upbit, _async_public_api')
-            return ExchangeResult(False, message=WarningMsg.EXCEPTION_RAISED.format(name=self.name), wait_time=1)
+        return result
 
-    async def async_private_api(self, method, path, extra=None):
+    def is_withdrawal_completed(self, coin, uuid):
+        debugger.debug(DebugMessage.ENTRANCE.format(name=self.name, fn="is_withdrawal_completed", data=str(locals())))
+        params = dict(currency=coin, uuid=uuid, state=WithdrawalStatus.DONE)
+        result = self._private_api(Consts.GET, Urls.GET_WITHDRAWAL_HISTORY, params)
+
+        if result.success and result.data:
+            for history_dict in result.data:
+                history_id = history_dict['uuid']
+                if history_id == uuid:
+                    raw_dict = dict(
+                        address=Consts.NOT_FOUND,
+                        amount=Decimal(history_dict['amount']),
+                        time=datetime.datetime.fromisoformat(history_dict['done_at']),
+                        coin=history_dict['currency'],
+                        network=Consts.NOT_FOUND,
+                        fee=Decimal(history_dict['fee']),
+                        id=history_dict['txid'],
+                    )
+                    sai_dict = self._data_validator.withdrawal(raw_dict)
+                    result_dict = {**history_dict, **sai_dict}
+
+                    return ExchangeResult(success=True, data=result_dict)
+            else:
+                message = WarningMessage.HAS_NO_WITHDRAW_ID.format(name=self.name, withdrawal_id=uuid)
+                return ExchangeResult(success=False, message=message)
+        else:
+            return ExchangeResult(success=False, message=result.message)
+
+    def _get_result(self, response, path, extra, fn, error_key=error_key):
+        result_object = super(BaseUpbit, self)._get_result(response, path, extra, fn, error_key)
+        if not result_object.success:
+            raw_error_message = result_object.message.get('message', None)
+            if raw_error_message is None:
+                error_message = WarningMessage.FAIL_RESPONSE_DETAILS.format(name=self.name, body=raw_error_message,
+                                                                            path=path, parameter=extra)
+            else:
+                error_message = WarningMessage.MESSAGE_NOT_FOUND.format(name=self.name)
+
+            result_object.message = error_message
+
+        return result_object
+
+    def _get_step_size(self, symbol, krw_price):
+        market, coin = symbol.split('-')
+
+        if market in ['BTC', 'USDT']:
+            return ExchangeResult(True, LocalConsts.STEP_SIZE[market][0][1])
+
+        for price, unit in LocalConsts.STEP_SIZE[market]:
+            if krw_price >= price:
+                decimal_price = Decimal(price)
+                stepped_price = (decimal_price - Decimal(decimal_price % unit))
+                return ExchangeResult(True, stepped_price)
+        else:
+            sai_symbol = self.converter.exchange_to_sai(symbol)  # for logging
+            return ExchangeResult(False, message=WarningMessage.STEP_SIZE_NOT_FOUND.format(
+                name=self.name,
+                sai_symbol=sai_symbol,
+            ))
+
+    def _is_available_lot_size(self, symbol, krw_price, amount):
+        market, coin = symbol.split('-')
+        total_price = Decimal(krw_price * amount)
+
+        minimum = LocalConsts.LOT_SIZES[market]['minimum']
+        maximum = LocalConsts.LOT_SIZES[market]['maximum']
+        if not minimum <= total_price <= maximum:
+            msg = WarningMessage.WRONG_LOT_SIZE.format(
+                name=self.name,
+                market=market,
+                minimum=minimum,
+                maximum=maximum
+            )
+            return ExchangeResult(False, message=msg)
+
+        return ExchangeResult(True)
+
+    def _trading_validator_in_market(self, symbol, market_amount, trading_type):
+        """
+            validator for market
+            Args:
+                symbol: KRW, BTC
+                amount: amount, Decimal
+            Returns:
+                True or False
+                messages if getting false
+        """
+        market_current_price = 1
+
+        if trading_type == BaseTradeType.SELL_MARKET:
+            ticker_object = self.get_ticker(symbol)
+            if not ticker_object.success:
+                return ticker_object
+
+            market_current_price = ticker_object.data['sai_price']
+
+        lot_size_result = self._is_available_lot_size(symbol, market_current_price, market_amount)
+
+        if not lot_size_result.success:
+            return lot_size_result
+
+        step_size_result = self._get_step_size(symbol, market_amount)
+
+        return step_size_result
+
+    def _trading_validator(self, symbol, amount):
+        """
+            Args:
+                symbol: KRW, BTC
+                amount: amount, Decimal
+            Returns:
+                True or False
+                messages if getting false
+        """
+        ticker_object = self.get_ticker(symbol)
+        if not ticker_object.success:
+            return ticker_object
+
+        krw_price = ticker_object.data['sai_price']
+
+        lot_size_result = self._is_available_lot_size(symbol, krw_price, amount)
+
+        if not lot_size_result.success:
+            return lot_size_result
+
+        step_size_result = self._get_step_size(symbol, krw_price)
+
+        return step_size_result
+
+    def _sign_generator(self, payload):
+        token = 'Bearer {}'.format(jwt.encode(payload, self._secret, ))
+        return {'Authorization': token}
+
+    def _public_api(self, path, extra=None):
+        return super(BaseUpbit, self)._public_api(path, extra)
+
+    def _private_api(self, method, path, extra=None):
+        debugger.debug(DebugMessage.ENTRANCE.format(name=self.name, fn="_private_api", data=extra))
         payload = {
             'access_key': self._key,
             'nonce': int(time.time() * 1000),
         }
-        
+
         if extra is not None:
             payload.update({'query': urlencode(extra)})
-        header = self.get_jwt_token(payload)
-        try:
-            async with aiohttp.ClientSession() as s:
-                url = Urls.BASE + path
-                rq = await s.post(url, headers=header, data=extra)
-        
-                res = json.loads(await rq.text())
-        
-                if 'error' in res:
-                    error_msg = res.get('error', dict()).get('message',
-                                                             WarningMsg.MESSAGE_NOT_FOUND.format(name=self.name))
-    
-                    return ExchangeResult(False, message=error_msg, wait_time=1)
-        
-                else:
-                    return ExchangeResult(True, res)
-        except:
-            debugger.exception('FATAL: Upbit, _public_api')
-            return ExchangeResult(False, message=WarningMsg.EXCEPTION_RAISED.format(name=self.name), wait_time=1)
 
-    async def get_deposit_addrs(self, coin_list=None):
-        return self.async_public_api(Urls.DEPOSIT_ADDRESS)
-    
-    async def get_balance(self):
-        return self._private_api(Consts.GET, Urls.ACCOUNT)
-    
-    async def get_detail_balance(self, data):
-        # bal = self.get_balance()
-        return {bal['currency']: bal['balance'] for bal in data}
-    
-    async def get_orderbook(self, market):
-        return self.async_public_api(Urls.ORDERBOOK, {'markets': market})
-    
-    async def get_btc_orderbook(self, btc_sum):
-        return await self.get_orderbook('KRW-BTC')
-    
-    async def get_curr_avg_orderbook(self, coin_list, btc_sum=1):
-        with self._lock_dic['orderbook']:
-            data_dic = self.data_store.orderbook_queue
-            
-            if not self.data_store.orderbook_queue:
-                return ExchangeResult(False, message=WarningMsg.ORDERBOOK_NOT_STORED.format(name=self.name), wait_time=1)
-            
-            avg_order_book = dict()
-            for pair, item in data_dic.items():
-                sai_symbol = upbit_to_sai_symbol_converter(pair)
-                avg_order_book[sai_symbol] = dict()
-                
-                for type_ in ['ask', 'bid']:
-                    order_amount, order_sum = list(), 0
-                    for data in item:
-                        size = data['{}_size'.format(type_)]
-                        order_amount.append(size)
-                        order_sum += data['{}_price'.format(type_)] * size
-                        
-                        if order_sum >= btc_sum:
-                            volume = order_sum / np.sum(order_amount)
-                            avg_order_book[sai_symbol]['{}s'.format(type_)] = decimal.Decimal(volume)
-                            
-                            break
-                
-                return ExchangeResult(True, avg_order_book)
-    
-    async def compare_orderbook(self, other, coins, default_btc=1):
-        upbit_res, other_res = await asyncio.gather(
-            self.get_curr_avg_orderbook(coins, default_btc),
-            other.get_curr_avg_orderbook(coins, default_btc)
-        )
-        
-        u_suc, u_orderbook, u_msg = upbit_res
-        o_suc, o_orderbook, o_msg = other_res
-        
-        if u_suc and o_suc:
-            m_to_s = dict()
-            for currency_pair in coins:
-                m_ask = u_orderbook[currency_pair][Consts.ASKS]
-                s_bid = o_orderbook[currency_pair][Consts.BIDS]
-                m_to_s[currency_pair] = float(((s_bid - m_ask) / m_ask))
-            
-            s_to_m = dict()
-            for currency_pair in coins:
-                m_bid = u_orderbook[currency_pair][Consts.BIDS]
-                s_ask = o_orderbook[currency_pair][Consts.ASKS]
-                s_to_m[currency_pair] = float(((m_bid - s_ask) / s_ask))
-            result = (
-                u_orderbook,
-                o_orderbook,
-                {Consts.PRIMARY_TO_SECONDARY: m_to_s, Consts.SECONDARY_TO_PRIMARY: s_to_m}
-            )
-            return ExchangeResult(True, result)
+        header = self._sign_generator(payload)
+        url = Urls.BASE + path
+
+        if method == Consts.POST:
+            rq = requests.post(url=url, headers=header, data=extra)
+
+        else:
+            rq = requests.get(url=url, headers=header, params=extra)
+
+        return self._get_result(rq, path, extra, fn='private_api')
+
+    async def _async_private_api(self, method, path, extra=None):
+        payload = {
+            'access_key': self._key,
+            'nonce': int(time.time() * 1000),
+        }
+
+        if extra is not None:
+            payload.update({'query': urlencode(extra)})
+
+        header = self._sign_generator(payload)
+        url = Urls.BASE + path
+
+        async with aiohttp.ClientSession() as s:
+            if method == Consts.GET:
+                rq = await s.get(url, headers=header, data=extra)
+            else:
+                rq = await s.post(url, headers=header, data=extra)
+
+            result_text = await rq.text()
+            return self._get_result(result_text, path, extra, fn='_async_private_api')
+
+
+if __name__ == '__main__':
+    import asyncio
+    up = BaseUpbit('', '')
+    up.set_subscriber()
+    up.set_subscribe_orderbook(['KRW-XRP', 'KRW-ETH'])
+    while True:
+        time.sleep(5)
+        pk = asyncio.run(up.get_curr_avg_orderbook())
+        print(pk)
+
