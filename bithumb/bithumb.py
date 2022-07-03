@@ -42,7 +42,7 @@ class RequestError(Exception):
         )
 
 
-class BaseBithumb(BaseExchange):
+class BaseBithumb(object):
     name = 'Bithumb'
 
     def __init__(self, key, secret):
