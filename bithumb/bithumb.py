@@ -18,7 +18,6 @@ from Exchanges.bithumb.setting import Urls, AVAILABLE_COINS
 
 from Exchanges.settings import Consts
 from Exchanges.messages import WarningMessage as WarningMsg
-from Exchanges.abstracts import BaseExchange
 from Exchanges.objects import ExchangeResult, DataStore
 
 
