@@ -200,7 +200,8 @@ class BaseExchange(object):
             Consts.ORDERBOOK: threading.Lock(),
             Consts.CANDLE: threading.Lock(),
             Consts.TICKER: threading.Lock(),
-            Consts.BALANCE: threading.Lock()
+            Consts.BALANCE: threading.Lock(),
+            Consts.DEPOSIT_ADDRESS: threading.Lock()
         }
         self.data_store = DataStore()
         self._cached_data = {}
