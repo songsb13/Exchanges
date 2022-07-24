@@ -12,6 +12,8 @@ from Exchanges.binance.setting import Urls
 from Exchanges.settings import Consts, Tickets
 from Exchanges.objects import BaseSubscriber
 
+from Util.pyinstaller_patch import debugger
+
 decimal.getcontext().prec = 8
 
 
@@ -113,18 +115,3 @@ class BinanceSubscriber(BaseSubscriber):
             "id": Tickets.CANDLE
         }
         self._websocket_app.send(json.dumps(self._subscribe_dict[Consts.CANDLE]))
-
-
-if __name__ == '__main__':
-    from Exchanges.objects import DataStore
-    from Exchanges.binance.binance import Binance
-
-    _lock_dic = {
-        Consts.ORDERBOOK: threading.Lock(),
-        Consts.CANDLE: threading.Lock()
-    }
-    symbols = ["BTC_XRP", 'BTC_ETH']
-    ds = DataStore()
-    binance = Binance('', '')
-    binance.set_subscriber()
-    binance.set_subscribe_orderbook(symbols)
