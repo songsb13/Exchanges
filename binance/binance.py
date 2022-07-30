@@ -19,7 +19,7 @@ from Exchanges.objects import ExchangeResult, BaseExchange
 from Exchanges.binance.subscriber import BinanceSubscriber
 from Util.pyinstaller_patch import debugger
 
-from DiffTrader.GlobalSetting.settings import DEBUG, DEBUG_ORDER_ID
+from DiffTrader.settings.base import DEBUG, DEBUG_ORDER_ID
 
 
 getcontext().prec = 8

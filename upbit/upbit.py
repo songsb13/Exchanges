@@ -8,7 +8,7 @@ import datetime
 from urllib.parse import urlencode
 from Util.pyinstaller_patch import debugger
 
-from DiffTrader.GlobalSetting.settings import DEBUG, DEBUG_ORDER_ID
+from DiffTrader.settings.base import DEBUG, DEBUG_ORDER_ID
 
 
 from Exchanges.settings import Consts, SaiOrderStatus, BaseTradeType
