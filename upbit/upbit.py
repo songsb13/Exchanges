@@ -14,8 +14,6 @@ from Exchanges.messages import WarningMessage
 from Exchanges.messages import DebugMessage
 
 from Exchanges.upbit.setting import (
-    Urls,
-    OrderStatus,
     DepositStatus,
     LocalConsts,
     WithdrawalStatus,
@@ -23,7 +21,7 @@ from Exchanges.upbit.setting import (
 from Exchanges.upbit.subscriber import UpbitSubscriber
 from Exchanges.upbit.util import UpbitConverter
 
-from Exchanges.objects import DataStore, ExchangeResult, BaseExchange, SAIDataValidator
+from Exchanges.objects import ExchangeResult, BaseExchange
 
 from decimal import Decimal, getcontext, Context
 
@@ -35,7 +33,7 @@ class BaseUpbit(BaseExchange):
     name = "Upbit"
     converter = UpbitConverter
     exchange_subscriber = UpbitSubscriber
-    urls = Urls
+    base_url = "https://api.upbit.com/v1"
     error_key = "error"
 
     def __init__(self, key, secret):
@@ -54,7 +52,7 @@ class BaseUpbit(BaseExchange):
         )
         if cached:
             return self.get_cached_data(Consts.BALANCE)
-        result = self._private_api(Consts.GET, Urls.ACCOUNT)
+        result = self._private_api("GET", "/accounts")
 
         if result.success:
             result.data = {bal["currency"]: bal["balance"] for bal in result.data}
@@ -72,7 +70,7 @@ class BaseUpbit(BaseExchange):
         if cached:
             return self.get_cached_data(Consts.TICKER, sai_symbol)
 
-        result = self._public_api(Urls.TICKER, {"markets": symbol})
+        result = self._public_api("/ticker", {"markets": symbol})
 
         if result.success:
             ticker = Decimal(result.data[0]["trade_price"])
@@ -87,7 +85,7 @@ class BaseUpbit(BaseExchange):
                 name=self.name, fn="get_available_symbols", data=""
             )
         )
-        result = self._public_api(Urls.CURRENCY)
+        result = self._public_api("/market/all")
 
         if result.success:
             result_list = list()
@@ -109,7 +107,7 @@ class BaseUpbit(BaseExchange):
         )
         params = dict(uuid=uuid)
 
-        result = self._private_api(Consts.GET, Urls.ORDER, params)
+        result = self._private_api("GET", "/order", params)
 
         if result.success:
             price_list, amount_list = list(), list()
@@ -140,7 +138,7 @@ class BaseUpbit(BaseExchange):
             )
         )
         params = dict(currency=coin, state=DepositStatus.ACCEPTED)
-        result = self._private_api(Consts.GET, Urls.GET_DEPOSIT_HISTORY, params)
+        result = self._private_api("GET", "/deposits", params)
 
         if result.success:
             latest_data = result.data[:number]
@@ -173,7 +171,7 @@ class BaseUpbit(BaseExchange):
             avoid_coin_list = list()
         if cached:
             return self.get_cached_data(Consts.DEPOSIT_ADDRESS)
-        address_result = await self._async_private_api(Consts.GET, Urls.DEPOSIT_ADDRESS)
+        address_result = await self._async_private_api("GET", "/deposits/coin_addresses")
         if address_result.success:
             result_dict = dict()
             for data in address_result.data:
@@ -182,7 +180,7 @@ class BaseUpbit(BaseExchange):
                     continue
 
                 able_result = await self._async_private_api(
-                    Consts.GET, Urls.ABLE_WITHDRAWS, {"currency": coin}
+                    "GET", "/withdraws/chance", {"currency": coin}
                 )
 
                 if not able_result.success:
@@ -219,7 +217,7 @@ class BaseUpbit(BaseExchange):
             self.get_cached_data(Consts.TRANSACTION_FEE)
 
         async with aiohttp.ClientSession() as s:
-            url = Urls.Web.BASE + Urls.Web.TRANSACTION_FEE_PAGE
+            url = "https://api-manager.upbit.com/api/v1/kv/UPBIT_PC_COIN_DEPOSIT_AND_WITHDRAW_GUIDE"
             rq = await s.get(url)
 
             result_text = await rq.text()
@@ -283,7 +281,7 @@ class BaseUpbit(BaseExchange):
         if DEBUG:
             return trade_result_mock(price, amount)
 
-        result = self._private_api(Consts.POST, Urls.ORDERS, default_parameters)
+        result = self._private_api("POST", "/orders", default_parameters)
 
         if result.success:
             raw_dict = {
@@ -333,7 +331,7 @@ class BaseUpbit(BaseExchange):
         if DEBUG:
             return trade_result_mock(price, amount)
 
-        result = self._private_api(Consts.POST, Urls.ORDERS, default_parameters)
+        result = self._private_api("POST", "/orders", default_parameters)
 
         if result.success:
             raw_dict = {
@@ -361,7 +359,7 @@ class BaseUpbit(BaseExchange):
         if payment_id:
             params.update({"secondary_address": payment_id})
 
-        result = self._private_api(Consts.POST, Urls.WITHDRAW, params)
+        result = self._private_api("POST", "/withdraws/coin", params)
 
         if result.success:
             sai_data = {
@@ -378,7 +376,7 @@ class BaseUpbit(BaseExchange):
             )
         )
         params = dict(currency=coin, uuid=uuid, state=WithdrawalStatus.DONE)
-        result = self._private_api(Consts.GET, Urls.GET_WITHDRAWAL_HISTORY, params)
+        result = self._private_api("GET", "/withdraws", params)
 
         if result.success and result.data:
             for history_dict in result.data:
@@ -536,9 +534,9 @@ class BaseUpbit(BaseExchange):
             payload.update({"query": urlencode(extra)})
 
         header = self._sign_generator(payload)
-        url = Urls.BASE + path
+        url = self.base_url + path
 
-        if method == Consts.POST:
+        if method == "POST":
             rq = requests.post(url=url, headers=header, data=extra)
 
         else:
@@ -556,10 +554,10 @@ class BaseUpbit(BaseExchange):
             payload.update({"query": urlencode(extra)})
 
         header = self._sign_generator(payload)
-        url = Urls.BASE + path
+        url = self.base_url + path
 
         async with aiohttp.ClientSession() as s:
-            if method == Consts.GET:
+            if method == "GET":
                 rq = await s.get(url, headers=header, data=extra)
             else:
                 rq = await s.post(url, headers=header, data=extra)

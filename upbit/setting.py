@@ -11,28 +11,6 @@ class Tickets(Enum):
     CANDLE = 20
 
 
-class Urls(object):
-    BASE = "https://api.upbit.com/v1"
-    TICKER = "/ticker"
-    ORDER = "/order"
-    ORDERS = "/orders"
-    CURRENCY = "/market/all"
-    WITHDRAW = "/withdraws/coin"
-    ACCOUNT = "/accounts"
-    ORDERBOOK = "/orderbook"
-    GET_WITHDRAWAL_HISTORY = "/withdraws"
-    DEPOSIT_ADDRESS = "/deposits/coin_addresses"
-    ABLE_WITHDRAWS = "/withdraws/chance"
-    GET_DEPOSIT_HISTORY = "/deposits"
-
-    class Websocket(object):
-        BASE = "wss://api.upbit.com/websocket/v1"
-
-    class Web(object):
-        BASE = "https://api-manager.upbit.com/api/v1"
-        TRANSACTION_FEE_PAGE = "/kv/UPBIT_PC_COIN_DEPOSIT_AND_WITHDRAW_GUIDE"
-
-
 class DepositStatus(object):
     SUBMITTING = "submitting"
     SUBMITTED = "submitted"

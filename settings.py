@@ -14,8 +14,6 @@ class Tickets(object):
 
 
 class Consts(object):
-    GET = "GET"
-    POST = "POST"
 
     ASKS = "asks"
     BIDS = "bids"
