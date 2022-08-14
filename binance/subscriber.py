@@ -12,7 +12,6 @@ from Exchanges.binance.setting import Urls
 from Exchanges.settings import Consts, Tickets
 from Exchanges.objects import BaseSubscriber
 
-from Util.pyinstaller_patch import debugger
 
 decimal.getcontext().prec = 8
 

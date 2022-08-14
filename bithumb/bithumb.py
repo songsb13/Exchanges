@@ -12,8 +12,6 @@ from lxml import html as lh
 from decimal import Decimal, ROUND_DOWN
 from urllib.parse import urlencode
 
-from Util.pyinstaller_patch import debugger
-
 from Exchanges.bithumb.setting import Urls, AVAILABLE_COINS
 
 from Exchanges.settings import Consts

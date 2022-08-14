@@ -14,7 +14,6 @@ import decimal
 from Exchanges.messages import DebugMessage, WarningMessage
 from Exchanges.settings import Consts
 
-from Util.pyinstaller_patch import debugger
 
 decimal.getcontext().prec = 8
 

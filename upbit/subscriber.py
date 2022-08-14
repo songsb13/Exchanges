@@ -1,7 +1,6 @@
 import json
 
 from websocket import WebSocketConnectionClosedException
-from Util.pyinstaller_patch import *
 
 from Exchanges.upbit.util import UpbitConverter as converter
 from Exchanges.upbit.setting import Urls

@@ -1,5 +1,3 @@
-from DiffTrader.settings.base import DEBUG, DEBUG_ORDER_ID
-
 from Exchanges.objects import DataStore, ExchangeResult, BaseExchange
 
 import decimal

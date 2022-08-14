@@ -1,8 +1,6 @@
 import threading
 import time
 
-from Util.pyinstaller_patch import debugger
-
 
 class ThreadWrapper(threading.Thread):
     def __init__(self, callback, parameters, break_trigger, fn_name, context=None):
