@@ -188,7 +188,7 @@ class BaseExchange(object):
     name = str()
     converter = None
     exchange_subscriber = None
-    urls = None
+    base_url = None
     error_key = None
 
     def __init__(self):
@@ -374,7 +374,7 @@ class BaseExchange(object):
         if extra is None:
             extra = dict()
 
-        request = requests.get(self.urls.BASE + path, params=extra)
+        request = requests.get(self.base_url + path, params=extra)
         return self._get_result(request, path, extra, fn="_public_api")
 
     async def _async_pubilc_api(self, path, extra=None):
@@ -382,7 +382,7 @@ class BaseExchange(object):
             extra = dict()
 
         async with aiohttp.ClientSession() as session:
-            rq = await session.get(self.urls.BASE + path, params=extra)
+            rq = await session.get(self.base_url + path, params=extra)
             result_text = await rq.text()
 
             return self._get_result(result_text, path, extra, fn="_async_public_api")
