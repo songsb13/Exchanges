@@ -97,7 +97,7 @@ class CustomWebsocket(websocket.WebSocketApp, threading.Thread):
 
 
 class BaseSubscriber(object):
-    websocket_url = str()
+    base_url = str()
     name = "Base Subscriber"
     ping_time_per_second = 120
 
@@ -121,7 +121,7 @@ class BaseSubscriber(object):
 
     def start_websocket_thread(self):
         self._websocket_app = CustomWebsocket(
-            self.websocket_url, self.on_message, self.ping_time_per_second
+            self.base_url, self.on_message, self.ping_time_per_second
         )
         self._websocket_app.start()
         for _ in range(60):
