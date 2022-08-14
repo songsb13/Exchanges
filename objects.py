@@ -29,46 +29,47 @@ class SAIDataValidator(object):
 
         sai_dict = dict()
         for key, type_ in key_list:
-            sai_dict[f'sai_{key}'] = data_dict.get(type_(key), Consts.NOT_FOUND)
+            sai_dict[f"sai_{key}"] = data_dict.get(type_(key), Consts.NOT_FOUND)
 
         return sai_dict
 
     def withdrawal(self, data_dict):
         key_list = [
-            ('address', str),
-            ('amount', decimal.Decimal),
-            ('time', str),
-            ('coin', str),
-            ('network', str),
-            ('fee', decimal.Decimal),
-            ('id', str)
+            ("address", str),
+            ("amount", decimal.Decimal),
+            ("time", str),
+            ("coin", str),
+            ("network", str),
+            ("fee", decimal.Decimal),
+            ("id", str),
         ]
-        required = ('amount', 'coin', 'id')
+        required = ("amount", "coin", "id")
 
         return self.generate_sai_data_dict(required, key_list, data_dict)
 
     def trade(self, data_dict):
         key_list = [
-            ('average_price', decimal.Decimal),
-            ('amount', decimal.Decimal),
-            ('id', str)
+            ("average_price", decimal.Decimal),
+            ("amount", decimal.Decimal),
+            ("id", str),
         ]
 
-        required = ('average_price', 'amount', 'id')
+        required = ("average_price", "amount", "id")
 
         return self.generate_sai_data_dict(required, key_list, data_dict)
 
 
 class ExchangeResult(object):
     """
-        Return exchange result abstract class
+    Return exchange result abstract class
 
-        success: True if success else False
-        data: requested data if success is True else None
-        message: result message if success is False else None
-        wait_time: wait time for retry if success is False else 0
+    success: True if success else False
+    data: requested data if success is True else None
+    message: result message if success is False else None
+    wait_time: wait time for retry if success is False else 0
     """
-    def __init__(self, success, data=None, message='', wait_time=0):
+
+    def __init__(self, success, data=None, message="", wait_time=0):
 
         self.success = success
         self.data = data
@@ -97,7 +98,7 @@ class CustomWebsocket(websocket.WebSocketApp, threading.Thread):
 
 class BaseSubscriber(object):
     websocket_url = str()
-    name = 'Base Subscriber'
+    name = "Base Subscriber"
     ping_time_per_second = 120
 
     def __init__(self):
@@ -120,16 +121,14 @@ class BaseSubscriber(object):
 
     def start_websocket_thread(self):
         self._websocket_app = CustomWebsocket(
-            self.websocket_url,
-            self.on_message,
-            self.ping_time_per_second
+            self.websocket_url, self.on_message, self.ping_time_per_second
         )
         self._websocket_app.start()
         for _ in range(60):
-            debugger.debug(f'Start to connect {self.name} websocket')
+            debugger.debug(f"Start to connect {self.name} websocket")
             time.sleep(1)
             if self._websocket_app.sock and self._websocket_app.keep_running:
-                debugger.debug(f'Created connection to {self.name} websocket')
+                debugger.debug(f"Created connection to {self.name} websocket")
                 break
 
     def on_message(self, *args):
@@ -147,17 +146,14 @@ class BaseSubscriber(object):
 
             total_bids.append([bid_price, bid_amount])
             total_asks.append([ask_price, ask_amount])
-        dict_ = {
-            Consts.BIDS: total_bids,
-            Consts.ASKS: total_asks
-        }
+        dict_ = {Consts.BIDS: total_bids, Consts.ASKS: total_asks}
         return dict_
 
     def temp_candle_setter(self, store_list, candle_list):
         """
-            Args:
-                store_list: data_store.candle_queue[sai_symbol]
-                candle_list: open, high, low, close, amount, timestamp
+        Args:
+            store_list: data_store.candle_queue[sai_symbol]
+            candle_list: open, high, low, close, amount, timestamp
         """
 
         store_list.append(candle_list)
@@ -188,6 +184,7 @@ class BaseExchange(object):
     """
     all exchanges module should be followed BaseExchange format.
     """
+
     name = str()
     converter = None
     exchange_subscriber = None
@@ -200,7 +197,7 @@ class BaseExchange(object):
             Consts.CANDLE: threading.Lock(),
             Consts.TICKER: threading.Lock(),
             Consts.BALANCE: threading.Lock(),
-            Consts.DEPOSIT_ADDRESS: threading.Lock()
+            Consts.DEPOSIT_ADDRESS: threading.Lock(),
         }
         self.data_store = DataStore()
         self._cached_data = {}
@@ -209,60 +206,93 @@ class BaseExchange(object):
     def set_cached_data(self, key, data, additional_key=None):
         with self._lock_dic[key]:
             if additional_key:
-                self._cached_data[key][additional_key] = {'data': data, 'cached_time': time.time()}
+                self._cached_data[key][additional_key] = {
+                    "data": data,
+                    "cached_time": time.time(),
+                }
             else:
-                self._cached_data[key] = {'data': data, 'cached_time': time.time()}
+                self._cached_data[key] = {"data": data, "cached_time": time.time()}
 
     def get_cached_data(self, key, additional_key=None):
         with self._lock_dic[key]:
             if key not in self._cached_data:
                 return {}
             if additional_key:
-                return self._cached_data[key][additional_key]['data']
+                return self._cached_data[key][additional_key]["data"]
             else:
-                return self._cached_data[key]['data']
+                return self._cached_data[key]["data"]
 
     def set_subscriber(self):
-        debugger.debug(DebugMessage.ENTRANCE.format(name=self.name, fn="set_subscriber", data=str(locals())))
+        debugger.debug(
+            DebugMessage.ENTRANCE.format(
+                name=self.name, fn="set_subscriber", data=str(locals())
+            )
+        )
         self._subscriber = self.exchange_subscriber(self.data_store, self._lock_dic)
         self._subscriber.start_websocket_thread()
 
     def set_subscribe_candle(self, sai_symbol_list):
-        debugger.debug(DebugMessage.ENTRANCE.format(name=self.name, fn="set_subscribe_candle", data=str(locals())))
+        debugger.debug(
+            DebugMessage.ENTRANCE.format(
+                name=self.name, fn="set_subscribe_candle", data=str(locals())
+            )
+        )
 
-        exchange_symbols = list(map(self.converter.sai_to_exchange_subscriber, sai_symbol_list))
+        exchange_symbols = list(
+            map(self.converter.sai_to_exchange_subscriber, sai_symbol_list)
+        )
         self._subscriber.set_candle_symbol_set(exchange_symbols)
         self._subscriber.subscribe_candle()
 
     def set_subscribe_orderbook(self, sai_symbol_list):
-        debugger.debug(DebugMessage.ENTRANCE.format(name=self.name, fn="set_subscribe_orderbook", data=str(locals())))
+        debugger.debug(
+            DebugMessage.ENTRANCE.format(
+                name=self.name, fn="set_subscribe_orderbook", data=str(locals())
+            )
+        )
 
-        exchange_symbols = list(map(self.converter.sai_to_exchange_subscriber, sai_symbol_list))
+        exchange_symbols = list(
+            map(self.converter.sai_to_exchange_subscriber, sai_symbol_list)
+        )
         self._subscriber.set_orderbook_symbol_set(exchange_symbols)
         self._subscriber.subscribe_orderbook()
 
     def get_orderbook(self):
-        with self._lock_dic['orderbook']:
-            debugger.debug(DebugMessage.ENTRANCE.format(name=self.name, fn="get_orderbook", data=str(locals())))
+        with self._lock_dic["orderbook"]:
+            debugger.debug(
+                DebugMessage.ENTRANCE.format(
+                    name=self.name, fn="get_orderbook", data=str(locals())
+                )
+            )
             orderbooks = self.data_store.orderbook_queue
             if not orderbooks:
-                return ExchangeResult(False, message=WarningMessage.ORDERBOOK_NOT_STORED.format(name=self.name),
-                                      wait_time=5)
+                return ExchangeResult(
+                    False,
+                    message=WarningMessage.ORDERBOOK_NOT_STORED.format(name=self.name),
+                    wait_time=5,
+                )
 
             return ExchangeResult(True, orderbooks)
 
     def get_candle(self, sai_symbol):
-        debugger.debug(DebugMessage.ENTRANCE.format(name=self.name, fn="get_candle", data=str(locals())))
-        with self._lock_dic['candle']:
+        debugger.debug(
+            DebugMessage.ENTRANCE.format(
+                name=self.name, fn="get_candle", data=str(locals())
+            )
+        )
+        with self._lock_dic["candle"]:
             candles = self.data_store.candle_queue.get(sai_symbol, None)
             if candles is None:
-                return ExchangeResult(False, message=WarningMessage.CANDLE_NOT_STORED.format(name=self.name),
-                                      wait_time=1)
+                return ExchangeResult(
+                    False,
+                    message=WarningMessage.CANDLE_NOT_STORED.format(name=self.name),
+                    wait_time=1,
+                )
             return ExchangeResult(True, candles)
 
     async def get_curr_avg_orderbook(self, btc_sum=1.0):
         """
-            {BTC_XRP: {bids: [[price, amount], ..], asks: [[price, amount], ..}
+        {BTC_XRP: {bids: [[price, amount], ..], asks: [[price, amount], ..}
         """
         orderbook_result = self.get_orderbook()
 
@@ -290,22 +320,22 @@ class BaseExchange(object):
                         break
 
                 try:
-                    average_orderbook[sai_symbol][order_type] = (total_price / total_amount)
+                    average_orderbook[sai_symbol][order_type] = (
+                        total_price / total_amount
+                    )
                 except decimal.InvalidOperation:
                     average_orderbook[sai_symbol][order_type] = decimal.Decimal(0)
         if not average_orderbook:
-            return ExchangeResult(
-                success=False,
-                message=''
-            )
+            return ExchangeResult(success=False, message="")
         else:
-            return ExchangeResult(
-                success=True,
-                data=average_orderbook
-            )
+            return ExchangeResult(success=True, data=average_orderbook)
 
     def base_to_coin(self, coin_amount, from_exchange_trading_fee):
-        debugger.debug(DebugMessage.ENTRANCE.format(name=self.name, fn="base_to_alt", data=str(locals())))
+        debugger.debug(
+            DebugMessage.ENTRANCE.format(
+                name=self.name, fn="base_to_alt", data=str(locals())
+            )
+        )
         coin_amount *= 1 - from_exchange_trading_fee
         return coin_amount
 
@@ -321,7 +351,11 @@ class BaseExchange(object):
                 result = json.loads(response)
         except:
             debugger.debug(DebugMessage.FATAL.format(name=self.name, fn=fn))
-            return ExchangeResult(False, message=WarningMessage.EXCEPTION_RAISED.format(name=self.name), wait_time=1)
+            return ExchangeResult(
+                False,
+                message=WarningMessage.EXCEPTION_RAISED.format(name=self.name),
+                wait_time=1,
+            )
 
         if isinstance(result, dict):
             error = result.get(error_key, None)
@@ -334,17 +368,14 @@ class BaseExchange(object):
                 data=result,
             )
         else:
-            return ExchangeResult(
-                success=False,
-                message=error
-            )
+            return ExchangeResult(success=False, message=error)
 
     def _public_api(self, path, extra):
         if extra is None:
             extra = dict()
 
         request = requests.get(self.urls.BASE + path, params=extra)
-        return self._get_result(request, path, extra, fn='_public_api')
+        return self._get_result(request, path, extra, fn="_public_api")
 
     async def _async_pubilc_api(self, path, extra=None):
         if extra is None:
@@ -354,4 +385,4 @@ class BaseExchange(object):
             rq = await session.get(self.urls.BASE + path, params=extra)
             result_text = await rq.text()
 
-            return self._get_result(result_text, path, extra, fn='_async_public_api')
+            return self._get_result(result_text, path, extra, fn="_async_public_api")
