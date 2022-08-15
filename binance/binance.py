@@ -6,11 +6,20 @@ import aiohttp
 import json
 import datetime
 
-from decimal import getcontext, Context, Decimal
+from decimal import (
+    getcontext,
+    Context,
+    Decimal
+)
 
 from urllib.parse import urlencode
 
-from Exchanges.settings import Consts, BaseTradeType, SaiOrderStatus
+from Exchanges.settings import (
+    Consts,
+    BaseTradeType,
+    SaiOrderStatus,
+    Tickets
+)
 from Exchanges.test_settings import trade_result_mock
 from Exchanges.messages import WarningMessage, DebugMessage
 from Exchanges.binance.util import (
@@ -24,7 +33,11 @@ from Exchanges.binance.setting import (
     WithdrawalStatus,
     FilterType
 )
-from Exchanges.objects import ExchangeResult, BaseExchange, BaseSubscriber
+from Exchanges.objects import (
+    ExchangeResult,
+    BaseExchange,
+    BaseSubscriber
+)
 
 
 getcontext().prec = 8
