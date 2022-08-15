@@ -18,7 +18,8 @@ from Exchanges.settings import (
     Consts,
     BaseTradeType,
     SaiOrderStatus,
-    Tickets
+    Tickets,
+    SetLogger
 )
 from Exchanges.test_settings import trade_result_mock
 from Exchanges.messages import WarningMessage, DebugMessage
@@ -39,6 +40,13 @@ from Exchanges.objects import (
     BaseSubscriber
 )
 
+import logging.config
+
+
+__file__ = "setter.py"
+
+logging_config = SetLogger.get_config_base_process(__file__)
+logging.config.dictConfig(logging_config)
 
 getcontext().prec = 8
 
@@ -53,7 +61,7 @@ class BinanceSubscriber(BaseSubscriber):
         data_store: An object for storing orderbook&candle data, using orderbook&candle queue in this object.
         lock_dic: dictionary for avoid race condition, {orderbook: Lock, candle: Lock}
         """
-        debugger.debug(f"{self.name}::: start")
+        logging.debug(f"{self.name}::: start")
 
         super(BinanceSubscriber, self).__init__()
         self.data_store = data_store
@@ -68,7 +76,7 @@ class BinanceSubscriber(BaseSubscriber):
         try:
             data = json.loads(message)
             if "error" in data:
-                debugger.debug(
+                logging.debug(
                     "BinanceSubscriber::: on_message error, not found messages [{}]".format(
                         data["error"]["msg"]
                     )
@@ -82,7 +90,7 @@ class BinanceSubscriber(BaseSubscriber):
                 else:
                     self.candle_receiver(data)
         except Exception as ex:
-            debugger.debug("BinanceSubscriber::: on_message error, [{}]".format(ex))
+            logging.debug("BinanceSubscriber::: on_message error, [{}]".format(ex))
 
     def orderbook_receiver(self, data):
         with self._lock_dic[Consts.ORDERBOOK]:
@@ -132,7 +140,7 @@ class BinanceSubscriber(BaseSubscriber):
             self.data_store.candle_queue[sai_symbol] = store_list
 
     def subscribe_orderbook(self):
-        debugger.debug(f"{self.name}::: subscribe_orderbook")
+        logging.debug(f"{self.name}::: subscribe_orderbook")
         streams = [
             "{symbol}@depth".format(symbol=symbol)
             for symbol in self._orderbook_symbol_set
@@ -146,7 +154,7 @@ class BinanceSubscriber(BaseSubscriber):
         self._websocket_app.send(json.dumps(self._subscribe_dict[Consts.ORDERBOOK]))
 
     def subscribe_candle(self):
-        debugger.debug(f"{self.name}::: subscribe_candle")
+        logging.debug(f"{self.name}::: subscribe_candle")
         streams = [
             "{symbol}@kline_{interval}".format(symbol=symbol, interval=self._interval)
             for symbol in self._candle_symbol_set
@@ -182,7 +190,7 @@ class Binance(BaseExchange):
         return self.name
 
     def get_balance(self, cached=False):
-        debugger.debug(
+        logging.debug(
             DebugMessage.ENTRANCE.format(
                 name=self.name, fn="get_balance", data=str(locals())
             )
@@ -205,7 +213,7 @@ class Binance(BaseExchange):
         return result_object
 
     def get_ticker(self, sai_symbol, cached=False):
-        debugger.debug(
+        logging.debug(
             DebugMessage.ENTRANCE.format(
                 name=self.name, fn="get_ticker", data=str(locals())
             )
@@ -224,7 +232,7 @@ class Binance(BaseExchange):
         return result_object
 
     def get_available_symbols(self):
-        debugger.debug(
+        logging.debug(
             DebugMessage.ENTRANCE.format(
                 name=self.name, fn="get_available_symbols", data=str(locals())
             )
@@ -242,7 +250,7 @@ class Binance(BaseExchange):
         return ExchangeResult(True, data=result)
 
     def get_order_history(self, order_id, additional):
-        debugger.debug(
+        logging.debug(
             DebugMessage.ENTRANCE.format(
                 name=self.name, fn="get_order_history", data=str(locals())
             )
@@ -274,7 +282,7 @@ class Binance(BaseExchange):
         return result
 
     def get_deposit_history(self, coin, number):
-        debugger.debug(
+        logging.debug(
             DebugMessage.ENTRANCE.format(
                 name=self.name, fn="get_deposit_history", data=str(locals())
             )
@@ -299,7 +307,7 @@ class Binance(BaseExchange):
         return ExchangeResult(True, dic_)
 
     async def get_deposit_addrs(self, cached=False, coin_list=None):
-        debugger.debug(
+        logging.debug(
             DebugMessage.ENTRANCE.format(
                 name=self.name, fn="get_deposit_addrs", data=str(locals())
             )
@@ -337,13 +345,13 @@ class Binance(BaseExchange):
                     able_withdrawal = coin_details["withdrawAllEnable"]
 
                     if not able_deposit:
-                        debugger.debug(
+                        logging.debug(
                             "Binance, [{}] 해당 코인은 입금이 막혀있는 상태입니다.".format(coin)
                         )
                         continue
 
                     elif not able_withdrawal:
-                        debugger.debug(
+                        logging.debug(
                             "Binance, [{}] 해당 코인은 출금이 막혀있는 상태입니다.".format(coin)
                         )
                         continue
@@ -359,7 +367,7 @@ class Binance(BaseExchange):
             return ExchangeResult(True, return_deposit_dict, result_message)
 
         except Exception as ex:
-            debugger.exception("FATAL: Binance, get_deposit_addrs")
+            logging.exception("FATAL: Binance, get_deposit_addrs")
 
             return ExchangeResult(
                 False,
@@ -368,7 +376,7 @@ class Binance(BaseExchange):
             )
 
     async def get_transaction_fee(self, cached=False):
-        debugger.debug(
+        logging.debug(
             DebugMessage.ENTRANCE.format(
                 name=self.name, fn="get_transaction_fee", data=str(locals())
             )
@@ -398,7 +406,7 @@ class Binance(BaseExchange):
         return result
 
     def buy(self, sai_symbol, trade_type, amount=None, price=None):
-        debugger.debug(
+        logging.debug(
             DebugMessage.ENTRANCE.format(name=self.name, fn="buy", data=str(locals()))
         )
 
@@ -449,7 +457,7 @@ class Binance(BaseExchange):
         return result
 
     def sell(self, sai_symbol, trade_type, amount=None, price=None):
-        debugger.debug(
+        logging.debug(
             DebugMessage.ENTRANCE.format(name=self.name, fn="sell", data=str(locals()))
         )
         params = dict()
@@ -494,7 +502,7 @@ class Binance(BaseExchange):
         return result
 
     def withdraw(self, coin, amount, to_address, payment_id=None):
-        debugger.debug(
+        logging.debug(
             DebugMessage.ENTRANCE.format(
                 name=self.name, fn="withdraw", data=str(locals())
             )
@@ -715,7 +723,7 @@ class Binance(BaseExchange):
         return super(Binance, self)._public_api(path, extra)
 
     def _private_api(self, method, path, extra=None):
-        debugger.debug(
+        logging.debug(
             DebugMessage.ENTRANCE.format(name=self.name, fn="_private_api", data=extra)
         )
         if extra is None:

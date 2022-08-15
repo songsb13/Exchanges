@@ -8,7 +8,7 @@ import datetime
 from urllib.parse import urlencode
 
 
-from Exchanges.settings import Consts, SaiOrderStatus, BaseTradeType
+from Exchanges.settings import Consts, SaiOrderStatus, BaseTradeType, SetLogger
 from Exchanges.test_settings import trade_result_mock
 from Exchanges.messages import WarningMessage
 from Exchanges.messages import DebugMessage
@@ -28,7 +28,13 @@ from Exchanges.objects import (
 )
 
 from decimal import Decimal, getcontext, Context
+import logging.config
 
+
+__file__ = "setter.py"
+
+logging_config = SetLogger.get_config_base_process(__file__)
+logging.config.dictConfig(logging_config)
 
 getcontext().prec = 8
 
@@ -43,7 +49,7 @@ class UpbitSubscriber(BaseSubscriber):
         data_store: An object for storing orderbook&candle data, using orderbook&candle queue in this object.
         lock_dic: dictionary for avoid race condition, {orderbook: Lock, candle: Lock}
         """
-        debugger.debug(f"{self.name}::: start")
+        logging.debug(f"{self.name}::: start")
 
         super(UpbitSubscriber, self).__init__()
 
@@ -51,7 +57,7 @@ class UpbitSubscriber(BaseSubscriber):
         self._lock_dic = lock_dic
 
     def subscribe_orderbook(self):
-        debugger.debug(f"{self.name}::: subscribe_orderbook")
+        logging.debug(f"{self.name}::: subscribe_orderbook")
         self._subscribe_dict[Consts.ORDERBOOK] = [
             {
                 "ticket": Tickets.ORDERBOOK,
@@ -65,7 +71,7 @@ class UpbitSubscriber(BaseSubscriber):
         self._send_with_subscribe_set()
 
     def subscribe_candle(self):
-        debugger.debug(f"{self.name}::: subscribe_candle")
+        logging.debug(f"{self.name}::: subscribe_candle")
         self._subscribe_dict[Consts.CANDLE] = [
             {
                 "ticket": Tickets.CANDLE,
@@ -85,12 +91,12 @@ class UpbitSubscriber(BaseSubscriber):
             elif type_ == Consts.TICKER:
                 self.candle_receiver(data)
         except WebSocketConnectionClosedException as ex:
-            debugger.debug("Disconnected orderbook websocket.")
+            logging.debug("Disconnected orderbook websocket.")
             self.stop()
             raise ex
 
         except Exception as ex:
-            debugger.exception("Unexpected error from Websocket thread.")
+            logging.exception("Unexpected error from Websocket thread.")
             self.stop()
             raise ex
 
@@ -129,12 +135,12 @@ class UpbitSubscriber(BaseSubscriber):
             self.data_store.candle_queue[sai_symbol] = store_list
 
     def unsubscribe_orderbook(self, symbol):
-        debugger.debug(f"{self.name}::: unsubscribe_orderbook")
+        logging.debug(f"{self.name}::: unsubscribe_orderbook")
 
         self._remove_contents(symbol, self._orderbook_symbol_set)
 
     def unsubscribe_candle(self, symbol):
-        debugger.debug(f"{self.name}::: unsubscribe_candle")
+        logging.debug(f"{self.name}::: unsubscribe_candle")
 
         self._remove_contents(symbol, self._candle_symbol_set)
 
@@ -142,7 +148,7 @@ class UpbitSubscriber(BaseSubscriber):
         try:
             symbol_set.remove(symbol)
         except Exception as ex:
-            debugger.debug(f"{self.name}::: remove error, [{ex}]")
+            logging.debug(f"{self.name}::: remove error, [{ex}]")
 
     def _send_with_subscribe_set(self):
         data = list()
@@ -168,7 +174,7 @@ class BaseUpbit(BaseExchange):
         return self.name
 
     def get_balance(self, cached=False):
-        debugger.debug(
+        logging.debug(
             DebugMessage.ENTRANCE.format(
                 name=self.name, fn="get_balance", data=str(locals())
             )
@@ -183,7 +189,7 @@ class BaseUpbit(BaseExchange):
         return result
 
     def get_ticker(self, sai_symbol, cached=False):
-        debugger.debug(
+        logging.debug(
             DebugMessage.ENTRANCE.format(
                 name=self.name, fn="get_ticker", data=str(locals())
             )
@@ -203,7 +209,7 @@ class BaseUpbit(BaseExchange):
         return result
 
     def get_available_symbols(self):
-        debugger.debug(
+        logging.debug(
             DebugMessage.ENTRANCE.format(
                 name=self.name, fn="get_available_symbols", data=""
             )
@@ -223,7 +229,7 @@ class BaseUpbit(BaseExchange):
             return result
 
     def get_order_history(self, uuid, additional_parameter):
-        debugger.debug(
+        logging.debug(
             DebugMessage.ENTRANCE.format(
                 name=self.name, fn="get_order_history", data=str(locals())
             )
@@ -255,7 +261,7 @@ class BaseUpbit(BaseExchange):
         return result
 
     def get_deposit_history(self, coin, number):
-        debugger.debug(
+        logging.debug(
             DebugMessage.ENTRANCE.format(
                 name=self.name, fn="get_deposit_history", data=str(locals())
             )
@@ -284,7 +290,7 @@ class BaseUpbit(BaseExchange):
         return ExchangeResult(True, dic_)
 
     async def get_deposit_addrs(self, cached=False, avoid_coin_list=None):
-        debugger.debug(
+        logging.debug(
             DebugMessage.ENTRANCE.format(
                 name=self.name, fn="get_deposit_addrs", data=str(locals())
             )
@@ -330,7 +336,7 @@ class BaseUpbit(BaseExchange):
         return address_result
 
     async def get_transaction_fee(self, cached=False):
-        debugger.debug(
+        logging.debug(
             DebugMessage.ENTRANCE.format(
                 name=self.name, fn="get_transaction_fee", data=str(locals())
             )
@@ -366,7 +372,7 @@ class BaseUpbit(BaseExchange):
         return ExchangeResult(True, fees)
 
     def buy(self, sai_symbol, trade_type, amount=None, price=None):
-        debugger.debug(
+        logging.debug(
             DebugMessage.ENTRANCE.format(name=self.name, fn="buy", data=str(locals()))
         )
 
@@ -418,7 +424,7 @@ class BaseUpbit(BaseExchange):
         return result
 
     def sell(self, sai_symbol, trade_type, amount=None, price=None):
-        debugger.debug(
+        logging.debug(
             DebugMessage.ENTRANCE.format(name=self.name, fn="sell", data=str(locals()))
         )
 
@@ -468,7 +474,7 @@ class BaseUpbit(BaseExchange):
         return result
 
     def withdraw(self, coin, amount, to_address, payment_id=None):
-        debugger.debug(
+        logging.debug(
             DebugMessage.ENTRANCE.format(
                 name=self.name, fn="withdraw", data=str(locals())
             )
@@ -493,7 +499,7 @@ class BaseUpbit(BaseExchange):
         return result
 
     def is_withdrawal_completed(self, coin, uuid):
-        debugger.debug(
+        logging.debug(
             DebugMessage.ENTRANCE.format(
                 name=self.name, fn="is_withdrawal_completed", data=str(locals())
             )
@@ -645,7 +651,7 @@ class BaseUpbit(BaseExchange):
         return super(BaseUpbit, self)._public_api(path, extra)
 
     def _private_api(self, method, path, extra=None):
-        debugger.debug(
+        logging.debug(
             DebugMessage.ENTRANCE.format(name=self.name, fn="_private_api", data=extra)
         )
         payload = {
