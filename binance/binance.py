@@ -36,7 +36,7 @@ class Binance(BaseExchange):
     name = "Binance"
     converter = BinanceConverter
     exchange_subscriber = BinanceSubscriber
-    urls = Urls
+    base_url = "https://api.binance.com"
     error_key = "msg"
 
     def __init__(self, key, secret):
@@ -64,7 +64,7 @@ class Binance(BaseExchange):
         if cached and Consts.BALANCE:
             return self.get_cached_data(Consts.BALANCE)
 
-        result_object = self._private_api(Consts.GET, Urls.ACCOUNT)
+        result_object = self._private_api("GET", "/api/v3/account")
 
         if result_object.success:
             balance = dict()
@@ -87,7 +87,7 @@ class Binance(BaseExchange):
             return self.get_cached_data(Consts.TICKER, sai_symbol)
 
         binance_symbol = self.converter.sai_to_exchange(sai_symbol)
-        result_object = self._public_api(Urls.TICKER, {"symbol": binance_symbol})
+        result_object = self._public_api("/api/v3/ticker/price", {"symbol": binance_symbol})
         if result_object.success:
             ticker = Decimal(result_object.data[0]["trade_price"])
 
@@ -129,7 +129,7 @@ class Binance(BaseExchange):
                 )
             params.update(additional)
 
-        result = self._private_api(Consts.GET, Urls.ORDER, params)
+        result = self._private_api("GET", "/api/v3/order", params)
 
         if result.success:
             cummulative_quote_qty = Decimal(result.data["cummulativeQuoteQty"])
@@ -154,7 +154,7 @@ class Binance(BaseExchange):
         )
         params = dict(coin=coin, status=DepositStatus.SUCCESS)
 
-        result = self._private_api(Consts.GET, Urls.GET_DEPOSIT_HISTORY, params)
+        result = self._private_api("GET", "/sapi/v1/capital/deposit/hisrec", params)
 
         if result.success and result.data:
             latest_data = result.data[:number]
@@ -194,7 +194,7 @@ class Binance(BaseExchange):
             for coin in able_to_trading_coin_set:
                 coin = symbol_customizing(coin)
                 get_deposit_result_object = await self._async_private_api(
-                    Consts.GET, Urls.DEPOSITS, {"coin": coin.lower()}
+                    "GET", "/sapi/v1/capital/deposit/address", {"coin": coin.lower()}
                 )
 
                 if not get_deposit_result_object.success:
@@ -250,7 +250,7 @@ class Binance(BaseExchange):
         if cached:
             self.get_cached_data(Consts.TRANSACTION_FEE)
 
-        result = self._private_api("GET", Urls.GET_ALL_INFORMATION)
+        result = self._private_api("GET", "/sapi/v1/capital/config/getall")
         if result.success:
             fees = dict()
             context = Context(prec=8)
@@ -308,7 +308,7 @@ class Binance(BaseExchange):
         if DEBUG:
             return trade_result_mock(price, amount)
 
-        result = self._private_api(Consts.POST, Urls.ORDER, default_parameters)
+        result = self._private_api("POST", "/api/v3/order", default_parameters)
 
         if result.success:
             raw_dict = {
@@ -353,7 +353,7 @@ class Binance(BaseExchange):
         if DEBUG:
             return trade_result_mock(price, amount)
 
-        result = self._private_api(Consts.POST, Urls.ORDER, params)
+        result = self._private_api("POST", "/api/v3/order", params)
 
         if result.success:
             raw_dict = {
@@ -384,7 +384,7 @@ class Binance(BaseExchange):
             tag_dic = {"addressTag": payment_id}
             params.update(tag_dic)
 
-        result = self._private_api(Consts.POST, Urls.WITHDRAW, params)
+        result = self._private_api("POST", "/sapi/v1/capital/withdraw/apply", params)
 
         if result.success:
             sai_data = {
@@ -396,7 +396,7 @@ class Binance(BaseExchange):
 
     def is_withdrawal_completed(self, coin, id_):
         params = dict(coin=coin, status=WithdrawalStatus.COMPLETED)
-        result = self._private_api(Consts.GET, Urls.GET_WITHDRAWAL_HISTORY, params)
+        result = self._private_api("GET", "/sapi/v1/capital/withdraw/history", params)
 
         if result.success and result.data:
             for history_dict in result.data:
@@ -426,7 +426,7 @@ class Binance(BaseExchange):
 
     def _get_exchange_info(self):
         for _ in range(3):
-            result_object = self._public_api(Urls.EXCHANGE_INFO)
+            result_object = self._public_api("/api/v3/exchangeInfo")
             if result_object.success:
                 self.exchange_info = result_object.data
                 break
@@ -436,7 +436,7 @@ class Binance(BaseExchange):
 
     def _get_all_asset_details(self):
         for _ in range(3):
-            result_object = self._private_api("GET", Urls.GET_ALL_INFORMATION)
+            result_object = self._private_api("GET", "/sapi/v1/capital/config/getall")
             if result_object.success:
                 result = dict()
                 for each in result_object.data:
@@ -598,18 +598,18 @@ class Binance(BaseExchange):
         sig = query.pop("signature")
         query = "{}&signature={}".format(urlencode(sorted(extra.items())), sig)
 
-        if method == Consts.GET:
+        if method == "GET":
             rq = requests.get(
-                Urls.BASE + path, params=query, headers={"X-MBX-APIKEY": self._key}
+                self.base_url + path, params=query, headers={"X-MBX-APIKEY": self._key}
             )
         else:
-            if path == Urls.WITHDRAW:
+            if "/withdraw/apply/" in path:
                 rq = requests.post(
-                    Urls.BASE + path, params=query, headers={"X-MBX-APIKEY": self._key}
+                    self.base_url + path, params=query, headers={"X-MBX-APIKEY": self._key}
                 )
             else:
                 rq = requests.post(
-                    Urls.BASE + path, data=query, headers={"X-MBX-APIKEY": self._key}
+                    self.base_url + path, data=query, headers={"X-MBX-APIKEY": self._key}
                 )
 
         return self._get_result(rq, path, extra, fn="_private_api")
@@ -623,13 +623,13 @@ class Binance(BaseExchange):
         ) as session:
             query = self._sign_generator(extra)
 
-            if method == Consts.GET:
+            if method == "GET":
                 sig = query.pop("signature")
                 query = "{}&signature={}".format(urlencode(sorted(extra.items())), sig)
-                rq = await session.get(Urls.BASE + path + "?{}".format(query))
+                rq = await session.get(self.base_url + path + "?{}".format(query))
 
             else:
-                rq = await session.post(Urls.BASE + path, data=query)
+                rq = await session.post(self.base_url + path, data=query)
 
             result_text = await rq.text()
             return self._get_result(result_text, path, extra, fn="_async_private_api")
