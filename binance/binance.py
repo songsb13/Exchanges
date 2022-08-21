@@ -192,7 +192,7 @@ class Binance(BaseExchange):
 
     def setup(self):
         self.exchange_info = self._get_exchange_info().data
-        self.all_details = self._get_all_asset_details()
+        self.all_details = self._get_all_asset_details().data
         self._symbol_details_dict = self._set_symbol_details()
         self.time_difference = self._get_servertime() - int(time.time() * 1000)
 
