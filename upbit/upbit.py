@@ -5,10 +5,11 @@ import aiohttp
 import requests
 import datetime
 
+from websocket import WebSocketConnectionClosedException
 from urllib.parse import urlencode
 
 
-from Exchanges.settings import Consts, SaiOrderStatus, BaseTradeType, SetLogger
+from Exchanges.settings import Consts, SaiOrderStatus, BaseTradeType, SetLogger, DEBUG
 from Exchanges.test_settings import trade_result_mock
 from Exchanges.messages import WarningMessage
 from Exchanges.messages import DebugMessage
@@ -31,7 +32,7 @@ from decimal import Decimal, getcontext, Context
 import logging.config
 
 
-__file__ = "setter.py"
+__file__ = "upbit.py"
 
 logging_config = SetLogger.get_config_base_process(__file__)
 logging.config.dictConfig(logging_config)
@@ -546,7 +547,7 @@ class BaseUpbit(BaseExchange):
                 error_message = WarningMessage.MESSAGE_NOT_FOUND.format(name=self.name)
 
             result_object.message = error_message
-
+            self.base_logger.debug(error_message)
         return result_object
 
     def _get_step_size(self, symbol, krw_price):

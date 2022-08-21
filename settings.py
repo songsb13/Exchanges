@@ -6,6 +6,7 @@ import os
 import datetime
 import copy
 
+DEBUG = True if "pydevd" in sys.modules else False
 ROOT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 BASE_LOGGING_CONFIG = {
     "version": 1,

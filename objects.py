@@ -100,6 +100,7 @@ class BaseSubscriber(object):
     base_url = str()
     name = "Base Subscriber"
     ping_time_per_second = 120
+    base_logger = None
 
     def __init__(self):
         super(BaseSubscriber, self).__init__()
@@ -125,10 +126,10 @@ class BaseSubscriber(object):
         )
         self._websocket_app.start()
         for _ in range(60):
-            debugger.debug(f"Start to connect {self.name} websocket")
+            self.base_logger.debug(f"Start to connect {self.name} websocket")
             time.sleep(1)
             if self._websocket_app.sock and self._websocket_app.keep_running:
-                debugger.debug(f"Created connection to {self.name} websocket")
+                self.base_logger.debug(f"Created connection to {self.name} websocket")
                 break
 
     def on_message(self, *args):
@@ -190,6 +191,7 @@ class BaseExchange(object):
     exchange_subscriber = None
     base_url = None
     error_key = None
+    base_logger = None
 
     def __init__(self):
         self._lock_dic = {
@@ -223,7 +225,7 @@ class BaseExchange(object):
                 return self._cached_data[key]["data"]
 
     def set_subscriber(self):
-        debugger.debug(
+        self.base_logger.debug(
             DebugMessage.ENTRANCE.format(
                 name=self.name, fn="set_subscriber", data=str(locals())
             )
@@ -232,7 +234,7 @@ class BaseExchange(object):
         self._subscriber.start_websocket_thread()
 
     def set_subscribe_candle(self, sai_symbol_list):
-        debugger.debug(
+        self.base_logger.debug(
             DebugMessage.ENTRANCE.format(
                 name=self.name, fn="set_subscribe_candle", data=str(locals())
             )
@@ -245,7 +247,7 @@ class BaseExchange(object):
         self._subscriber.subscribe_candle()
 
     def set_subscribe_orderbook(self, sai_symbol_list):
-        debugger.debug(
+        self.base_logger.debug(
             DebugMessage.ENTRANCE.format(
                 name=self.name, fn="set_subscribe_orderbook", data=str(locals())
             )
@@ -259,7 +261,7 @@ class BaseExchange(object):
 
     def get_orderbook(self):
         with self._lock_dic["orderbook"]:
-            debugger.debug(
+            self.base_logger.debug(
                 DebugMessage.ENTRANCE.format(
                     name=self.name, fn="get_orderbook", data=str(locals())
                 )
@@ -275,7 +277,7 @@ class BaseExchange(object):
             return ExchangeResult(True, orderbooks)
 
     def get_candle(self, sai_symbol):
-        debugger.debug(
+        self.base_logger.debug(
             DebugMessage.ENTRANCE.format(
                 name=self.name, fn="get_candle", data=str(locals())
             )
@@ -331,7 +333,7 @@ class BaseExchange(object):
             return ExchangeResult(success=True, data=average_orderbook)
 
     def base_to_coin(self, coin_amount, from_exchange_trading_fee):
-        debugger.debug(
+        self.base_logger.debug(
             DebugMessage.ENTRANCE.format(
                 name=self.name, fn="base_to_alt", data=str(locals())
             )
@@ -350,7 +352,7 @@ class BaseExchange(object):
             else:
                 result = json.loads(response)
         except:
-            debugger.debug(DebugMessage.FATAL.format(name=self.name, fn=fn))
+            self.base_logger.debug(DebugMessage.FATAL.format(name=self.name, fn=fn))
             return ExchangeResult(
                 False,
                 message=WarningMessage.EXCEPTION_RAISED.format(name=self.name),
