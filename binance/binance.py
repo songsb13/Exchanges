@@ -184,15 +184,17 @@ class Binance(BaseExchange):
 
         self.exchange_info = None
         self.all_details = None
-        self._step_sizes = None
-        self.time_difference = self._get_servertime() - int(time.time() * 1000)
-        print(self.time_difference)
-        self._get_exchange_info()
-        self._get_all_asset_details()
-        self._symbol_details_dict = self._set_symbol_details()
+        self._symbol_details_dict = None
+        self.time_difference = 0
 
     def __str__(self):
         return self.name
+
+    def setup(self):
+        self.exchange_info = self._get_exchange_info().data
+        self.all_details = self._get_all_asset_details()
+        self._symbol_details_dict = self._set_symbol_details()
+        self.time_difference = self._get_servertime() - int(time.time() * 1000)
 
     def get_balance(self, cached=False):
         self.base_logger.debug(
@@ -568,7 +570,6 @@ class Binance(BaseExchange):
         for _ in range(3):
             result_object = self._public_api("/api/v3/exchangeInfo")
             if result_object.success:
-                self.exchange_info = result_object.data
                 break
 
             time.sleep(result_object.wait_time)
@@ -584,9 +585,8 @@ class Binance(BaseExchange):
 
                     if coin:
                         result.update({coin: each})
-                self.all_details = result
-                break
-
+                result_object.data = result
+                return result_object
             time.sleep(3)
         else:
             return result_object

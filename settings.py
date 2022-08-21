@@ -4,6 +4,7 @@ setting of whole exchanges
 
 import os
 import datetime
+import sys
 import copy
 
 DEBUG = True if "pydevd" in sys.modules else False
