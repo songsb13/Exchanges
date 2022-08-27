@@ -191,10 +191,11 @@ class Binance(BaseExchange):
         return self.name
 
     def setup(self):
+        self.time_difference = self._get_servertime() - int(time.time() * 1000)
+
         self.exchange_info = self._get_exchange_info().data
         self.all_details = self._get_all_asset_details().data
         self._symbol_details_dict = self._set_symbol_details()
-        self.time_difference = self._get_servertime() - int(time.time() * 1000)
 
     def get_balance(self, cached=False):
         self.base_logger.debug(
