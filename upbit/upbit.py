@@ -44,6 +44,7 @@ class UpbitSubscriber(BaseSubscriber):
     base_url = "https://api-manager.upbit.com/api/v1"
     name = "Upbit Subscriber"
     converter = UpbitConverter
+    base_logger = logging
 
     def __init__(self, data_store, lock_dic):
         """
@@ -165,6 +166,7 @@ class BaseUpbit(BaseExchange):
     exchange_subscriber = UpbitSubscriber
     base_url = "https://api.upbit.com/v1"
     error_key = "error"
+    base_logger = logging
 
     def __init__(self, key, secret):
         super(BaseUpbit, self).__init__()
@@ -547,7 +549,7 @@ class BaseUpbit(BaseExchange):
                 error_message = WarningMessage.MESSAGE_NOT_FOUND.format(name=self.name)
 
             result_object.message = error_message
-            self.base_logger.debug(error_message)
+            logging.debug(error_message)
         return result_object
 
     def _get_step_size(self, symbol, krw_price):
